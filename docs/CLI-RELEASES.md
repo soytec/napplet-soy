@@ -3,6 +3,29 @@
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
 The current published version is **0.25.3**.
 
+**0.26.0 prepared 2026-10-11 (Europe/Vienna); publication pending, no host deployment:**
+
+Includes [PR #9](https://github.com/zeSchlausKwab/napplet-soy/pull/9) with bounded
+NIP-65 outbox delivery. `soyli publish` reads the creator's verified relay list and
+copies the signed release to up to eight additional write relays. Primary success
+is saved before optional delivery; the optional phase has an eight-second budget
+and four concurrent destinations. Failed optional copies remain visible in status
+without undoing a successful primary publication.
+
+Attempted outbox destinations are retained for later unpublish/delete, including
+partial and retired destinations. Cleanup inventories all retained publication
+jobs and refuses silent truncation. `soyli migrate --resume` retries distribution
+of its saved signed conversion without changing the napplet identity or signing
+replacement events. Required-delivery cancellation retains an actionable cause.
+See [relay delivery](PUBLISHING.md#your-outbox-relays-nip-65) and [lifecycle](LIFECYCLE.md).
+
+Upgrade with `soyli update` and restart previews. Existing project relay settings,
+frozen jobs and NIP-5D/NAP pins remain authoritative. No napplet migration or
+republish is required. CLI changes are available through this release; the browser
+cleanup improvements and website installer pin need a separate host deployment.
+Unknown third-party copies cannot be recalled automatically. Forwarding the
+creator's kind-10002 relay-list event itself is not part of this release.
+
 **0.25.3 published 2026-10-09 (Europe/Vienna); no host deployment:**
 [GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.25.3),
 source `4fa807dd999b7b8eb5050a1e0dc173bd16403628`.

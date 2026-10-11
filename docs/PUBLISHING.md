@@ -124,7 +124,7 @@ Override destinations with `--relay`, `--blossom`, `--grasp`, `--site` and repea
 
 ### Your outbox relays (NIP-65)
 
-Current source (not yet released) also copies each release to the creator's own
+soyLI 0.26.0 also copies each release to the creator's own
 NIP-65 write relays, so outbox-model clients can find it there. After the primary
 relay succeeds, `soyli publish` reads the newest verified kind 10002 relay
 list for the publishing key from the primary relay, the mirrors and, on the public
