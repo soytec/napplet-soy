@@ -95,6 +95,19 @@ Run `soyli publish` again to repair copies of the saved release; unchanged sourc
 reuses the existing signed events. Failed primary publication still uses
 `publish --resume`.
 
+Best-effort copies to the creator's NIP-65 write relays are reported separately as
+`outbox` in the same results and journal: per-relay `copies`, `errors` with the
+same diagnostic shape, and `lookupError` (`OUTBOX_LOOKUP`) when no relay list was
+read. Lookup diagnostics keep each failed lookup relay as a target and cause.
+Terminal status/publish output and the workshop show `Optional outbox copy failed`
+warnings and lookup failures; none of them fail the publication. Real CLI tests
+cover terminal and JSON output and redaction. Canonical relay URLs exceeding
+256 characters are skipped before writes, with a terminal explanation. The total
+optional network phase is capped at eight seconds; `OPTIONAL_COPY_TIMEOUT` or
+`OPTIONAL_COPY_CANCELLED` leaves primary completion intact and identifies every
+unfinished destination for retry. Attempted destinations remain in the cumulative
+`outboxHistory` even when the next lookup selects a different list.
+
 For example, a failed project dependency installation can report:
 
 ```text

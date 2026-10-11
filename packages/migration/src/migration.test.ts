@@ -4,6 +4,8 @@ import { aggregateHash, encodeAddress, sha256, type SignedEvent } from '../../pr
 import { validateManifest } from '../../protocol/src/manifest';
 import {
   executeMigration,
+  copyMigratedManifest,
+  migrationReceiptSchema,
   isManifestMigration,
   migrationTemplate,
   migrationToken,
@@ -185,4 +187,45 @@ test('migration refuses deleted publications, unsafe downloads and snapshot iden
     planMigration(ref, { primary: 'wss://relay.example', network: 'public', io: f.io }),
   ).rejects.toMatchObject({ code: 'MIGRATION_ARTIFACT' });
   expect(f.metrics()).toEqual({ downloads: 0, signs: 0 });
+});
+
+test('manifest-only migration copies the existing signature to current outboxes and retains earlier attempted destinations', async () => {
+  const f = await fixture();
+  const ref = encodeAddress({ kind: 35129, pubkey: author, identifier: 'game' });
+  const plan = await planMigration(ref, {
+    primary: 'wss://relay.example',
+    network: 'public',
+    io: f.io,
+  });
+  const receipt: MigrationReceipt = { plan, accepted: [] };
+  await executeMigration(receipt, { author, signer: f.signer, io: f.io, save: async () => {} });
+  const originalSigns = f.metrics().signs;
+  let destination = 'wss://one.example/';
+  const writes: { url: string; id: string }[] = [];
+  const options = {
+    io: () => ({
+      read: async () => [
+        finalizeEvent(
+          { kind: 10002, content: '', created_at: 100, tags: [['r', destination, 'write']] },
+          key,
+        ),
+      ],
+      ensure: async (url: string, event: SignedEvent) => {
+        writes.push({ url, id: event.id });
+      },
+      close() {},
+    }),
+    save: async (value: MigrationReceipt) => {
+      migrationReceiptSchema.parse(value);
+    },
+  };
+  await copyMigratedManifest(receipt, options);
+  destination = 'wss://two.example/';
+  await copyMigratedManifest(receipt, options);
+  expect(f.metrics().signs).toBe(originalSigns);
+  expect(writes).toEqual([
+    { url: 'wss://one.example/', id: receipt.signed!.id },
+    { url: 'wss://two.example/', id: receipt.signed!.id },
+  ]);
+  expect(receipt.outboxHistory).toEqual(['wss://one.example/', 'wss://two.example/']);
 });

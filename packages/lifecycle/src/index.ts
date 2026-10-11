@@ -133,10 +133,12 @@ export async function planLifecycle(input: {
   const manifest = verifiedEvent(input.manifest),
     key = nappletKey(manifest),
     author = manifest.pubkey;
-  const relays = unique(input.relays.map((r) => lifecycleEndpoint(r, 'relay', input.local))).slice(
-    0,
-    8,
-  );
+  const relays = unique(input.relays.map((r) => lifecycleEndpoint(r, 'relay', input.local)));
+  if (relays.length > 256)
+    throw new DiagnosticError(
+      'LIFECYCLE_RELAYS',
+      'The known publication destinations exceed the 256-relay inventory limit. No destinations were silently dropped.',
+    );
   if (!relays.length) throw new Error('Choose at least one relay.');
   const warnings: string[] = [...(input.history?.warnings ?? [])];
   let complete = input.history?.complete ?? true;
@@ -908,7 +910,7 @@ const receiptSchema = z.object({
       .optional(),
     metadata: z.array(eventSchema).max(160),
     sharedMetadata: z.array(text).max(1000).default([]),
-    relays: z.array(text).min(1).max(8),
+    relays: z.array(text).min(1).max(256),
     cutoff: z.number().int().nonnegative(),
     complete: z.boolean(),
     warnings: z.array(text).max(1000),
@@ -937,5 +939,5 @@ const receiptSchema = z.object({
         message: z.string().max(24000).optional(),
       }),
     )
-    .max(2200),
+    .max(2400),
 });

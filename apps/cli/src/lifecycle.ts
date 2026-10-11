@@ -1,3 +1,4 @@
+import { publicationDestinations } from '../../../packages/nostr/src/publication-copies';
 import { join, resolve } from 'node:path';
 import { Journal, readJson, atomicJson } from '../../../packages/publish/src/journal';
 import { Accounts, captureAccount } from '../../../packages/identity/src/accounts';
@@ -115,7 +116,7 @@ export async function lifecycleCommand(options: {
           retainedRepositories: jobs.flatMap((job) =>
             job.repository ? [job.repository.address] : [],
           ),
-          relays: [last.plan.targets.relay, ...last.plan.targets.mirrors],
+          relays: publicationDestinations(jobs),
           local: options.network === 'local',
           io: transport,
         });

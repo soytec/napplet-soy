@@ -11,6 +11,11 @@ import { PublishError, targetsSchema, intentSchema } from './config';
 import { MAX_SOURCE_FILES, MAX_PUBLICATION_JOURNAL_BYTES } from './limits';
 
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
+import {
+  copyErrorSchema as copyError,
+  outboxSchema,
+  copyHistorySchema,
+} from '../../nostr/src/publication-copies';
 const commit = z.string().regex(/^[a-f0-9]{40}$/);
 const planSchema = z
   .object({
@@ -134,29 +139,11 @@ export const jobSchema = z
       })
       .strict(),
     mirrors: z.record(z.string(), z.boolean()),
-    mirrorErrors: z
-      .record(
-        z.string(),
-        z
-          .object({
-            eventId: hash,
-            eventKind: z.number().int().nonnegative(),
-            attemptedAt: z.number().int().nonnegative(),
-            diagnostic: z
-              .object({
-                code: z.string().max(80),
-                message: z.string().max(2000),
-                operation: z.string().max(160),
-                recovery: z.string().max(2000),
-                details: z.array(z.string().max(2000)).max(8).optional(),
-                stage: z.string().max(40).optional(),
-                retryable: z.boolean(),
-              })
-              .strict(),
-          })
-          .strict(),
-      )
-      .optional(),
+    mirrorErrors: z.record(z.string(), copyError).optional(),
+    // Recomputed on each publish run from the creator's current NIP-65 relay list.
+    outbox: outboxSchema.optional(),
+    // Cumulative attempted destinations, including partial failures and retired write relays.
+    outboxHistory: copyHistorySchema.optional(),
     status: z.enum(['prepared', 'announced_pending_index']),
     website: z
       .object({

@@ -122,6 +122,53 @@ publications. See the dated verification records in [deployment](DEPLOYMENT.md).
 
 Override destinations with `--relay`, `--blossom`, `--grasp`, `--site` and repeated `--mirror`. Alternatively put `relay`, `blossom`, `grasp`, `site` and `mirrors` in `.napplet-space/project.json` under `project.publish`; an empty `mirrors` array disables mirrors. Flags take precedence over project settings and defaults. Persist custom defaults in the project if subsequent ordinary publishes should use them without flags. `--resume` uses the journal's original destinations; conflicting overrides are rejected.
 
+### Your outbox relays (NIP-65)
+
+Current source (not yet released) also copies each release to the creator's own
+NIP-65 write relays, so outbox-model clients can find it there. After the primary
+relay succeeds, `soyli publish` reads the newest verified kind 10002 relay
+list for the publishing key from the primary relay, the mirrors and, on the public
+network, the shared discovery relays plus the relay-list indexer
+`wss://purplepag.es` (read only, never a publication target). Relays marked `write`
+or unmarked receive the same signed current manifest and, when present, descriptor
+and explicit snapshot, to up to eight relays not already covered by the primary or mirrors. Listed relays
+must satisfy the same endpoint policy as other destinations: public WSS on the
+public network, literal-loopback WS with `--network local`; others are counted as
+skipped. The normalized URL must fit the persisted 256-character limit, including
+percent encoding; overlong URLs are skipped before any write.
+
+The primary completion receipt is saved and the pending pointer cleared before
+optional delivery. Lookup plus mirror/outbox delivery has one eight-second network
+budget, with at most four destinations copying concurrently. Each destination
+keeps descriptor/snapshot/current order. Expiry cancels subscriptions and queued
+sends; unfinished destinations get retry diagnostics. Local receipt writes and
+website verification are outside that network budget.
+
+These copies are best effort, like mirrors. Lookup or copy failures never undo the
+primary publication. The result records `outbox.source` (`nip65`, `none` or
+`unavailable`), the selected relays, per-relay `copies`, `errors` with diagnostics
+and a `lookupError` when the list could not be read. Each run reads the current
+relay list, so rerunning `soyli publish` with unchanged source retries failed
+copies and reaches newly listed relays with the same signed events. The relay
+list is not part of the frozen destinations and does not affect `--resume`
+validation or the returned `naddr` hints.
+
+Attempted outbox destinations are persisted before network writes and accumulated
+as `outboxHistory`, including partial failures and relays removed from later lists.
+Each release retains up to 128 distinct outbox destinations; new destinations are
+skipped explicitly when that history fills, rather than forgetting earlier copies.
+CLI unpublish/delete includes these destinations across retained release journals,
+as well as every historical primary and mirror. The lifecycle inventory supports
+up to 256 known relays and refuses a larger inventory without silently truncating it.
+The browser also queries the author's current NIP-65 write list and retains
+previously inspected destinations; a failed lookup marks its inventory incomplete.
+Unknown third-party copies and old destinations absent from both a journal and
+the current relay list cannot be recalled automatically.
+
+`soyli migrate` uses the same bounded outbox delivery after primary migration,
+copying its existing signed converted manifest. It does not rebuild or resign the
+napplet. `migrate --resume` retries these copies using its saved receipt.
+
 Public endpoints require HTTPS/WSS without credentials, query strings or fragments; service origins have no path. Literal private IPs and localhost/local names are rejected. Local service endpoints require literal-loopback HTTP/WS. The website link may use localhost. These CLI endpoints are operator/creator configuration, not URLs taken from untrusted gallery metadata; DNS pinning against rebinding is implemented in the gallery downloader, not this publisher.
 
 The user's selected account determines the author of the next publication. A saved project `creator` is a public build hint; no credentials are selected from it. Sharing updates the ignored binding and backend context to the selected author before building. The operation captures that account ID before asynchronous work and never resets the global selection if another terminal changes it.

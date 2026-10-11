@@ -569,3 +569,15 @@ test('deletion retains a linked repository whose identifier equals the napplet, 
   });
   expect(journalPlan.repositories.every((repo) => !!repo.retained)).toBe(true);
 });
+
+test('lifecycle refuses an excessive known relay inventory instead of silently truncating destinations', async () => {
+  const f = await fixture();
+  await expect(
+    planLifecycle({
+      manifest: f.current,
+      io: f.io,
+      relays: Array.from({ length: 257 }, (_, i) => `wss://relay${i}.example`),
+    }),
+  ).rejects.toMatchObject({ code: 'LIFECYCLE_RELAYS' });
+  expect(f.writes).toHaveLength(0);
+});

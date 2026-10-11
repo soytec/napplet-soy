@@ -145,3 +145,15 @@ journal for previously signed releases. The review inventory labels these
 repositories as retained. A former soyLI-hosted copy at a different address can
 still be included for deletion unless another napplet uses it. This cleanup
 metadata is not required for discovery or playback.
+
+### Creator outbox copies
+
+CLI inventories include every retained job's primary, mirrors and cumulative
+attempted NIP-65 outbox destinations. Failed attempts can have stored part of a
+release and remain in the inventory. Changing the relay list during an unchanged
+retry does not erase older destinations. Up to 256 known relays can be reviewed;
+a larger inventory is refused explicitly, never silently truncated to eight.
+The browser adds the author's current NIP-65 write relays and relays from its
+previous saved inventory. A relay-list lookup failure marks the inventory incomplete.
+This still cannot identify unknown third-party copies or old destinations that
+were never retained locally and no longer appear in the author's relay list.

@@ -1,7 +1,7 @@
 import { DiagnosticError } from '../../diagnostics/src';
 import { RelayPool } from 'applesauce-relay';
 import { matchFilter, type Filter } from 'nostr-tools';
-import type { Subscription } from 'rxjs';
+import { NEVER, firstValueFrom, fromEvent, takeUntil, timeout, type Subscription } from 'rxjs';
 import { verifiedEvent, type SignedEvent } from '../../protocol/src';
 import { PublishError } from './config';
 
@@ -86,9 +86,19 @@ export class PublicationRelays {
   }
   async ensure(url: string, event: SignedEvent) {
     if ((await this.read(url, { ids: [event.id] })).some((e) => e.id === event.id)) return;
-    const result = await this.pool
-      .relay(url)
-      .publish(event, { timeout: 8000, retries: false, reconnect: false });
+    this.signal?.throwIfAborted();
+    // Subscribe directly so cancellation tears down queued sends and acknowledgement waits.
+    const result = await firstValueFrom(
+      this.pool
+        .relay(url)
+        .event(event)
+        .pipe(timeout(8000), takeUntil(this.signal ? fromEvent(this.signal, 'abort') : NEVER)),
+    ).catch((cause) => {
+      if (this.signal?.aborted)
+        throw new PublishError('PUBLISH_CANCELLED', 'Publication cancelled.', 'relay', true, cause);
+      throw cause;
+    });
+    this.signal?.throwIfAborted();
     if (!result.ok)
       throw new PublishError(
         'RELAY_REFUSED',

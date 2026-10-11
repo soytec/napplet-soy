@@ -1,5 +1,6 @@
 import type { WorkshopState } from '../workshop';
 import { formatDiagnostic } from '../../../../packages/diagnostics/src';
+import { outboxReport } from '../../../../packages/publish/src/outbox-report';
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, text = '', className = '') => {
   const node = document.createElement(tag);
@@ -339,6 +340,10 @@ export function setupWorkshop(
             ),
           );
         }
+        for (const line of outboxReport(state.publication.outbox))
+          published.append(
+            el('pre', line, line.includes('\nOperation: ') ? 'workshop-error' : 'muted'),
+          );
         if (state.pendingJob)
           published.append(
             action('Resume saved release', (button) =>

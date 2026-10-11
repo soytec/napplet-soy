@@ -1,3 +1,11 @@
+import { publicationDestinations } from '../../nostr/src/publication-copies';
+import {
+  planLifecycle,
+  createLifecycleReceipt,
+  executeLifecycle,
+  lifecycleFinished,
+  parseReceipt,
+} from '../../lifecycle/src';
 import { migrationTemplate } from '../../migration/src';
 import { descriptorVideos } from '../../protocol/src/preview-video';
 import { importAsset, readAssets, validateAssets } from '../../assets/src';
@@ -15,7 +23,8 @@ import {
   verifiedEvent,
   type SignedEvent,
 } from '../../protocol/src';
-import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
+import { generateSecretKey, getPublicKey, matchFilter, nip19 } from 'nostr-tools';
+import { DiagnosticError } from '../../diagnostics/src';
 import { validateManifest } from '../../protocol/src/manifest';
 import { sourceGit, sourceUrls } from '../../grasp/src/client';
 import {
@@ -1206,6 +1215,148 @@ test('a repeated publication repairs missing relay events/blobs and retries fail
   }
 });
 
+async function relayList(f: Awaited<ReturnType<typeof fixture>>, tags: string[][]) {
+  const signer = await f.accounts.signer({ kinds: [10002] });
+  const event = verifiedEvent(
+    await signer.signEvent({
+      kind: 10002,
+      created_at: Math.floor(Date.now() / 1000) - 60,
+      content: '',
+      tags,
+    }),
+  );
+  await signer.close();
+  return event;
+}
+function cliStatus(project: string, json: boolean) {
+  const child = Bun.spawn(
+    [
+      ...(process.env.SPACE_TEST_CLI
+        ? [process.env.SPACE_TEST_CLI]
+        : [process.execPath, new URL('../../../apps/cli/src/index.ts', import.meta.url).pathname]),
+      'status',
+      '--project',
+      project,
+      '--network',
+      'local',
+      ...(json ? ['--json'] : []),
+    ],
+    { stdout: 'pipe', stderr: 'pipe', stdin: 'ignore' },
+  );
+  return Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+}
+test('a publication is copied to the creator NIP-65 write relays on a best-effort basis', async () => {
+  const f = await fixture();
+  try {
+    const mirror = 'ws://127.0.0.1:4567/';
+    const write = 'ws://127.0.0.1:5001/';
+    const both = 'ws://127.0.0.1:5003/';
+    f.options.targets = { mirrors: [mirror] };
+    const primary = 'ws://127.0.0.1:19347/relay';
+    f.record(
+      primary,
+      await relayList(f, [
+        ['r', write, 'write'],
+        ['r', 'ws://127.0.0.1:5002/', 'read'],
+        ['r', both],
+        ['r', mirror],
+        // A public relay is outside the local publication policy.
+        ['r', 'wss://relay.example.com/', 'write'],
+      ]),
+    );
+    f.deps.relays!.read = async (url, filter) =>
+      (f.events.get(url) ?? []).filter((e) => matchFilter(filter, e));
+    const ensure = f.deps.relays!.ensure;
+    f.deps.relays!.ensure = async (url, event) => {
+      if (url === both && event.kind === 35129)
+        throw new Error('outbox refused\nAuthorization: Bearer fixture-outbox-token');
+      await ensure(url, event);
+    };
+    const first = await publishProject(f.options);
+    if (first.status === 'dry_run') throw new Error('Expected a publication');
+    const job = await f.load();
+    expect(job.receipts.current).toBe(true);
+    expect(job.outbox).toMatchObject({
+      source: 'nip65',
+      relays: [write, both],
+      ignored: 1,
+      copies: { [write]: true, [both]: false },
+      errors: {
+        [both]: {
+          eventId: job.current!.id,
+          eventKind: 35129,
+          diagnostic: { operation: 'publish to creator outbox relay', retryable: true },
+        },
+      },
+    });
+    expect(job.outbox!.errors[both].diagnostic.message).toContain('outbox refused');
+    expect(JSON.stringify(job)).not.toContain('fixture-outbox-token');
+    expect(f.events.get(write)!.map((e) => e.id)).toEqual([job.snapshot!.id, job.current!.id]);
+    expect(f.events.get('ws://127.0.0.1:5002/')).toBeUndefined();
+    expect(first.outbox).toEqual(job.outbox!);
+    for (const json of [false, true]) {
+      const [code, output, error] = await cliStatus(f.project, json);
+      expect(code, output + error).toBe(0);
+      expect(output).not.toContain('fixture-outbox-token');
+      if (json) expect(JSON.parse(output).outbox.copies[write]).toBe(true);
+      else {
+        expect(output).toContain(`Your outbox relays (NIP-65, best effort): 1/2 copied · ${write}`);
+        expect(output).toContain(`Optional outbox copy failed: ${both}`);
+        expect(output).toContain('outbox refused');
+      }
+    }
+    f.deps.relays!.ensure = ensure;
+    const repaired = await publishProject(f.options);
+    expect(repaired).toMatchObject({
+      currentId: job.current!.id,
+      outbox: { copies: { [write]: true, [both]: true }, errors: {} },
+    });
+    expect(f.events.get(both)).toHaveLength(2);
+  } finally {
+    await f.close();
+  }
+});
+test('outbox relay-list lookup failures and missing lists never block the primary publication', async () => {
+  const f = await fixture();
+  try {
+    f.deps.relays!.read = async (url, filter) => {
+      if (filter.kinds?.includes(10002))
+        throw new DiagnosticError('RELAY_READ', 'Publication relay query failed.', {
+          target: url,
+          cause: new Error('relay list offline token=fixture-lookup-secret'),
+        });
+      return [];
+    };
+    await publishProject(f.options);
+    const job = await f.load();
+    expect(job.receipts.current).toBe(true);
+    expect(job.outbox).toMatchObject({
+      source: 'unavailable',
+      relays: [],
+      lookupError: { code: 'OUTBOX_LOOKUP', operation: 'look up creator outbox relays' },
+    });
+    expect(job.outbox!.lookupError!.details!.join('\n')).toContain('relay list offline');
+    expect(job.outbox!.lookupError!.details!.join('\n')).toContain(
+      'Target: ws://127.0.0.1:19347/relay',
+    );
+    const [code, output, error] = await cliStatus(f.project, false);
+    expect(code, output + error).toBe(0);
+    expect(output).toContain('the relay list could not be read');
+    expect(output).toContain('OUTBOX_LOOKUP');
+    expect(output).not.toContain('fixture-lookup-secret');
+    f.deps.relays!.read = async () => [];
+    const unchanged = await publishProject(f.options);
+    expect(unchanged).toMatchObject({ outbox: { source: 'none', relays: [] } });
+    expect((unchanged as { outbox: { lookupError?: unknown } }).outbox.lookupError).toBeUndefined();
+  } finally {
+    await f.close();
+  }
+});
+
 test('public and local endpoints cannot be mixed and saved targets cannot change during resume', async () => {
   const f = await fixture();
   try {
@@ -1466,6 +1617,156 @@ test('resuming a frozen named-only release cannot add a snapshot and old paired 
     const resumed = await f.load();
     expect(resumed.id).toBe(old.id);
     await validateRelease(resumed.current, resumed.snapshot);
+  } finally {
+    await f.close();
+  }
+});
+
+test('overlong canonical outbox destinations are skipped before network writes and CLI status stays completed', async () => {
+  const f = await fixture();
+  try {
+    const long = 'ws://127.0.0.1/' + 'a'.repeat(300),
+      expanded = 'ws://127.0.0.1/' + '界'.repeat(30);
+    const primary = 'ws://127.0.0.1:19347/relay';
+    f.record(
+      primary,
+      await relayList(f, [
+        ['r', long],
+        ['r', expanded],
+      ]),
+    );
+    f.deps.relays!.read = async (url, filter) =>
+      (f.events.get(url) ?? []).filter((e) => matchFilter(filter, e));
+    await publishProject(f.options);
+    const job = await f.load();
+    expect(job.status).toBe('announced_pending_index');
+    expect((await f.journal.index()).active).toBeNull();
+    expect(job.outbox).toMatchObject({ ignored: 2, relays: [] });
+    expect(f.events.has(long)).toBe(false);
+    expect(f.events.has(new URL(expanded).href)).toBe(false);
+    const [code, output, error] = await cliStatus(f.project, false);
+    expect(code, output + error).toBe(0);
+    expect(output).toContain('Skipped 2 listed write relays');
+    expect(output).toContain('256-character canonical URL bound');
+  } finally {
+    await f.close();
+  }
+});
+
+test('completed primary is durable before optional lookup and lifecycle removes retired and partial copies beyond eight relays', async () => {
+  const f = await fixture();
+  try {
+    const primary = 'ws://127.0.0.1:19347/relay';
+    const mirrors = Array.from({ length: 7 }, (_, i) => `ws://127.0.0.1:${5000 + i}/`);
+    const outbox = Array.from({ length: 8 }, (_, i) => `ws://127.0.0.1:${6000 + i}/`);
+    f.options.targets = { mirrors };
+    f.record(
+      primary,
+      await relayList(
+        f,
+        outbox.map((url) => ['r', url]),
+      ),
+    );
+    f.deps.relays!.read = async (url, filter) => {
+      if (filter.kinds?.includes(10002)) {
+        const job = await f.load();
+        expect(job.status).toBe('announced_pending_index');
+        expect((await f.journal.index()).active).toBeNull();
+      }
+      return (f.events.get(url) ?? []).filter((e) => matchFilter(filter, e));
+    };
+    const ensure = f.deps.relays!.ensure;
+    f.deps.relays!.ensure = async (url, event) => {
+      if (url === outbox[0] && event.kind === 35129)
+        throw new Error('fixture current refused after snapshot accepted');
+      await ensure(url, event);
+    };
+    await publishProject(f.options);
+    const first = await f.load();
+    expect(f.events.get(outbox[0])!.map((e) => e.kind)).toEqual([5129]);
+    // Remove the old list so selection unambiguously follows the creator's replacement.
+    f.events.set(
+      primary,
+      f.events.get(primary)!.filter((e) => e.kind !== 10002),
+    );
+    f.record(primary, await relayList(f, [['r', outbox[7]]]));
+    await publishProject(f.options);
+    const job = await f.load();
+    expect(job.outbox!.relays).toEqual([outbox[7]]);
+    expect(job.outboxHistory).toEqual(outbox);
+    const relayKey = (url: string) =>
+      [...f.events.keys()].find((key) => key.replace(/\/$/, '') === url.replace(/\/$/, '')) ?? url;
+    const io = {
+      read: async (url: string, filter: any) =>
+        (f.events.get(relayKey(url)) ?? []).filter((e) => matchFilter(filter, e)),
+      publish: async (url: string, deletion: SignedEvent) => {
+        expect(deletion.kind).toBe(5);
+        const target = relayKey(url);
+        f.events.set(
+          target,
+          (f.events.get(target) ?? []).filter(
+            (e) => !deletion.tags.some((t) => t[0] === 'e' && t[1] === e.id),
+          ),
+        );
+        f.record(target, deletion);
+      },
+      fetch: async () => {
+        throw new Error('unpublish must retain storage');
+      },
+    };
+    const plan = await planLifecycle({
+      operation: 'unpublish',
+      manifest: job.current!,
+      saved: [first.current!, first.snapshot!],
+      snapshotPairs: [{ current: first.current!, snapshot: first.snapshot! }],
+      relays: publicationDestinations([job]),
+      local: true,
+      io,
+    });
+    expect(plan.relays).toHaveLength(16);
+    const receipt = createLifecycleReceipt(plan, 'unpublish');
+    expect(parseReceipt(receipt).plan.relays).toHaveLength(16);
+    const signer = await f.accounts.signer({ kinds: [5] });
+    try {
+      await executeLifecycle(receipt, {
+        signer,
+        local: true,
+        io,
+        save: async () => {},
+      });
+    } finally {
+      await signer.close();
+    }
+    expect(lifecycleFinished(receipt)).toBe(true);
+    for (const url of [primary, ...mirrors, ...outbox])
+      expect(
+        (f.events.get(url) ?? []).some(
+          (e) => e.id === job.current!.id || e.id === job.snapshot!.id,
+        ),
+      ).toBe(false);
+  } finally {
+    await f.close();
+  }
+});
+
+test('cancelling optional delivery retains primary success and does not require a nonexistent pending resume', async () => {
+  const f = await fixture(),
+    controller = new AbortController();
+  try {
+    f.options.signal = controller.signal;
+    f.deps.relays!.read = async (_url, filter) => {
+      if (filter.kinds?.includes(10002)) controller.abort();
+      return [];
+    };
+    const result = await publishProject(f.options);
+    expect(result.status).toBe('announced_pending_index');
+    const job = await f.load();
+    expect(job.error).toBeUndefined();
+    expect(job.outbox!.lookupError!.code).toBe('OPTIONAL_COPY_CANCELLED');
+    expect((await f.journal.index()).active).toBeNull();
+    const [code, output, error] = await cliStatus(f.project, false);
+    expect(code, output + error).toBe(0);
+    expect(output).toContain('OPTIONAL_COPY_CANCELLED');
   } finally {
     await f.close();
   }

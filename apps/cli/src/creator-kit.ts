@@ -231,7 +231,9 @@ https://git.napplet.soy and https://napplet.soy. Edit those fields to choose ser
 CLI --relay/--blossom/--grasp/--site overrides apply only to that publication.
 The optional mirrors array receives extra descriptor/manifest copies only after
 our primary relay acknowledges publication; failures do not undo the primary
-publication. Use mirrors: [] to disable extra copies. Never substitute a foreign
+publication. Use mirrors: [] to disable extra copies. Publishing also copies the
+release to the creator's NIP-65 write relays (best effort, at most eight, read from
+the current kind 10002 list on each run). Never substitute a foreign
 primary relay silently. relays and servers at the top level are runtime read and
 resource hints, not publishing destinations. Git must provide NIP-34/GRASP support.
 

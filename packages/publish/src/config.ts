@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { AccountError, type Network } from '../../identity/src/signer';
 import { normalizeTopic } from '../../protocol/src/topics';
-import ipaddr from 'ipaddr.js';
+import { checkedEndpoint } from '../../nostr/src/publication-copies';
+export { checkedEndpoint } from '../../nostr/src/publication-copies';
 import { remixSchema } from '../../protocol/src/remix';
 import { backendConfig } from '../../multiplayer/src/contracts';
 import discoveryRelays from '../../nostr/discovery-relays.json';
@@ -238,6 +239,7 @@ export function defaultTargets(network: Network): Targets {
 export const projectPublishingDefaults = () => ({
   networks: { public: defaultTargets('public'), local: defaultTargets('local') },
 });
+/** Throws for a destination outside the selected network's public/loopback policy. */
 export function resolveTargets(
   project: Project,
   network: Network,
@@ -251,28 +253,8 @@ export function resolveTargets(
     ...networkTargets,
     ...overrides,
   });
-  const endpoint = (value: string, relay = false, site = false) => {
-    const u = new URL(value);
-    const loopback = ['127.0.0.1', '[::1]', ...(site ? ['localhost'] : [])].includes(u.hostname);
-    const literal = u.hostname.replace(/^\[|\]$/g, '');
-    const privateHost =
-      u.hostname === 'localhost' ||
-      u.hostname.endsWith('.localhost') ||
-      u.hostname.endsWith('.local') ||
-      (ipaddr.isValid(literal) && ipaddr.process(literal).range() !== 'unicast');
-    if (
-      u.username ||
-      u.password ||
-      u.hash ||
-      u.search ||
-      (!relay && u.pathname !== '/') ||
-      (network === 'local'
-        ? !loopback || u.protocol !== (relay ? 'ws:' : 'http:')
-        : u.protocol !== (relay ? 'wss:' : 'https:') || privateHost)
-    )
-      throw new Error();
-    return relay ? u.href : u.origin;
-  };
+  const endpoint = (value: string, relay = false, site = false) =>
+    checkedEndpoint(value, network, relay, site);
   try {
     targets.relay = endpoint(targets.relay, true);
     targets.mirrors = [...new Set(targets.mirrors.map((r) => endpoint(r, true)))].filter(

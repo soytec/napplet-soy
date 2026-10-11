@@ -27,6 +27,7 @@ import {
 } from '../../../packages/identity/src/signer';
 import { ask, hiddenInput as readHiddenInput, secretStdin } from './input';
 import { publicationStatus } from '../../../packages/publish/src';
+import { outboxReport } from '../../../packages/publish/src/outbox-report';
 import { initBackend, syncBackend, backendStatus } from './backend';
 import { initModule, checkModule, moduleCommand } from './dynamic-backend';
 import { checkPublication } from './publish-check';
@@ -907,7 +908,7 @@ try {
                 ? undefined
                 : (plan, repository) =>
                     process.stderr.write(
-                      `Creator: ${plan.pubkey}\nSource (${plan.sourceBytes} bytes, ${JSON.stringify(plan.license)}):\n${plan.files.map((file) => `  ${file.path}`).join('\n')}\nRelay: ${plan.targets.relay}\nBlossom: ${plan.targets.blossom}\nGit: ${repository ? `your repository ${repository.address} (${repository.origin}); soyLI verifies the pushed commit and does not write to it` : plan.targets.grasp}\nSite: ${plan.targets.site}\nAdditional relay copies (best effort): ${plan.targets.mirrors.join(', ') || 'none'}\nPreview: selected PNG or automatic sandbox capture\n`,
+                      `Creator: ${plan.pubkey}\nSource (${plan.sourceBytes} bytes, ${JSON.stringify(plan.license)}):\n${plan.files.map((file) => `  ${file.path}`).join('\n')}\nRelay: ${plan.targets.relay}\nBlossom: ${plan.targets.blossom}\nGit: ${repository ? `your repository ${repository.address} (${repository.origin}); soyLI verifies the pushed commit and does not write to it` : plan.targets.grasp}\nSite: ${plan.targets.site}\nAdditional relay copies (best effort): ${plan.targets.mirrors.join(', ') || 'none'}\nYour outbox relays (best effort): NIP-65 write relays, looked up when publishing\nPreview: selected PNG or automatic sandbox capture\n`,
                     ),
             });
           })();
@@ -931,6 +932,7 @@ try {
           `Optional mirror failed: ${relay}\nEvent: kind ${failure.eventKind} · ${failure.eventId}\n${formatDiagnostic(failure.diagnostic)}`,
         );
       }
+      for (const line of outboxReport(result.outbox)) console.log(line);
       if (result.websiteReady)
         console.log(
           'Readable link: open the napplet page, connect the creator account and choose Named link. Claim /@your-handle/your-slug once; future releases keep it.',
