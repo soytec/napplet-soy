@@ -1,5 +1,5 @@
 import { blossomBytes, readBytes } from '../../client/src/bytes';
-import { MAX_ARTIFACT_BYTES, sha256 } from '../../protocol/src/artifact';
+import { MAX_READ_ARTIFACT_BYTES, sha256 } from '../../protocol/src/artifact';
 
 export const PLAYER_SANDBOX = 'allow-scripts';
 export const PLAYER_CSP =
@@ -10,8 +10,10 @@ export async function verifiedDocument(
   expectedHash: string,
   prelude: string | ((verifiedHtml: string) => string) = 'window.napplet=Object.freeze({});',
 ) {
-  if (bytes.length > MAX_ARTIFACT_BYTES)
-    throw new Error(`This napplet exceeds the ${MAX_ARTIFACT_BYTES / 1024 ** 2} MiB limit.`);
+  if (bytes.length > MAX_READ_ARTIFACT_BYTES)
+    throw new Error(
+      `This napplet exceeds the ${MAX_READ_ARTIFACT_BYTES / 1024 ** 2} MiB playback limit.`,
+    );
   if ((await sha256(bytes)) !== expectedHash)
     throw new Error('The downloaded creation does not match its expected hash.');
   const html = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -28,8 +30,12 @@ export async function loadArtifact(
   local: string[] = [],
 ) {
   if (!/^[a-f0-9]{64}$/.test(hash)) throw new Error('Invalid artifact hash');
+  const deadline = AbortSignal.any([signal, AbortSignal.timeout(60000)]);
   const bytes = Array.isArray(source)
-    ? await blossomBytes(hash, source, signal, undefined, local)
-    : await readBytes(await fetch(source.localUrl, { signal, credentials: 'omit' }));
+    ? await blossomBytes(hash, source, deadline, MAX_READ_ARTIFACT_BYTES, local, 30000)
+    : await readBytes(
+        await fetch(source.localUrl, { signal: deadline, credentials: 'omit' }),
+        MAX_READ_ARTIFACT_BYTES,
+      );
   return verifiedDocument(bytes, hash, prelude);
 }

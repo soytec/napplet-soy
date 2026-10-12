@@ -10,7 +10,7 @@ import { mkdir, writeFile, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { nip19, type Filter } from 'nostr-tools';
 import {
-  MAX_ARTIFACT_BYTES,
+  MAX_READ_ARTIFACT_BYTES,
   sha256,
   decodeAddress,
   identityAddress,
@@ -135,7 +135,12 @@ export async function loadRemix(reference: string, network: Network, signal: Abo
     ...release.servers.map((s) => `${s.replace(/\/$/, '')}/${release.artifactHash}`),
   ]) {
     try {
-      const bytes = await remixBytes(new URL(url), network === 'local', signal, MAX_ARTIFACT_BYTES);
+      const bytes = await remixBytes(
+        new URL(url),
+        network === 'local',
+        signal,
+        MAX_READ_ARTIFACT_BYTES,
+      );
       if ((await sha256(bytes)) === release.artifactHash) {
         artifact = bytes;
         break;

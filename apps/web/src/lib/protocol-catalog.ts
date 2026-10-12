@@ -7,7 +7,7 @@ import {
   decodeAddress,
   verifiedEvent,
   encodeAddress,
-  MAX_ARTIFACT_BYTES,
+  MAX_READ_ARTIFACT_BYTES,
   type SignedEvent,
   type GallerySearch,
 } from '../../../../packages/protocol/src';
@@ -285,7 +285,7 @@ export async function hydrateNapplet(event: SignedEvent, hints: string[] = []) {
           },
         );
         const size = Number(response.headers.get('content-length'));
-        if (response.ok && (!size || size <= MAX_ARTIFACT_BYTES)) {
+        if (response.ok && (!size || size <= MAX_READ_ARTIFACT_BYTES)) {
           n.availability = 'ready';
           n.bytes = size || previous?.bytes || null;
           break;
@@ -602,9 +602,10 @@ export const directSource = createSourceBrowser({
     return blossomBytes(
       hash,
       [...(n ? (await validateManifest(n)).servers : []), ...network().blossom],
-      AbortSignal.timeout(15000),
-      undefined,
+      AbortSignal.timeout(60000),
+      MAX_READ_ARTIFACT_BYTES,
       network().blossom,
+      30000,
     );
   },
   download: (url, signal) => downloadBytes(url.href, signal, 50 * 1024 ** 2, network().blossom),

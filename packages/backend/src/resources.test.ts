@@ -11,12 +11,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 const bytes = (s: string) => new TextEncoder().encode(s);
-test('public artifact metadata accepts 25 MiB while resources retain their 10 MiB cap', async () => {
+test('public artifact metadata accepts 100 MiB while resources retain their 10 MiB cap', async () => {
   const entry = await publicNapplet(records[0].current);
-  expect(publicNappletSchema.parse({ ...entry, bytes: 25 * 1024 * 1024 }).bytes).toBe(
-    25 * 1024 * 1024,
+  expect(publicNappletSchema.parse({ ...entry, bytes: 100 * 1024 * 1024 }).bytes).toBe(
+    100 * 1024 * 1024,
   );
-  expect(() => publicNappletSchema.parse({ ...entry, bytes: 25 * 1024 * 1024 + 1 })).toThrow();
+  expect(() => publicNappletSchema.parse({ ...entry, bytes: 100 * 1024 * 1024 + 1 })).toThrow();
   await expect(
     resolveResource(
       { url: 'data:text/plain,' + 'x'.repeat(10 * 1024 * 1024 + 1) },

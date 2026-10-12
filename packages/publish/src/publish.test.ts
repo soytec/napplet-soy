@@ -1771,3 +1771,18 @@ test('cancelling optional delivery retains primary success and does not require 
     await f.close();
   }
 });
+
+test('larger public playback does not raise soyLI publication above 25 MiB', async () => {
+  const f = await fixture();
+  try {
+    await Bun.write(
+      join(f.project, 'index.html'),
+      '<!doctype html><p>Too large to publish</p>'.padEnd(32 * 1024 * 1024, ' '),
+    );
+    await expect(publishProject({ ...f.options, dryRun: true })).rejects.toThrow('supported size');
+    expect(f.writes).toHaveLength(0);
+    expect(f.blobs.size).toBe(0);
+  } finally {
+    await f.close();
+  }
+});

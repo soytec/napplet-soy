@@ -40,6 +40,14 @@ The announcement mentions screenshot tags and possible intent hints, but neither
 
 Shim 0.30.0, nap/core 0.32.0, starter SDK 0.24.4, Vite plugin 0.11.2 and the upstream boilerplate/skill snapshots remain pinned. Soy's publisher and guidance adapters implement the new manifest; the old plugin's emitted event is not used for publishing. See [migration/rollout](NIP5D-MIGRATION.md) and [creator contract](NIP5D-CREATOR.md). Local implementation is distinct from release/deployment; dated records below describe their original baseline.
 
+2026-10-12 artifact read policy: published HTML readers now accept up to 100 MiB
+from every publisher, while soyLI keeps its 25 MiB build/publishing budget. This
+supersedes the shared 25 MiB admission limit below. Hash, UTF-8, streaming size,
+public-network and sandbox checks remain required. The index projection profile
+changes so formerly oversized entries are rechecked after rollout. This changes no
+NAP, manifest field or upstream pin; source/presentation metadata remains optional.
+This is a local source update; website/indexer deployment is separate.
+
 2026-10-05 source-alias correction: safe relative aliases to public files are now
 accepted in current as well as historical Git trees. Git retains the links; the
 source archive uses regular copies of exact committed target bytes. Configuration,

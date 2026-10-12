@@ -187,10 +187,12 @@ safety budget, not a Nostr or creator quota. A nonempty LICENSE is required.
 Tracked files need no explicit
 enumeration, and the complete `napplet.json` remains limited to 16 KiB.
 
-The 25 MiB HTML allowance is separate from the unchanged 10 MiB limits for managed
-assets and host resources. The public website, indexer and runtime must deploy the
-updated artifact limit before they admit and play HTML above the former 10 MiB
-ceiling. Releasing or updating the CLI alone does not update those services.
+The 25 MiB publishing allowance is separate from the 100 MiB budget for reading
+existing published HTML and the unchanged 10 MiB limits for managed assets and host
+resources. Larger artifacts from other publishers can be indexed and played, but
+new soyLI publications still need to fit within 25 MiB. Reading above 25 MiB on the
+public site requires deployment of the updated website, indexer and runtime;
+releasing or updating the CLI alone does not update those services.
 
 Managed Git history is bounded to 10,000 reachable objects, 10,000 historical
 file versions/paths and 40 MiB of blobs. Current and historical Git trees may

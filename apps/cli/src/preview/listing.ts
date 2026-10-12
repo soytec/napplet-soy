@@ -16,7 +16,10 @@ import { encodeAddress, sha256 } from '../../../../packages/protocol/src';
 import { missingDomains } from '../../../../packages/runtime/src/capabilities';
 import type { Network } from '../../../../packages/identity/src/signer';
 import { builtConfiguration, builtRequirements } from '../../../../packages/publish/src/artifact';
-import { MAX_ARTIFACT_BYTES } from '../../../../packages/protocol/src/artifact';
+import {
+  MAX_ARTIFACT_BYTES,
+  MAX_READ_ARTIFACT_BYTES,
+} from '../../../../packages/protocol/src/artifact';
 
 async function projectAt(root: string) {
   return projectSchema.parse(
@@ -73,8 +76,12 @@ export async function listingPreview(
   }
   let configuration: { properties: number; version: number | null } | null = null;
   try {
-    const bytes = await regularFile(root, project.entry, MAX_ARTIFACT_BYTES);
+    const bytes = await regularFile(root, project.entry, MAX_READ_ARTIFACT_BYTES);
     artifact = { bytes: bytes.length, hash: await sha256(bytes) };
+    if (bytes.length > MAX_ARTIFACT_BYTES)
+      warnings.push(
+        'This app can be previewed, but soyLI publication requires HTML at or below 25 MiB.',
+      );
     try {
       const schema = await builtConfiguration(bytes);
       if (schema)

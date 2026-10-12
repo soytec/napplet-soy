@@ -2,7 +2,7 @@ import { request } from 'node:https';
 import { lookup } from 'node:dns';
 import type { LookupFunction } from 'node:net';
 import ipaddr from 'ipaddr.js';
-import { MAX_ARTIFACT_BYTES, sha256 } from '../../protocol/src';
+import { MAX_ARTIFACT_BYTES, MAX_READ_ARTIFACT_BYTES, sha256 } from '../../protocol/src';
 import { fetchPublicBytesInNode } from './public-http-node';
 
 export function publicIp(address: string) {
@@ -126,7 +126,8 @@ export async function downloadArtifact(servers: string[], hash: string, signal: 
         hash,
         // Near-limit packages need more than three seconds on a VPS.
         // The caller's overall deadline still bounds mirror fallback work.
-        AbortSignal.any([signal, AbortSignal.timeout(8000)]),
+        AbortSignal.any([signal, AbortSignal.timeout(30000)]),
+        MAX_READ_ARTIFACT_BYTES,
       );
       if ((await sha256(bytes)) !== hash) continue;
       new TextDecoder('utf-8', { fatal: true }).decode(bytes);

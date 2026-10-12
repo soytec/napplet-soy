@@ -4,7 +4,7 @@ import {
   eventSchema,
   identityAddress,
   sha256,
-  MAX_ARTIFACT_BYTES,
+  MAX_READ_ARTIFACT_BYTES,
   verifiedEvent,
   type SignedEvent,
 } from '../../protocol/src';
@@ -80,7 +80,7 @@ const planSchema = z
     primary: z.string().max(256),
     mirrors: z.array(z.string().max(256)).max(7),
     artifactHash: z.string().regex(/^[a-f0-9]{64}$/),
-    artifactBytes: z.number().int().positive().max(MAX_ARTIFACT_BYTES),
+    artifactBytes: z.number().int().positive().max(MAX_READ_ARTIFACT_BYTES),
   })
   .strict();
 export type MigrationPlan = z.infer<typeof planSchema>;
@@ -152,7 +152,7 @@ async function verifyArtifact(
           status: response.status,
           target,
         });
-      const bytes = await readBytes(response, MAX_ARTIFACT_BYTES);
+      const bytes = await readBytes(response, MAX_READ_ARTIFACT_BYTES);
       if ((await sha256(bytes)) !== plan.artifactHash)
         throw fail('MIGRATION_HASH', 'Downloaded HTML does not match the signed artifact hash.', {
           target,

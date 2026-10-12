@@ -19,8 +19,10 @@ required: keep an ordinary Cargo project and add the local recipe below.
   source/release files, including built HTML and previews, and a 50 MiB source tar.
   The Rust linker sets a 256 MiB maximum linear memory. This is a build
   profile, not a bound on the browser's total GPU/JavaScript memory usage.
-- The public website, indexer and runtime must deploy the 25 MiB artifact limit
-  before accepting HTML above the former 10 MiB ceiling. A CLI update alone is
+- Published-artifact readers accept HTML up to 100 MiB, including compatible
+  artifacts produced by other build tools. This does not raise soyLI’s 25 MiB build
+  and publishing limit. The website, indexer and runtime need the updated read
+  limit deployed before accepting HTML above 25 MiB; a CLI update alone is
   insufficient. Managed assets and host resources retain their 10 MiB limits.
 - Threads, SharedArrayBuffer, WebGPU, WASI, native OS APIs and Godot are outside
   this initial qualification. A project can choose other tools, but its result

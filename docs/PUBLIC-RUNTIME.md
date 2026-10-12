@@ -10,6 +10,18 @@ preview host ships in CLI 0.20.0; matching website deployment is separate.
 
 Implemented 2026-09-12. Open a public card and choose **Play napplet**. Cards distinguish verified, compatible artifacts from missing capabilities and unavailable downloads. Compatibility means this host implements the requested domains; an individual operation can still be refused by policy or fail upstream.
 
+## Playable artifact read budget
+
+The 2026-10-12 source update accepts published HTML up to **100 MiB**, independent
+of soyLI’s **25 MiB** build/publishing limit. The same read budget applies to the
+website indexer, browser player and local preview. All publishers follow the same
+admission rules, including legacy manifests. The complete artifact must pass raw
+SHA-256 and UTF-8 verification before it executes. Downloads are bounded while
+streaming, with up to 30 seconds per mirror and 60 seconds overall, and can be
+cancelled when leaving the player. Managed resources retain their separate 10 MiB
+limit. The index rechecks entries rejected under the previous artifact budget.
+This source change requires a website/indexer deployment to affect napplet.soy.
+
 ## Standards and integration
 
 Fixtures and relay-imported napplets use the same manifest validator, capability admission, artifact verification, host identity, and resource service. The browser subscription covers named, root, and snapshot kinds without a Space hashtag. Fixture metadata contains no custom snapshot pointer. The creator publisher uses this same admission path; the bundled test key must never be used on public relays.
