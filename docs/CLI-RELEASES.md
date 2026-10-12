@@ -3,6 +3,27 @@
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
 The current published version is **0.26.0**.
 
+**0.26.1 release candidate, 2026-10-12 (Europe/Vienna):**
+
+Published-artifact readers accept verified HTML up to **100 MiB** from every
+publisher, including existing napplets. This covers website indexing/playback,
+soyLI preview, remixing, proposal review and existing-artifact migration. New
+soyLI builds/publications retain their **25 MiB** limit. Streaming, hash, UTF-8,
+network and sandbox checks remain enforced; source and resource budgets are
+unchanged. Downloads have more time, and the index rechecks entries rejected
+under the former size policy after host rollout. No napplet republish is needed.
+
+The matching website update tracks zap payments after the dialog closes and
+resumes pending confirmations after reload. Verified local payments survive
+reload and are deduplicated when a public receipt arrives. A provider check,
+wallet proof or verified receipt is required; no receipt or payment is invented.
+A missing historical invoice cannot be reconstructed by this change. Other
+viewers still depend on a public receipt. See [community](COMMUNITY.md).
+
+Upgrade with `soyli update` and restart previews for the larger CLI read budget.
+The website/indexer changes and zap recovery need a host deployment. Release and
+deployment verification will be recorded after the gates pass.
+
 **0.26.0 published 2026-10-11 (Europe/Vienna); no host deployment:**
 [GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.26.0),
 source `a91afb159da16304a5f93e3616ae30e7db6cd074`.
