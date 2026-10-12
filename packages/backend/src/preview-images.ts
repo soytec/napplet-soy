@@ -14,6 +14,7 @@ import {
 import { fetchPublicBytes, publicResourceUrl } from './blossom';
 import { manifestIcon } from '../../protocol/src/manifest';
 import { iconSources, verifyIconBytes } from '../../protocol/src/icon';
+import { manifestScreenshotSources } from '../../protocol/src/presentation';
 
 export function previewImageUrl(input: string) {
   if (input.length > 4096) throw new Error('Preview URL is too long');
@@ -124,10 +125,23 @@ export async function indexPreviewImages(
             }));
           })
           .sort((a, b) => a.priority - b.priority);
+        candidates.unshift(
+          ...manifestScreenshotSources(entry.manifest).map(({ url }) => ({
+            descriptor: entry.manifest,
+            profile: undefined,
+            url,
+            priority: -1,
+          })),
+        );
         // Keep screenshots as covers; a standalone manifest can supply its own verified icon.
-        candidates.push(...iconSources(entry.manifest).map((url) => ({
-          descriptor: entry.manifest, profile: undefined, url, priority: 3,
-        })));
+        candidates.push(
+          ...iconSources(entry.manifest).map((url) => ({
+            descriptor: entry.manifest,
+            profile: undefined,
+            url,
+            priority: 3,
+          })),
+        );
         for (const { descriptor, profile, url } of candidates) {
           if (signal.aborted) break;
           try {
@@ -151,7 +165,11 @@ export async function indexPreviewImages(
               entry.preview = old;
               break;
             }
-            const icon = descriptor.id === entry.manifest.id ? manifestIcon(entry.manifest) : null;
+            const icon =
+              descriptor.id === entry.manifest.id
+                ? (manifestScreenshotSources(entry.manifest).find((c) => c.url === url) ??
+                  manifestIcon(entry.manifest))
+                : null;
             const downloadKey = `${url}:${icon?.mime ?? 'preview'}`;
             let task = downloaded.get(downloadKey);
             if (!task) {

@@ -2,8 +2,9 @@ import { z } from 'zod';
 import { eventSchema, verifiedEvent, type SignedEvent } from './index';
 import { manifestIcon } from './manifest';
 import { iconSources } from './icon';
+import { manifestScreenshotSources } from './presentation';
 
-export const PREVIEW_PROFILE = 'app-descriptors-and-manifest-icons-3';
+export const PREVIEW_PROFILE = 'manifest-presentation-and-legacy-descriptors-4';
 export const MAX_PREVIEW_BYTES = 5 * 1024 * 1024;
 export const MAX_CACHED_PREVIEW_BYTES = 4 * 1024 * 1024;
 export type AppReference = { kind: number; pubkey: string; identifier: string; relay?: string };
@@ -102,7 +103,13 @@ export function validatedPreview(manifest: SignedEvent, input: unknown): CachedP
     const preview = cachedPreviewSchema.parse(input);
     if (preview.descriptor.id === manifest.id) {
       const descriptor = verifiedEvent(preview.descriptor);
-      if (!manifestIcon(manifest) || !iconSources(manifest).includes(preview.url) || preview.profile)
+      if (
+        preview.profile ||
+        ![
+          ...manifestScreenshotSources(manifest).map((c) => c.url),
+          ...(manifestIcon(manifest) ? iconSources(manifest) : []),
+        ].includes(preview.url)
+      )
         return null;
       return { ...preview, descriptor };
     }

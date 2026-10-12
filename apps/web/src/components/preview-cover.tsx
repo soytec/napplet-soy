@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CachedVideo } from '../../../../packages/protocol/src/preview-video';
 import { playback } from '@/lib/playback-coordinator';
+import { manifestVideoBlob } from '../../../../packages/client/src/manifest-video';
 
 /** Decorative media never intercepts the cover's play/navigation action. */
 export function PreviewCover({
@@ -13,7 +14,7 @@ export function PreviewCover({
   onUnavailable,
 }: {
   children: ReactNode;
-  video?: Pick<CachedVideo, 'url' | 'hash'> | null;
+  video?: (Pick<CachedVideo, 'url' | 'hash'> & { sources?: string[] }) | null;
   revision: string;
   title: string;
   mode?: 'hover' | 'auto' | 'play' | 'pause';
@@ -108,9 +109,25 @@ export function PreviewCover({
     const node = player.current;
     if (!node || !video || !active) return;
     node.muted = true;
-    node.src = video.url;
     let alive = true;
-    void node.play().catch(() => {
+    const controller = new AbortController();
+    let blob: string | undefined;
+    void (async () => {
+      const source = video.sources
+        ? await manifestVideoBlob(
+            video.sources,
+            video.hash,
+            AbortSignal.any([controller.signal, AbortSignal.timeout(5000)]),
+          )
+        : video.url;
+      if (video.sources) blob = source;
+      if (!alive) {
+        if (blob) URL.revokeObjectURL(blob);
+        return;
+      }
+      node.src = source;
+      await node.play();
+    })().catch(() => {
       if (alive) {
         setActive(false);
         setPlaying(false);
@@ -119,10 +136,12 @@ export function PreviewCover({
     });
     return () => {
       alive = false;
+      controller.abort();
       playback.release(owner.current);
       node.pause();
       node.removeAttribute('src');
       node.load();
+      if (blob) URL.revokeObjectURL(blob);
     };
   }, [active, video?.hash, video?.url, revision]);
   return (

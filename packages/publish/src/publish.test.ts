@@ -7,7 +7,11 @@ import {
   parseReceipt,
 } from '../../lifecycle/src';
 import { migrationTemplate } from '../../migration/src';
-import { descriptorVideos } from '../../protocol/src/preview-video';
+import {
+  MANIFEST_PRESENTATION_PROFILE,
+  manifestScreenshotSources,
+  manifestVideoSources,
+} from '../../protocol/src/presentation';
 import { importAsset, readAssets, validateAssets } from '../../assets/src';
 import { createRemix } from '../../remix/src';
 import { sourceArchive } from '../../remix/src/archive';
@@ -464,27 +468,29 @@ test('managed external assets are uploaded before announcement, resume unchanged
     await f.close();
   }
 });
-test('preview upload and linked descriptor survive interruption with identical signatures and image bytes', async () => {
+test('preview upload and direct manifest references survive interruption with identical signatures and image bytes', async () => {
   const f = await fixture();
   try {
     f.options.requirePreview = true;
     f.options.check = async () => ({ profile: 'test', browser: 'test', preview: previewPng });
     f.deps.checkpoint = async (job) => {
-      if (job.receipts.descriptor) throw new Error('Crash after descriptor acknowledgement');
+      if (job.receipts.preview) throw new Error('Crash after preview upload');
     };
     await expect(publishProject(f.options)).rejects.toMatchObject({ code: 'PUBLISH_FAILED' });
     const interrupted = await f.load();
     expect(interrupted.receipts).toMatchObject({
       preview: true,
-      descriptor: true,
       snapshot: false,
     });
     expect(f.blobs.get(interrupted.preview!.hash)).toEqual(previewPng);
-    const ref = appReferences(interrupted.current!)[0];
-    expect(ref.kind).toBe(32267);
-    expect(ref.relay).toBe(interrupted.plan.targets.relay);
-    expect(ref.pubkey).toBe(f.creator.pubkey);
-    expect(descriptorImages(interrupted.preview!.descriptor!)).toEqual([
+    expect(appReferences(interrupted.current!)).toEqual([]);
+    expect(interrupted.preview!.descriptor).toBeUndefined();
+    expect(interrupted.receipts.descriptor).toBeUndefined();
+    expect(interrupted.current!.tags).toContainEqual([
+      'presentation',
+      MANIFEST_PRESENTATION_PROFILE,
+    ]);
+    expect(manifestScreenshotSources(interrupted.current!).map((c) => c.url)).toEqual([
       `${interrupted.plan.targets.blossom}/${await sha256(previewPng)}`,
     ]);
     delete f.deps.checkpoint;
@@ -508,71 +514,76 @@ test('preview upload and linked descriptor survive interruption with identical s
   }
 });
 
-test('video upload resumes with the exact bytes, signed NIP-92 attachment and static cover', async () => {
-  const f = await fixture();
-  try {
-    const video = await Bun.file(
-      new URL('../../../tests/fixtures/preview.webm', import.meta.url),
-    ).bytes();
-    f.options.requirePreview = true;
-    f.options.check = async () => ({
-      profile: 'test',
-      browser: 'test',
-      preview: previewPng,
-      video,
-    });
-    f.deps.checkpoint = async (job) => {
-      if (job.receipts.descriptor) throw new Error('Crash after descriptor acknowledgement');
-    };
-    await expect(publishProject(f.options)).rejects.toMatchObject({ code: 'PUBLISH_FAILED' });
-    const interrupted = await f.load();
-    expect(interrupted.receipts).toMatchObject({
-      preview: true,
-      video: true,
-      descriptor: true,
-      snapshot: false,
-    });
-    expect(f.blobs.get(interrupted.preview!.hash)).toEqual(previewPng);
-    expect(f.blobs.get(interrupted.video!.hash)).toEqual(video);
-    expect(descriptorVideos(interrupted.preview!.descriptor!)).toEqual([
-      {
-        url: `${interrupted.plan.targets.blossom}/${interrupted.video!.hash}`,
-        hash: interrupted.video!.hash,
-      },
-    ]);
-    const ref = appReferences(interrupted.current!)[0];
-    expect(ref.kind).toBe(32267);
-    expect(ref.relay).toBe(interrupted.plan.targets.relay);
-    expect(ref.pubkey).toBe(f.creator.pubkey);
-    expect(descriptorImages(interrupted.preview!.descriptor!)).toEqual([
-      `${interrupted.plan.targets.blossom}/${await sha256(previewPng)}`,
-    ]);
-    delete f.deps.checkpoint;
-    f.options.check = async () => {
-      throw new Error('Resume must never recapture');
-    };
-    await publishProject({ ...f.options, resume: true });
-    const resumed = await f.load();
-    expect(resumed.preview).toEqual(interrupted.preview);
-    expect(resumed.video).toEqual(interrupted.video);
-    expect(resumed.current).toEqual(interrupted.current);
-    expect(resumed.snapshot).toEqual(interrupted.snapshot);
-    expect(resumed.status).toBe('announced_pending_index');
-    await f.journal.save({ ...resumed, video: { ...resumed.video!, width: 959 } });
-    await expect(publishProject({ ...f.options, resume: true })).rejects.toMatchObject({
-      code: 'FROZEN_PREVIEW_CHANGED',
-    });
-    await f.journal.save(resumed);
-    await Bun.write(join(f.journal.directory(resumed.id), 'preview.webm'), 'tampered');
-    const before = f.writes.length;
-    await expect(publishProject({ ...f.options, resume: true })).rejects.toMatchObject({
-      code: 'FROZEN_PREVIEW_CHANGED',
-    });
-    expect(f.writes.length).toBe(before);
-  } finally {
-    await f.close();
-  }
-});
+for (const snapshot of [false, true]) {
+  test(`${snapshot ? 'paired' : 'named-only'} video upload resumes with exact bytes, manifest references and static cover`, async () => {
+    const f = await fixture();
+    f.options.snapshot = snapshot;
+    try {
+      const video = await Bun.file(
+        new URL('../../../tests/fixtures/preview.webm', import.meta.url),
+      ).bytes();
+      f.options.requirePreview = true;
+      f.options.check = async () => ({
+        profile: 'test',
+        browser: 'test',
+        preview: previewPng,
+        video,
+      });
+      f.deps.checkpoint = async (job) => {
+        if (job.receipts.video && job.receipts.preview)
+          throw new Error('Crash after preview uploads');
+      };
+      await expect(publishProject(f.options)).rejects.toMatchObject({ code: 'PUBLISH_FAILED' });
+      const interrupted = await f.load();
+      expect(interrupted.receipts).toMatchObject({
+        preview: true,
+        video: true,
+        ...(snapshot ? { snapshot: false } : {}),
+      });
+      expect(f.blobs.get(interrupted.preview!.hash)).toEqual(previewPng);
+      expect(f.blobs.get(interrupted.video!.hash)).toEqual(video);
+      expect(
+        manifestVideoSources(interrupted.current!).map(({ url, hash }) => ({ url, hash })),
+      ).toEqual([
+        {
+          url: `${interrupted.plan.targets.blossom}/${interrupted.video!.hash}`,
+          hash: interrupted.video!.hash,
+        },
+      ]);
+      expect(appReferences(interrupted.current!)).toEqual([]);
+      expect(interrupted.preview!.descriptor).toBeUndefined();
+      expect(manifestScreenshotSources(interrupted.current!).map((c) => c.url)).toEqual([
+        `${interrupted.plan.targets.blossom}/${await sha256(previewPng)}`,
+      ]);
+      delete f.deps.checkpoint;
+      f.options.check = async () => {
+        throw new Error('Resume must never recapture');
+      };
+      await publishProject({ ...f.options, resume: true });
+      const resumed = await f.load();
+      expect(resumed.preview).toEqual(interrupted.preview);
+      expect(resumed.video).toEqual(interrupted.video);
+      expect(resumed.current).toEqual(interrupted.current);
+      expect(resumed.snapshot).toEqual(interrupted.snapshot);
+      expect(resumed.status).toBe('announced_pending_index');
+      expect(!!resumed.snapshot).toBe(snapshot);
+      expect([...f.events.values()].flat().filter((e) => e.kind === 32267)).toEqual([]);
+      await f.journal.save({ ...resumed, video: { ...resumed.video!, width: 959 } });
+      await expect(publishProject({ ...f.options, resume: true })).rejects.toMatchObject({
+        code: 'FROZEN_PREVIEW_CHANGED',
+      });
+      await f.journal.save(resumed);
+      await Bun.write(join(f.journal.directory(resumed.id), 'preview.webm'), 'tampered');
+      const before = f.writes.length;
+      await expect(publishProject({ ...f.options, resume: true })).rejects.toMatchObject({
+        code: 'FROZEN_PREVIEW_CHANGED',
+      });
+      expect(f.writes.length).toBe(before);
+    } finally {
+      await f.close();
+    }
+  });
+}
 
 test('older releases gain a preview without code edits; Blossom can change on a subsequent release', async () => {
   const f = await fixture();
@@ -602,6 +613,53 @@ test('older releases gain a preview without code edits; Blossom can change on a 
     await f.close();
   }
 });
+
+for (const snapshot of [false, true]) {
+  test(`${snapshot ? 'paired' : 'named-only'} frozen descriptor jobs resume unchanged, then migrate on an explicit fresh publication`, async () => {
+    const f = await fixture();
+    f.options.snapshot = snapshot;
+    try {
+      f.options.check = async () => ({ profile: 'test', browser: 'test', preview: previewPng });
+      let interrupted = false;
+      f.deps.checkpoint = async (job) => {
+        if (!job.source && !interrupted) {
+          interrupted = true;
+          // Simulate an already frozen job from the prior CLI without editing its files.
+          delete job.presentationProfile;
+          job.receipts.descriptor = false;
+          await f.journal.save(job);
+          throw new Error('Old process stopped before signing');
+        }
+      };
+      await expect(publishProject(f.options)).rejects.toMatchObject({ code: 'PUBLISH_FAILED' });
+      delete f.deps.checkpoint;
+      await publishProject({ ...f.options, resume: true });
+      const old = await f.load();
+      expect(appReferences(old.current!)[0].kind).toBe(32267);
+      expect(descriptorImages(old.preview!.descriptor!)).toHaveLength(1);
+      expect(old.receipts.descriptor).toBe(true);
+      const signed = old.current;
+      await publishProject({ ...f.options, resume: true });
+      expect((await f.load()).current).toEqual(signed);
+      await publishProject(f.options);
+      const fresh = await f.load();
+      expect(fresh.presentationProfile).toBe(MANIFEST_PRESENTATION_PROFILE);
+      expect(fresh.plan.artifactHash).toBe(old.plan.artifactHash);
+      expect(fresh.plan.identifier).toBe(old.plan.identifier);
+      expect(fresh.plan.pubkey).toBe(old.plan.pubkey);
+      expect(fresh.commit).toBe(old.commit);
+      expect(fresh.archiveHash).toBe(old.archiveHash);
+      expect(!!fresh.snapshot).toBe(snapshot);
+      expect(fresh.current!.id).not.toBe(old.current!.id);
+      expect(appReferences(fresh.current!)).toEqual([]);
+      expect(fresh.preview!.descriptor).toBeUndefined();
+      expect(manifestScreenshotSources(fresh.current!)).toHaveLength(1);
+      expect([...f.events.values()].flat().filter((e) => e.kind === 32267)).toHaveLength(1);
+    } finally {
+      await f.close();
+    }
+  });
+}
 
 test('required preview cannot be silently omitted and a selected missing image fails before publication', async () => {
   const f = await fixture();
@@ -1424,6 +1482,7 @@ test('publishing unchanged code after an author deletion creates new current and
 });
 test('a project with its own NIP-34 remote publishes against it without signing or pushing a second repository', async () => {
   const f = await fixture();
+  f.options.check = async () => ({ profile: 'test', browser: 'test', preview: previewPng });
   const relay = 'ws://127.0.0.1:7777/';
   const clone = 'http://127.0.0.1:9999/creator/my-repo.git';
   const remote = (identifier: string, pubkey = f.creator.pubkey) =>
@@ -1792,14 +1851,17 @@ for (const withAliases of [false, true])
     const f = await fixture();
     try {
       const encoder = new TextEncoder();
-      const files = new Map<string, Uint8Array<ArrayBuffer>>(Object.entries({
-        '.gitattributes': '.gitattributes export-ignore\n.gitmodules export-ignore\nsrc export-ignore\nAGENTS.md export-ignore\nCLAUDE.md export-ignore\nindex.html export-subst\n',
-        '.gitmodules': '',
-        'index.html': '<!doctype html><title>Exact source</title><p>$Format:%H$</p>\n',
-        'AGENTS.md': '# Public instructions\n',
-        'src/.gitattributes': '* export-ignore export-subst\n',
-        'src/main.ts': 'export const revision = "$Format:%H$";\n',
-      }).map(([path, value]) => [path, encoder.encode(value)]));
+      const files = new Map<string, Uint8Array<ArrayBuffer>>(
+        Object.entries({
+          '.gitattributes':
+            '.gitattributes export-ignore\n.gitmodules export-ignore\nsrc export-ignore\nAGENTS.md export-ignore\nCLAUDE.md export-ignore\nindex.html export-subst\n',
+          '.gitmodules': '',
+          'index.html': '<!doctype html><title>Exact source</title><p>$Format:%H$</p>\n',
+          'AGENTS.md': '# Public instructions\n',
+          'src/.gitattributes': '* export-ignore export-subst\n',
+          'src/main.ts': 'export const revision = "$Format:%H$";\n',
+        }).map(([path, value]) => [path, encoder.encode(value)]),
+      );
       files.set('src/data.bin', new Uint8Array([0, 255, 13, 10, 10]));
       for (const [path, bytes] of files) await Bun.write(join(f.project, path), bytes);
       if (withAliases) {
@@ -1813,7 +1875,9 @@ for (const withAliases of [false, true])
       if (withAliases) {
         expect(archived.get('CLAUDE.md')).toEqual(files.get('AGENTS.md'));
         expect(archived.get('src/alias.ts')).toEqual(files.get('src/main.ts'));
-        expect(await sourceGit(f.project, ['ls-tree', 'HEAD', 'CLAUDE.md'])).toStartWith('120000 blob ');
+        expect(await sourceGit(f.project, ['ls-tree', 'HEAD', 'CLAUDE.md'])).toStartWith(
+          '120000 blob ',
+        );
       }
       const remixed = await createRemix(f.root, 'exact-source', {
         manifest: job.snapshot!,

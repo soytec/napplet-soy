@@ -83,9 +83,10 @@ stored result. No system can force a third-party crawler to retry or clear its c
 Named, naddr and pinned pages expose trusted canonical, Open Graph and Twitter
 metadata in SSR. A newly discovered manifest can supply its signed title and
 description before its executable download finishes. Its OG image is a bounded
-1200×630 PNG, incorporating a verified linked preview when available, otherwise a
-generated poster. This path never executes a napplet. Existing NIP-89/Zapstore linked
-image discovery is unchanged; arbitrary linked website scraping is not enabled.
+1200×630 PNG, incorporating a verified direct manifest screenshot, legacy linked
+preview or standard icon when available, otherwise a generated poster. This path
+never executes a napplet. NIP-89/Zapstore linked image discovery remains supported;
+arbitrary linked website scraping is not enabled. See [previews](PREVIEWS.md).
 
 The service test deliberately uses a relay which returns manifests only to exact
 queries, proving that opening the cold link causes discovery. It checks SSR OG,

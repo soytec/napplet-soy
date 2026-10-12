@@ -14,6 +14,24 @@ in `20261009091435416-91120` on 2026-10-09; source/native/Nix, target service
 checks and live desktop/mobile gallery plus exact historical-byte checks pass.
 See [release evidence](CLI-RELEASES.md).
 
+## Direct presentation review — 2026-10-06
+
+The authoritative NIP-5D pin remains `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d51`.
+It defines hash/MIME icons but no screenshot/video fields. Reviewed
+[napplet/web PR 111](https://github.com/napplet/web/pull/111) at
+`6dd79febfa9807d5d3f51cabd77b793f5893d4b7`: that draft uploads screenshots using
+the older manifest path/aggregate shape; it assigns no new event kind or standalone
+screenshot tag. It therefore does not supply the missing standalone schema.
+
+The user approved direct references on existing manifests and stopping new
+Zapstore descriptors. Source now uses the explicit optional downstream profile
+`soy.presentation/1`, documented in [PREVIEWS.md](PREVIEWS.md). It binds screenshot
+and preview hashes/MIME types to each signed revision; declared Blossom origins
+provide bytes. All authors use the same reader and verification, with no provenance
+gate. Missing or malformed optional fields leave playback intact. Legacy descriptors
+and frozen publications retain compatibility. No NIP/NAP pin or shim change is
+claimed; upstream agreement and independent-client rendering remain unverified.
+
 ## NIP-22 comment audit — 2026-10-05
 
 Reviewed the official [NIP-22 at 13664fb](https://github.com/nostr-protocol/nips/blob/13664fb18a3ce5fa48a849de012ab789d82eb254/22.md).

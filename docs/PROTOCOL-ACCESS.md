@@ -15,11 +15,17 @@ across clients; they do not require registration in Napplet's index.
 
 ## Files and playback
 
-Images, videos, avatars, banners and comment attachments use their published URLs.
-Linked assets show the destination hostname and open the original file. A valid
-signed app descriptor can supply media even when the optional server image cache
-could not normalize or download it. Native media display does not claim to verify
-the original file's digest on every view.
+Direct manifest screenshots and clips under `soy.presentation/1` use verified
+media: indexed previews come from the site's bounded cache; browser-only discoveries
+verify downloaded bytes before creating a Blob URL. The manifest supplies the
+expected hash and MIME. Missing optional media falls back without blocking playback.
+See [the presentation contract](PREVIEWS.md).
+
+Legacy descriptor images/videos, avatars, banners and comment attachments can
+still use their published URLs. Linked assets show the destination hostname and
+open the original file. A valid signed legacy app descriptor can supply media even
+when the optional server image cache could not normalize or download it. That
+native URL display does not verify the original file's digest on every view.
 
 Executable HTML is fetched directly from Blossom and checked against the signed
 manifest's SHA-256 hash before constructing an opaque, restricted iframe. The
@@ -35,10 +41,11 @@ verify its hash before parsing the bounded tar archive in browser memory. File
 downloads use those verified bytes. Archive links go straight to storage. No
 server extracts a source archive on behalf of an interactive request.
 
-Storage and LNURL providers must support browser requests (CORS) for byte reads
-and invoice JSON. There is no automatic Napplet proxy fallback. Native image,
-video and audio display follows the browser's normal media rules. Visitors now
-contact the selected providers directly, which can observe those requests.
+Storage and LNURL providers must support browser requests (CORS) for direct byte
+reads and invoice JSON. There is no arbitrary proxy fallback; indexed preview
+routes serve already verified cached media. Native image, video and audio URL
+display follows the browser's normal media rules. Direct provider requests can be
+observed by those providers.
 
 ## HTTP that remains
 

@@ -34,9 +34,11 @@ import { Route as ProposalsProposalRouteImport } from './routes/proposals.$propo
 import { Route as RSnapshotRouteImport } from './routes/r.$snapshot'
 import { Route as CreatorSlugPlayRouteImport } from './routes/$creator.$slug.play'
 import { Route as ApiOgIdRouteImport } from './routes/api.og.$id'
+import { Route as ApiPreviewsIdRouteImport } from './routes/api.previews.$id'
 import { Route as NNaddrPlayRouteImport } from './routes/n.$naddr.play'
 import { Route as RSnapshotPlayRouteImport } from './routes/r.$snapshot.play'
 import { Route as RSnapshotSourceRouteImport } from './routes/r.$snapshot.source'
+import { Route as ApiPreviewsIdVideoRouteImport } from './routes/api.previews.$id.video'
 import { Route as CliDownloadVersionFileRouteImport } from './routes/cli.download.$version.$file'
 
 const IndexRoute = IndexRouteImport.update({
@@ -165,6 +167,11 @@ const ApiOgIdRoute = ApiOgIdRouteImport.update({
   path: '/api/og/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPreviewsIdRoute = ApiPreviewsIdRouteImport.update({
+  id: '/api/previews/$id',
+  path: '/api/previews/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NNaddrPlayRoute = NNaddrPlayRouteImport.update({
   id: '/play',
   path: '/play',
@@ -179,6 +186,11 @@ const RSnapshotSourceRoute = RSnapshotSourceRouteImport.update({
   id: '/source',
   path: '/source',
   getParentRoute: () => RSnapshotRoute,
+} as any)
+const ApiPreviewsIdVideoRoute = ApiPreviewsIdVideoRouteImport.update({
+  id: '/video',
+  path: '/video',
+  getParentRoute: () => ApiPreviewsIdRoute,
 } as any)
 const CliDownloadVersionFileRoute = CliDownloadVersionFileRouteImport.update({
   id: '/download/$version/$file',
@@ -212,9 +224,11 @@ export interface FileRoutesByFullPath {
   '/r/$snapshot': typeof RSnapshotRouteWithChildren
   '/$creator/$slug/play': typeof CreatorSlugPlayRoute
   '/api/og/$id': typeof ApiOgIdRoute
+  '/api/previews/$id': typeof ApiPreviewsIdRouteWithChildren
   '/n/$naddr/play': typeof NNaddrPlayRoute
   '/r/$snapshot/play': typeof RSnapshotPlayRoute
   '/r/$snapshot/source': typeof RSnapshotSourceRoute
+  '/api/previews/$id/video': typeof ApiPreviewsIdVideoRoute
   '/cli/download/$version/$file': typeof CliDownloadVersionFileRoute
 }
 export interface FileRoutesByTo {
@@ -243,9 +257,11 @@ export interface FileRoutesByTo {
   '/r/$snapshot': typeof RSnapshotRouteWithChildren
   '/$creator/$slug/play': typeof CreatorSlugPlayRoute
   '/api/og/$id': typeof ApiOgIdRoute
+  '/api/previews/$id': typeof ApiPreviewsIdRouteWithChildren
   '/n/$naddr/play': typeof NNaddrPlayRoute
   '/r/$snapshot/play': typeof RSnapshotPlayRoute
   '/r/$snapshot/source': typeof RSnapshotSourceRoute
+  '/api/previews/$id/video': typeof ApiPreviewsIdVideoRoute
   '/cli/download/$version/$file': typeof CliDownloadVersionFileRoute
 }
 export interface FileRoutesById {
@@ -275,9 +291,11 @@ export interface FileRoutesById {
   '/r/$snapshot': typeof RSnapshotRouteWithChildren
   '/$creator/$slug/play': typeof CreatorSlugPlayRoute
   '/api/og/$id': typeof ApiOgIdRoute
+  '/api/previews/$id': typeof ApiPreviewsIdRouteWithChildren
   '/n/$naddr/play': typeof NNaddrPlayRoute
   '/r/$snapshot/play': typeof RSnapshotPlayRoute
   '/r/$snapshot/source': typeof RSnapshotSourceRoute
+  '/api/previews/$id/video': typeof ApiPreviewsIdVideoRoute
   '/cli/download/$version/$file': typeof CliDownloadVersionFileRoute
 }
 export interface FileRouteTypes {
@@ -308,9 +326,11 @@ export interface FileRouteTypes {
     | '/r/$snapshot'
     | '/$creator/$slug/play'
     | '/api/og/$id'
+    | '/api/previews/$id'
     | '/n/$naddr/play'
     | '/r/$snapshot/play'
     | '/r/$snapshot/source'
+    | '/api/previews/$id/video'
     | '/cli/download/$version/$file'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -339,9 +359,11 @@ export interface FileRouteTypes {
     | '/r/$snapshot'
     | '/$creator/$slug/play'
     | '/api/og/$id'
+    | '/api/previews/$id'
     | '/n/$naddr/play'
     | '/r/$snapshot/play'
     | '/r/$snapshot/source'
+    | '/api/previews/$id/video'
     | '/cli/download/$version/$file'
   id:
     | '__root__'
@@ -370,9 +392,11 @@ export interface FileRouteTypes {
     | '/r/$snapshot'
     | '/$creator/$slug/play'
     | '/api/og/$id'
+    | '/api/previews/$id'
     | '/n/$naddr/play'
     | '/r/$snapshot/play'
     | '/r/$snapshot/source'
+    | '/api/previews/$id/video'
     | '/cli/download/$version/$file'
   fileRoutesById: FileRoutesById
 }
@@ -400,6 +424,7 @@ export interface RootRouteChildren {
   ProposalsProposalRoute: typeof ProposalsProposalRoute
   RSnapshotRoute: typeof RSnapshotRouteWithChildren
   ApiOgIdRoute: typeof ApiOgIdRoute
+  ApiPreviewsIdRoute: typeof ApiPreviewsIdRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -579,6 +604,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOgIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/previews/$id': {
+      id: '/api/previews/$id'
+      path: '/api/previews/$id'
+      fullPath: '/api/previews/$id'
+      preLoaderRoute: typeof ApiPreviewsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/n/$naddr/play': {
       id: '/n/$naddr/play'
       path: '/play'
@@ -599,6 +631,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/r/$snapshot/source'
       preLoaderRoute: typeof RSnapshotSourceRouteImport
       parentRoute: typeof RSnapshotRoute
+    }
+    '/api/previews/$id/video': {
+      id: '/api/previews/$id/video'
+      path: '/video'
+      fullPath: '/api/previews/$id/video'
+      preLoaderRoute: typeof ApiPreviewsIdVideoRouteImport
+      parentRoute: typeof ApiPreviewsIdRoute
     }
     '/cli/download/$version/$file': {
       id: '/cli/download/$version/$file'
@@ -668,6 +707,18 @@ const RSnapshotRouteWithChildren = RSnapshotRoute._addFileChildren(
   RSnapshotRouteChildren,
 )
 
+interface ApiPreviewsIdRouteChildren {
+  ApiPreviewsIdVideoRoute: typeof ApiPreviewsIdVideoRoute
+}
+
+const ApiPreviewsIdRouteChildren: ApiPreviewsIdRouteChildren = {
+  ApiPreviewsIdVideoRoute: ApiPreviewsIdVideoRoute,
+}
+
+const ApiPreviewsIdRouteWithChildren = ApiPreviewsIdRoute._addFileChildren(
+  ApiPreviewsIdRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CreatorRoute: CreatorRouteWithChildren,
@@ -692,6 +743,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProposalsProposalRoute: ProposalsProposalRoute,
   RSnapshotRoute: RSnapshotRouteWithChildren,
   ApiOgIdRoute: ApiOgIdRoute,
+  ApiPreviewsIdRoute: ApiPreviewsIdRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

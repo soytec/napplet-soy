@@ -1,6 +1,7 @@
 import type { SignedEvent } from './index';
 import { appReferences, latestMetadata, descriptorImages } from './preview';
 import { descriptorVideos } from './preview-video';
+import { manifestScreenshotSources, manifestVideoSources } from './presentation';
 /** Signed metadata associations, independent of this client's optional media cache. */
 export function linkedMedia(manifest: SignedEvent, events: SignedEvent[]) {
   const images: string[] = [],
@@ -13,6 +14,12 @@ export function linkedMedia(manifest: SignedEvent, events: SignedEvent[]) {
       return false;
     }
   };
+  images.push(
+    ...manifestScreenshotSources(manifest)
+      .map((c) => c.url)
+      .filter(safe),
+  );
+  videos.push(...manifestVideoSources(manifest).filter((v) => safe(v.url)));
   for (const ref of appReferences(manifest)) {
     const descriptor = latestMetadata(ref, events);
     if (!descriptor) continue;

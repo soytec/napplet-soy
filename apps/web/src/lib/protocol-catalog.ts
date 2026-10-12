@@ -20,7 +20,11 @@ import {
   discoveryTarget,
   targetedDiscoveryFilters,
 } from '../../../../packages/protocol/src/discovery';
-import { appReferences, latestMetadata } from '../../../../packages/protocol/src/preview';
+import {
+  appReferences,
+  latestMetadata,
+  validatedPreview,
+} from '../../../../packages/protocol/src/preview';
 import { publicNapplet, type PublicNapplet } from '../../../../packages/backend/src/public-model';
 import {
   discoveryFacets,
@@ -28,7 +32,10 @@ import {
   topicFacets,
   type DiscoverySearch,
 } from '../../../../packages/protocol/src/topics';
-import { resolveManifestIcon } from '../../../../packages/client/src/manifest-icon';
+import {
+  resolveManifestIcon,
+  resolveManifestScreenshots,
+} from '../../../../packages/client/src/manifest-icon';
 import { indexedPinnedManifest } from '../../../../packages/client/src/pinned-manifest';
 import {
   snapshotPresentationAddress,
@@ -222,7 +229,13 @@ export async function hydrateNapplet(event: SignedEvent, hints: string[] = []) {
     n.preview = previous.preview;
     n.video = previous.video;
   }
-  const iconTask = resolveManifestIcon(event, network().blossom);
+  const iconTask = Promise.all([
+    resolveManifestIcon(event, network().blossom),
+    // Indexed direct covers already use the server's verified raster cache.
+    n.preview?.descriptor.id === event.id && validatedPreview(event, n.preview)
+      ? Promise.resolve(null)
+      : resolveManifestScreenshots(event, network().blossom),
+  ]);
   const metadata: SignedEvent[] = [];
   let metadataResolved = false;
   await Promise.all(
@@ -257,7 +270,7 @@ export async function hydrateNapplet(event: SignedEvent, hints: string[] = []) {
   );
   if (metadataResolved) {
     if (n.preview?.descriptor.id !== event.id) n.preview = null;
-    n.video = null;
+    if (n.video?.descriptor.id !== event.id) n.video = null;
   }
   n.metadata = metadata;
   await iconTask;
