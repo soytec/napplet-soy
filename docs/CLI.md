@@ -387,12 +387,7 @@ before using Git history-filtering tools in a separate copy. Recheck the result
 with dry-run. soyLI never silently rewrites history or force-pushes it; existing
 public copies cannot be recalled by a local rewrite.
 
-Safe relative source aliases such as `CLAUDE.md -> AGENTS.md` can remain in both
-current and historical Git trees. Each must resolve to a public regular file inside
-that same tree; working files must also stay within the selected source. Chains
-and relative parent paths are supported when they stay inside the project.
-Absolute, escaping, dangling, cyclic, directory, private and unselected targets
-still fail. Target contents pass the same credential checks as ordinary source.
+Safe relative source-file symlinks (also called aliases), such as `CLAUDE.md -> AGENTS.md` or `src/alias.ts -> shared.ts`, can remain in both current and historical Git trees. Source symlinks may also point to selected public `.gitmodules` and `.gitattributes` files. Git itself rejects tracking `.gitmodules` as a symlink. Each link must resolve to a public regular file inside that same tree; working files must also stay within the selected source. Chains and relative parent paths are supported when they stay inside the project. Absolute, escaping, dangling, cyclic, directory, private and unselected targets still fail. Target contents pass the same credential checks as ordinary source.
 
 `soyli checkpoint` preserves the link. Publishing and Git-based remixes preserve
 Git history and symlinks; the downloadable source archive stores each alias as a

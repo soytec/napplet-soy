@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readlink, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceGit } from '../../../packages/grasp/src/client';
@@ -83,6 +83,63 @@ test('real CLI dry-run accepts empty Git metadata and preserves deleted metadata
       true,
     );
     await sourceGit(f.project, ['rm', '.gitmodules', '.gitattributes']);
+    const head = await f.commit();
+    const historical = await f.dry();
+    expect(historical.code, historical.out + historical.err).toBe(0);
+    expect(JSON.parse(historical.out).sourceHistory.status).toBe('checked');
+    expect(await sourceGit(f.project, ['rev-parse', 'HEAD'])).toBe(head);
+    expect(await sourceGit(f.project, ['rev-parse', 'HEAD^'])).toBe(original);
+    expect(await sourceGit(f.project, ['status', '--porcelain'])).toBe('');
+  } finally {
+    await f.close();
+  }
+}, 15000);
+
+test('real CLI accepts source-code and Git metadata symlinks in current source and history', async () => {
+  const f = await fixture();
+  const code = 'export const answer = 42;\n';
+  const attributes = '* text=auto\n';
+  try {
+    await Bun.write(join(f.project, 'src/shared.ts'), code);
+    await Bun.write(join(f.project, '.gitmodules'), '');
+    await Bun.write(join(f.project, '.gitattributes'), attributes);
+    const links = {
+      'src/alias.ts': 'shared.ts',
+      'src/chain.ts': 'alias.ts',
+      'modules-alias': '.gitmodules',
+      'attributes-alias': '.gitattributes',
+    };
+    for (const [path, target] of Object.entries(links))
+      await symlink(target, join(f.project, path));
+    const checkpoint = await f.run([
+      'checkpoint',
+      'Source symlinks',
+      '--project',
+      f.project,
+      '--json',
+    ]);
+    expect(checkpoint.code, checkpoint.out + checkpoint.err).toBe(0);
+    const original = await sourceGit(f.project, ['rev-parse', 'HEAD']);
+    const accepted = await f.dry();
+    expect(accepted.code, accepted.out + accepted.err).toBe(0);
+    const result = JSON.parse(accepted.out);
+    expect(result.sourceHistory.status).toBe('checked');
+    for (const [path, text] of Object.entries({
+      'src/alias.ts': code,
+      'src/chain.ts': code,
+      'modules-alias': '',
+      'attributes-alias': attributes,
+    })) {
+      const bytes = new TextEncoder().encode(text);
+      expect(result.plan.files).toContainEqual({
+        path,
+        hash: await sha256(bytes),
+        size: bytes.length,
+      });
+      expect(await readlink(join(f.project, path))).toBe(links[path as keyof typeof links]);
+      expect(await sourceGit(f.project, ['ls-tree', 'HEAD', path])).toStartWith('120000 blob ');
+    }
+    await sourceGit(f.project, ['rm', ...Object.keys(links)]);
     const head = await f.commit();
     const historical = await f.dry();
     expect(historical.code, historical.out + historical.err).toBe(0);

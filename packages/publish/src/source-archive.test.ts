@@ -227,3 +227,27 @@ test('publish and remix archives preserve ordinary Git metadata and reject priva
     );
   }
 });
+
+test('portable archives materialize source-code and Git metadata symlinks as exact target bytes', () => {
+  const code = encoder.encode('export const answer = 42;\n');
+  const attributes = encoder.encode('* text=auto\n');
+  const input = tar([
+    { path: 'src/', type: 53 },
+    { path: 'src/shared.ts', bytes: code },
+    { path: 'src/alias.ts', type: 50, link: 'shared.ts' },
+    { path: '.gitmodules', bytes: new Uint8Array() },
+    { path: '.gitattributes', bytes: attributes },
+    { path: 'modules-alias', type: 50, link: '.gitmodules' },
+    { path: 'attributes-alias', type: 50, link: '.gitattributes' },
+  ]);
+  const files = sourceArchive(
+    materializeSourceArchive(input, [
+      { path: 'src/alias.ts', target: 'src/shared.ts', executable: false },
+      { path: 'modules-alias', target: '.gitmodules', executable: false },
+      { path: 'attributes-alias', target: '.gitattributes', executable: false },
+    ]),
+  );
+  expect(files.get('src/alias.ts')).toEqual(code);
+  expect(files.get('modules-alias')).toEqual(new Uint8Array());
+  expect(files.get('attributes-alias')).toEqual(attributes);
+});
