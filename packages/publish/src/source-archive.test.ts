@@ -206,3 +206,24 @@ test('only bounded single linkpath PAX records on approved aliases can be consum
     regular.bytes,
   );
 });
+
+test('publish and remix archives preserve ordinary Git metadata and reject private paths', () => {
+  const entries = [
+    { path: '.gitmodules', bytes: encoder.encode('') },
+    { path: '.gitattributes', bytes: encoder.encode('* text=auto\n') },
+    { path: 'nested/.gitmodules', bytes: encoder.encode('[submodule "library"]\n') },
+  ];
+  const input = tar(entries);
+  for (const bytes of [input, materializeSourceArchive(input, [])]) {
+    const files = sourceArchive(bytes);
+    expect(files.size).toBe(entries.length);
+    for (const entry of entries) expect(files.get(entry.path)).toEqual(entry.bytes);
+  }
+  for (const path of ['.git/config', '.env', '.napplet-space/accounts.json']) {
+    const privateArchive = tar([{ path, bytes: encoder.encode('private') }]);
+    expect(() => sourceArchive(privateArchive)).toThrow('Unsafe source archive path');
+    expect(() => materializeSourceArchive(privateArchive, [])).toThrow(
+      'Unsafe source archive path',
+    );
+  }
+});

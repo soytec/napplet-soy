@@ -28,7 +28,7 @@ function validPath(path: string) {
           !part ||
           part === '.' ||
           part === '..' ||
-          /^(?:\.git|\.gitattributes|\.gitmodules|\.napplet-space|node_modules|\.env(?:\..*)?|.*\.(?:nsec|ncryptsec|pem|key))$/i.test(
+          /^(?:\.git|\.napplet-space|node_modules|\.env(?:\..*)?|.*\.(?:nsec|ncryptsec|pem|key))$/i.test(
             part,
           ),
       )

@@ -358,6 +358,8 @@ Dry-run opens no signer, runs no project scripts and publishes nothing. Its JSON
 For a project without a commit it reports `uncommitted` and leaves the history check
 pending; a clean checkpoint is still required for actual publication.
 
+Ordinary `.gitmodules` and `.gitattributes` files are allowed in selected source, the release tree, reachable history and portable remix archives. Their contents still undergo the normal credential scan during source selection and history inspection. An empty or public Git metadata file does not require history cleanup. This does not add support for actual Git submodule entries: soyLI does not fetch or embed submodule repositories.
+
 Older backend guidance sometimes caused `.napplet-space/soy-backend.json` to be
 committed. This exact root-relative path may remain in **ancestry only**, provided
 every historical version is at most 16 KiB and matches the former version-1 public

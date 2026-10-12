@@ -74,7 +74,7 @@ export function checkSource(path: string, bytes: Uint8Array) {
     path
       .split('/')
       .some((p) =>
-        /^(?:\.git|\.gitattributes|\.gitmodules|\.napplet-space|node_modules|\.env(?:\..*)?|.*\.(?:pem|key|p12|pfx|ncryptsec))$/i.test(
+        /^(?:\.git|\.napplet-space|node_modules|\.env(?:\..*)?|.*\.(?:pem|key|p12|pfx|ncryptsec))$/i.test(
           p,
         ),
       ) ||

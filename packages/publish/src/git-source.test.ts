@@ -266,3 +266,43 @@ test('historical file alias compatibility does not admit Git submodules', async 
     await f.close();
   }
 });
+
+test('ordinary Git metadata remains publishable in current trees and deleted history', async () => {
+  for (const files of [
+    { '.gitmodules': '', '.gitattributes': '* text=auto\n' },
+    {
+      '.gitmodules':
+        '[submodule "library"]\n\tpath = library\n\turl = https://example.com/library.git\n',
+      '.gitattributes': '*.png binary\n',
+    },
+  ]) {
+    const f = await history(files);
+    try {
+      for (const [path, text] of Object.entries(files))
+        expect(() => checkSource(path, new TextEncoder().encode(text))).not.toThrow();
+      expect(await inspectHistory(f.root, f.original)).toMatchObject({ commit: f.original });
+      expect(await inspectHistory(f.root, f.head)).toMatchObject({ commit: f.head });
+      expect(await sourceGit(f.root, ['rev-list', '--count', 'HEAD'])).toBe('2');
+      expect(await sourceGit(f.root, ['status', '--porcelain'])).toBe('');
+    } finally {
+      await f.close();
+    }
+  }
+});
+
+test('Git metadata still rejects detected credentials in current and deleted history', async () => {
+  for (const path of ['.gitmodules', '.gitattributes']) {
+    const text = '-----BEGIN OPENSSH PRIVATE KEY-----';
+    const f = await history({ [path]: text });
+    try {
+      expect(() => checkSource(path, new TextEncoder().encode(text))).toThrow('likely credential');
+      for (const commit of [f.original, f.head])
+        await expect(inspectHistory(f.root, commit)).rejects.toMatchObject({
+          code: 'SOURCE_SECRET',
+          message: expect.stringContaining(path),
+        });
+    } finally {
+      await f.close();
+    }
+  }
+});
