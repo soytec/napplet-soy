@@ -4,9 +4,6 @@ import {
   resolveZapEndpoint,
   requestZapInvoice,
   zapTotals,
-  checkZapPayment,
-  validPaymentPreimage,
-  verifiedZapReceipt,
   type ZapInvoice,
 } from '../../../../packages/client/src/zaps';
 import { commentScope } from '../../../../packages/protocol/src/social';
@@ -25,6 +22,7 @@ import {
 import { signForAccount, signAnonymousZap } from '@/lib/community-client';
 import { protocolClient, network } from '@/lib/network';
 import { zapTotalsStore, useZapTotals } from '@/lib/zap-totals';
+import { zapPayments } from '@/lib/zap-payments';
 import type { SignedEvent } from '../../../../packages/protocol/src';
 import type { SocialScope } from '../../../../packages/protocol/src/social';
 import type { ZapEndpoint } from '../../../../packages/backend/src/zaps';
@@ -51,7 +49,9 @@ export function ZapButton({
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
     [invoice, setInvoice] = useState<ZapInvoice | null>(null),
-    [paymentState, setPaymentState] = useState<'waiting' | 'paid' | 'expired'>('waiting'),
+    [paymentState, setPaymentState] = useState<'waiting' | 'paid' | 'expired' | 'unavailable'>(
+      'waiting',
+    ),
     [webln, setWebln] = useState(false),
     [relayHints, setRelayHints] = useState(data.relays),
     [anonymous, setAnonymous] = useState(!pubkey);
@@ -59,20 +59,29 @@ export function ZapButton({
   const target = commentTarget ?? data.manifest;
   const scope = commentTarget ? commentScope(commentTarget) : data.scope;
   const totals = useZapTotals(scope.key);
-  const current = useRef({ open, invoice, target: target.id });
-  current.current = { open, invoice, target: target.id };
-  const confirm = (paidInvoice: ZapInvoice) => {
-    if (
-      !current.current.open ||
-      current.current.invoice !== paidInvoice ||
-      current.current.target !== target.id
-    )
-      return;
-    zapTotalsStore.confirm(scope.key, paidInvoice);
-    setPaymentState('paid');
-    setBusy(false);
-    setMessage('');
-  };
+  const current = useRef({ open, invoice, target: scope.key });
+  current.current = { open, invoice, target: scope.key };
+  useEffect(() => {
+    const pending = zapPayments.pending(scope.key);
+    if (pending) {
+      current.current.invoice = pending.invoice;
+      setInvoice(pending.invoice);
+      setEndpoint(pending.endpoint);
+      setRelayHints(pending.relays);
+    }
+    return zapPayments.watch(scope.key, ({ paymentHash, state }) => {
+      if (
+        current.current.invoice?.paymentHash !== paymentHash ||
+        current.current.target !== scope.key
+      )
+        return;
+      setPaymentState(state);
+      if (state === 'paid') {
+        setBusy(false);
+        setMessage('');
+      }
+    });
+  }, [scope.key]);
   useEffect(
     () => () => {
       current.current.open = false;
@@ -83,6 +92,15 @@ export function ZapButton({
     if (!open) return;
     const controller = new AbortController();
     setMessage('');
+    const pending = zapPayments.pending(scope.key);
+    setWebln(!!(window as any).webln);
+    if (pending) {
+      current.current.invoice = pending.invoice;
+      setInvoice(pending.invoice);
+      setEndpoint(pending.endpoint);
+      setRelayHints(pending.relays);
+      return () => controller.abort();
+    }
     setEndpoint(null);
     setInvoice(null);
     setPaymentState('waiting');
@@ -140,65 +158,6 @@ export function ZapButton({
     return () => controller.abort();
   }, [open, reference, target.id]);
   useEffect(() => {
-    if (!open || !invoice || !endpoint || paymentState !== 'waiting') return;
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    const check = async () => {
-      if (invoice.expiresAt <= Date.now() / 1000) {
-        setPaymentState('expired');
-        return;
-      }
-      const verify = async () => {
-        if (await checkZapPayment(invoice, controller.signal)) {
-          if (!controller.signal.aborted) confirm(invoice);
-        }
-      };
-      const receipt = async () => {
-        const events = await protocolClient().query(
-          [
-            {
-              kinds: [9735],
-              authors: [endpoint.nostrPubkey],
-              '#e': [target.id],
-              '#p': [target.pubkey],
-              since: invoice.request.created_at - 60,
-              limit: 50,
-            },
-          ],
-          relayHints,
-          controller.signal,
-        );
-        for (const event of events) {
-          try {
-            const checked = await verifiedZapReceipt(
-              event,
-              scope,
-              new Map([[target.id, target]]),
-              endpoint,
-            );
-            if (
-              checked.paymentHash === invoice.paymentHash &&
-              checked.requestId === invoice.request.id &&
-              !controller.signal.aborted
-            ) {
-              confirm(invoice);
-              return;
-            }
-          } catch {
-            /* Unrelated or invalid receipts never confirm this invoice. */
-          }
-        }
-      };
-      await Promise.allSettled([verify(), receipt()]);
-      if (!controller.signal.aborted) timer = setTimeout(check, 2000);
-    };
-    void check();
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-    };
-  }, [open, invoice, endpoint, paymentState, target.id]);
-  useEffect(() => {
     if (!open || paymentState !== 'paid') return;
     const timer = setTimeout(() => setOpen(false), 1200);
     return () => clearTimeout(timer);
@@ -209,7 +168,9 @@ export function ZapButton({
       onOpenChange={(value) => {
         if (!busy) {
           if (value) {
-            setInvoice(null);
+            const pending = zapPayments.pending(scope.key);
+            current.current.invoice = pending?.invoice ?? null;
+            setInvoice(pending?.invoice ?? null);
             setPaymentState('waiting');
           }
           setOpen(value);
@@ -250,7 +211,7 @@ export function ZapButton({
               setBusy(true);
               setMessage('');
               try {
-                const targetId = target.id;
+                const targetKey = scope.key;
                 const msats = Number(sats) * 1000;
                 if (
                   !Number.isSafeInteger(msats) ||
@@ -293,9 +254,20 @@ export function ZapButton({
                   endpoint,
                   event,
                 );
-                if (!current.current.open || current.current.target !== targetId) return;
-                setInvoice(prepared);
+                if (!current.current.open || current.current.target !== targetKey) return;
+                const pending = zapPayments.remember({
+                  target,
+                  endpoint,
+                  relays: relayHints.filter((relay) => new URL(relay).protocol === 'wss:'),
+                  invoice: prepared,
+                });
+                current.current.invoice = pending.invoice;
+                setInvoice(pending.invoice);
                 setPaymentState('waiting');
+                if (!zapPayments.durable)
+                  setMessage(
+                    'This browser could not save invoice recovery. Keep the page open until confirmation.',
+                  );
               } catch (error) {
                 setMessage((error as Error).message);
               } finally {
@@ -373,6 +345,7 @@ export function ZapButton({
             </p>
             <Button
               onClick={() => {
+                current.current.invoice = null;
                 setInvoice(null);
                 setPaymentState('waiting');
                 setMessage('');
@@ -382,7 +355,7 @@ export function ZapButton({
             </Button>
           </div>
         )}
-        {invoice && paymentState === 'waiting' && (
+        {invoice && (paymentState === 'waiting' || paymentState === 'unavailable') && (
           <div className="zap-invoice">
             <strong>
               {(invoice.msats / 1000).toLocaleString()} sats to {short(target.pubkey)}
@@ -391,6 +364,21 @@ export function ZapButton({
               <LoaderCircle size={16} className="animate-spin inline" aria-hidden="true" /> Waiting
               for payment…
             </p>
+            {paymentState === 'unavailable' && (
+              <p role="status">
+                Payment confirmation is temporarily unavailable. Your wallet may have paid; we’ll
+                keep checking.
+              </p>
+            )}
+            {!invoice.verify && (
+              <p className="muted">
+                This provider does not offer a payment-status URL. Confirmation depends on its
+                public zap receipt.
+              </p>
+            )}
+            <Button variant="outline" onClick={() => zapPayments.checkNow(scope.key)}>
+              Check payment
+            </Button>
             <LightningCode value={invoice.invoice} label="Zap invoice QR code" />
             <textarea aria-label="Lightning invoice" readOnly value={invoice.invoice} />
             <div className="social-actions">
@@ -420,10 +408,13 @@ export function ZapButton({
                       const wallet = (window as any).webln;
                       await wallet.enable();
                       const result = await wallet.sendPayment(invoice.invoice);
+                      const confirmed = zapPayments.confirmPreimage(
+                        scope.key,
+                        invoice.paymentHash,
+                        result?.preimage,
+                      );
                       if (!current.current.open || current.current.invoice !== invoice) return;
-                      if (validPaymentPreimage(result?.preimage, invoice.paymentHash))
-                        confirm(invoice);
-                      else
+                      if (!confirmed)
                         setMessage('Your wallet reports payment sent. Waiting for confirmation…');
                     } catch (error) {
                       if (current.current.open && current.current.invoice === invoice)
@@ -439,7 +430,8 @@ export function ZapButton({
             </div>
             <p className="muted">
               Expires {new Date(invoice.expiresAt * 1000).toLocaleTimeString()}. Keep this invoice
-              until your wallet confirms its status.
+              until your wallet confirms its status. Pending invoices are remembered in this browser
+              so confirmation can resume after a reload.
             </p>
           </div>
         )}

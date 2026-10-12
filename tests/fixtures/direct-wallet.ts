@@ -61,7 +61,11 @@ export async function directWallet(
   events: Map<string, SignedEvent>,
   key: Uint8Array,
   relay: string,
-  options: { plainDescription?: boolean; verification?: boolean } = {},
+  options: {
+    plainDescription?: boolean;
+    verification?: boolean;
+    verificationPreimage?: boolean;
+  } = {},
 ) {
   const pubkey = getPublicKey(key),
     requests: SignedEvent[] = [],
@@ -106,7 +110,8 @@ export async function directWallet(
           status: 'OK',
           pr: invoices[index],
           settled: settled.has(index),
-          preimage: settled.has(index) ? preimages[index] : null,
+          preimage:
+            settled.has(index) && options.verificationPreimage !== false ? preimages[index] : null,
         },
       });
     }

@@ -1,8 +1,10 @@
 import { useSyncExternalStore } from 'react';
 import { ZapTotalsStore } from '../../../../packages/client/src/zap-totals';
 
-// Used in browser effects only; no payments or invoices are persisted or sent to our server.
-export const zapTotalsStore = new ZapTotalsStore();
+// Confirmed local totals survive reloads; no payment data is sent to our server.
+export const zapTotalsStore = new ZapTotalsStore(
+  typeof window === 'undefined' ? undefined : () => window.localStorage,
+);
 export function useZapTotals(scope: string) {
   return useSyncExternalStore(
     zapTotalsStore.subscribe,
