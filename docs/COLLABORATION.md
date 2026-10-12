@@ -51,20 +51,42 @@ the actual Git tree; ignored build outputs are separate Blossom artifacts.
 ## Proposing and retrying
 
 `propose` checks the built HTML in the host, captures a screenshot, uploads preview
-artifacts directly to the configured Blossom server and pushes the real Git tip to a
-contributor-owned GRASP repository. It publishes an ordinary NIP-34 PR (1618), or an
+artifacts directly to the configured Blossom server and hosts the real Git tip on the
+existing upstream through its GRASP-01 proposal facility. It publishes an ordinary NIP-34 PR (1618), or an
 update (1619) to the existing proposal for this working copy/branch. It does not release
 a named napplet. Repeating a completed tip reuses its event; `propose --resume` finishes
 an interrupted signed submission. A different pending tip must finish before new edits
 can be proposed. External updates and closed proposals stop automatic updates.
 
-The repository announcement carries the upstream `u` relationship. Existing Git
-clients can fetch the PR's `clone` URL and `c` commit; ngit can read its NIP-34 events.
-soyLI pushes the proposal commit to the target’s standard `refs/nostr/<event-id>`
-ref when supported, then requires relay read-back; a GRASP acknowledgement while
-the proposal is held pending Git objects does not count as success.
-No proprietary PR server is involved. The initial adapter uses an ordinary hosted
-contributor repository, not optional GRASP-06 transient PR hosting.
+The proposal path creates no repository announcement/state and requests neither
+kind 30617 nor 30618 signing permission. It advertises upstream clone URLs and sends
+the signed event before pushing `refs/nostr/<event-id>`. Success requires that exact
+remote ref, fetching its `c` commit and fresh upstream relay read-back. A pending
+GRASP acknowledgement is insufficient. Hosting refusal retains its cause and saved
+event; no contributor repository is created as a fallback. Optional GRASP-06 is
+not used. Preview uploads and the PR itself still require their own signatures.
+
+New roots store `branch-name` without `pr/`, matching ngit. Soy can continue an open
+ngit proposal by matching its author and branch, including ngit checkout names with
+the root ID suffix. Ambiguous matches stop. When ngit advances an existing Soy job,
+Soy requires that exact remote revision in the local ancestry before continuing.
+Use a distinct branch for a separate open proposal. Closed/merged jobs retained in
+the same local journal still need the explicit lifecycle action before updates.
+
+Version-2 jobs save signed events, source, preview descriptors and screenshots
+locally. Prior signed journals are archived under the branch's proposal folder
+when a new revision replaces the active journal. Delivery retries do not reconnect
+the signer. A timeout before journaling
+requires rerunning the description command, without `--resume`; frozen preparation
+files alone do not constitute a saved signed proposal. Legacy version-1 jobs retain
+their signatures and original clone locations. Resume pushes the immutable ref
+upstream and requires the original clone to remain fetchable; it never publishes
+their saved repository announcement/state. An unavailable legacy clone stops with
+recovery guidance. A subsequent revision can advertise the upstream clone without
+rewriting old revisions or deleting old repositories.
+
+Legacy roots retain their original `branch-name`. Use `ngit pr checkout <id>` to
+link a branch to that existing root before updating it through ngit.
 
 ## Reviewing and accepting
 
@@ -111,12 +133,26 @@ Merging does not delete the proposal, its revisions or discussion. `soyli push`
 announces a separate NIP-34 merged-status event for included open proposals.
 A local or ordinary Git merge alone does not announce that relay status.
 
-Merge requires a maintainer signer, current proposal revision, unchanged clean local
+Merge requires a selected maintainer identity, current proposal revision, unchanged clean local
 HEAD and an upstream state already integrated into that target. A Git conflict stops
 before changing the checkout; resolve using ordinary Git/ngit. Git authorship and
-ancestry are retained. `push` currently supports the repository owner and the managed
-main/release-tag layout; other maintainer/branch layouts use ngit. A relay's “merged”
+ancestry are retained. Merge resolves a declared target branch when supplied, otherwise
+the signed state's `HEAD`, and requires that branch to be checked out. `push` publishes
+the checked-out existing upstream branch, preserving other signed refs and `HEAD`.
+It works for the owner and directly listed maintainers with reciprocal repository
+announcements. An invitation alone grants no state authority. Role-based `M`/`m`
+authority and indirect recursive maintainership remain outside this adapter profile;
+use ngit for those layouts. Creating/deleting branches, rebasing and squash acceptance
+also use ordinary Git/ngit. A relay's “merged”
 status is an authorized claim, not independent proof of integration into a Git branch.
+
+Explicit `soyli push` can publish an existing linked Nostr repository; `soyli publish`
+still verifies linked source read-only. Push saves its signed state and exact applied
+events in `.napplet-space/push-outbox/` before delivery. Applied status is sent only
+after Git publication is confirmed and itself requires relay read-back. A partial
+failure resumes from the same local tip without another merge or new signatures.
+If the tip, upstream state or maintainer authority changes during recovery, stop and
+reconcile it; do not discard the journal or force-push around the check.
 
 The shell's **Proposed changes** section queries Nostr directly. `/proposals/<event-id>`
 is a shareable observer view with revision selection, discussion and opt-in playback.

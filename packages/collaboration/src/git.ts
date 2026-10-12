@@ -52,7 +52,9 @@ export async function fetchCommit(
       return url;
     } catch (cause) {
       failures.push(
-        new DiagnosticError('GIT_SOURCE', 'Clone source failed.', { target: input, cause }),
+        cause instanceof DiagnosticError
+          ? new DiagnosticError(cause.code, cause.message, { ...cause.context, target: input })
+          : new DiagnosticError('GIT_SOURCE', 'Clone source failed.', { target: input, cause }),
       );
     }
   }
@@ -61,7 +63,10 @@ export async function fetchCommit(
     'The exact proposed Git commit is unavailable from its clone servers.',
     {
       operation: 'fetch source commit',
-      cause: new AggregateError(failures, 'All clone sources failed.'),
+      cause:
+        failures.length === 1
+          ? failures[0]
+          : new AggregateError(failures, 'All clone sources failed.'),
       recovery:
         'Check the source servers and Git errors below. The author may need to push this exact commit.',
     },

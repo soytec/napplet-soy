@@ -198,6 +198,90 @@ test('source refs, signed authorization and service identity survive process res
     ).toBe(false);
   }
 }, 40000);
+test('a non-maintainer hosts PR roots and updates on upstream immutable refs without a fork', async () => {
+  const urls = sourceUrls(origin, await owner.getPublicKey(), 'round-trip', true);
+  const contributor = new PrivateKeySigner();
+  const branch = join(directory, 'forkless-contributor');
+  await sourceGit(directory, ['clone', urls.clone, branch]);
+  const before = await sourceGit(branch, ['ls-remote', '--heads', '--tags', urls.clone]);
+  const base = await sourceGit(branch, ['rev-parse', 'HEAD']);
+  const pool = new RelayPool();
+  try {
+    const relay = pool.relay(urls.relay);
+    let root = '';
+    for (const revision of [0, 1]) {
+      await Bun.write(join(branch, 'contribution.txt'), `Revision ${revision}`);
+      await sourceGit(branch, ['add', '.']);
+      await sourceGit(branch, ['commit', '-m', `Contributor revision ${revision}`]);
+      const commit = await sourceGit(branch, ['rev-parse', 'HEAD']);
+      const event = await contributor.signEvent({
+        kind: revision ? 1619 : 1618,
+        created_at: Math.floor(Date.now() / 1000) + revision,
+        content: 'Forkless contribution',
+        tags: [
+          ['a', `30617:${await owner.getPublicKey()}:round-trip`],
+          ['p', await owner.getPublicKey()],
+          ['c', commit],
+          ['clone', urls.clone],
+          ['merge-base', base],
+          ...(revision
+            ? [
+                ['E', root],
+                ['P', await contributor.getPublicKey()],
+              ]
+            : [
+                ['subject', 'Forkless contribution'],
+                ['branch-name', 'pr/forkless'],
+              ]),
+        ],
+      });
+      root ||= event.id;
+      expect(
+        (await relay.publish(event, { timeout: 5000, retries: false, reconnect: false })).ok,
+      ).toBe(true);
+      // Acknowledgement precedes object delivery and does not imply discoverability.
+      expect(
+        await lastValueFrom(
+          relay
+            .request({ ids: [event.id] }, { timeout: 3000, reconnect: false, waitForAuth: false })
+            .pipe(toArray()),
+        ),
+      ).toHaveLength(0);
+      await sourceGit(branch, ['push', urls.clone, `${commit}:refs/nostr/${event.id}`]);
+      expect(
+        await lastValueFrom(
+          relay
+            .request({ ids: [event.id] }, { timeout: 3000, reconnect: false, waitForAuth: false })
+            .pipe(toArray()),
+        ),
+      ).toHaveLength(1);
+      const observer = join(directory, `forkless-observer-${revision}`);
+      await mkdir(observer);
+      await sourceGit(observer, ['init']);
+      await sourceGit(observer, ['fetch', urls.clone, commit]);
+      expect(await sourceGit(observer, ['rev-parse', 'FETCH_HEAD'])).toBe(commit);
+      // Redelivery and push are idempotent.
+      expect(
+        (await relay.publish(event, { timeout: 5000, retries: false, reconnect: false })).ok,
+      ).toBe(true);
+      await sourceGit(branch, ['push', urls.clone, `${commit}:refs/nostr/${event.id}`]);
+      expect(await sourceGit(branch, ['ls-remote', '--heads', '--tags', urls.clone])).toBe(before);
+    }
+    expect(
+      await lastValueFrom(
+        relay
+          .request(
+            { kinds: [30617, 30618], authors: [await contributor.getPublicKey()] },
+            { timeout: 3000, reconnect: false, waitForAuth: false },
+          )
+          .pipe(toArray()),
+      ),
+    ).toHaveLength(0);
+    await expect(sourceGit(branch, ['push', urls.clone, 'HEAD:refs/heads/main'])).rejects.toThrow();
+  } finally {
+    pool.close();
+  }
+}, 30000);
 test('a second process cannot open the same state directory', async () => {
   const second = Bun.spawn([graspBinary], {
     cwd: join(directory, 'state'),

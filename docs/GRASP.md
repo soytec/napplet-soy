@@ -29,6 +29,12 @@ Both `dev` and `dev:prod` start Caddy before seeding so Git URLs remain identica
 
 ## Source publication adapter
 
+Forkless collaboration uses `packages/collaboration/src/transport.ts` separately
+from this author-owned publication helper. It hosts PR roots/updates on existing
+upstream immutable refs and publishes accepted branches with saved signed state,
+without creating a contributor repository. The contributor's configured repository
+host is not the proposal destination. See [collaboration](COLLABORATION.md).
+
 `packages/grasp/src/client.ts` uses an Applesauce-compatible signer. It prepares a kind-30617 announcement with the repository identifier, HTTPS clone URL, relay URL and earliest unique commit, followed by kind-30618 authorizing a commit at `refs/heads/main`. Metadata is signed and checked before network activity. The adapter accepts a committed, clean repository with one root and publishes its selected commit as `main`; it can additionally retain up to 128 immutable `refs/tags/release-<id>` tags. The publisher supplies an expected main commit for a Git force-with-lease; general multi-branch/tag management is left to a full ngit client. The adapter serves only soyLI-hosted repositories; a project that publishes against [its own NIP-34 repository](PUBLISHING.md#publishing-from-your-own-nip-34-repository) is verified read-only and never signed or pushed by it.
 
 Publish those events to GRASP, push the authorized Git objects, then verify both relay events and the advertised branch tip. GRASP initially holds repository metadata in purgatory until the required objects exist. A successful relay acknowledgement alone is insufficient. The adapter supports retrying the same signed publication; it does not re-sign on retry. Private keys never go to the Git subprocess.

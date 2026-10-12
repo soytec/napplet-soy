@@ -142,6 +142,43 @@ export async function readRepository(
   if (!event) throw new Error('Repository announcement unavailable.');
   return repositoryFromEvent(ref, event);
 }
+/** Legacy NIP-34 reciprocal maintainership at the selected repository coordinate.
+ * An invitation alone must not make a state authoritative. */
+export async function readRepositoryState(client: ProtocolClient, repo: Repository) {
+  if (repo.event.tags.some((t) => ['M', 'm'].includes(t[0])))
+    throw new DiagnosticError(
+      'REPOSITORY_AUTHORITY_UNSUPPORTED',
+      'This repository uses role-based maintainer authority outside the selected adapter profile.',
+      {
+        operation: 'resolve repository state',
+        target: repo.address,
+        recovery:
+          'Use ngit for this repository’s merge and push operations. Soy has not changed its announcement or selected another identity.',
+      },
+    );
+  const announcements = await client.query(
+    [{ kinds: [30617], authors: repo.maintainers, '#d': [repo.identifier], limit: 100 }],
+    repo.relays,
+  );
+  const authors = [
+    repo.pubkey,
+    ...repo.maintainers.filter((pubkey) => {
+      const announcement = latest(announcements.filter((e) => e.pubkey === pubkey))[0];
+      return (
+        announcement &&
+        !announcement.tags.some((t) => ['M', 'm'].includes(t[0])) &&
+        values(announcement, 'maintainers').includes(repo.pubkey)
+      );
+    }),
+  ];
+  const state = latest(
+    await client.query(
+      [{ kinds: [30618], authors, '#d': [repo.identifier], limit: 100 }],
+      repo.relays,
+    ),
+  )[0];
+  return { state, authors: [...new Set(authors)] };
+}
 function repositoryFromEvent(
   ref: ReturnType<typeof repositoryRef>,
   event: SignedEvent,

@@ -300,14 +300,17 @@ assets, presentation files and backend build inputs must still be regular files.
 One remix supports both paths, in either order:
 - soyli publish releases your own version under its local publication identity.
 - soyli propose "Description" submits an ordinary NIP-34 proposal upstream with a
-  checked runnable preview. Run it again after a new checkpoint to update that PR.
-  Use propose --resume after an interrupted submission.
+  checked runnable preview, without creating a contributor repository. Run it
+  again after a new checkpoint to update that PR. Use propose --resume only after
+  a signed proposal was saved; a preparation timeout needs the original command.
 - soyli review opens the local proposal inbox, source diff and original/proposed
   player. Opening a review never runs contributor setup/build scripts. Explicit
   review <id> --rebuild opts into them in a temporary checkout.
 - soyli proposals --json gives agent-readable proposals and exact revisions.
 - soyli merge <id> --revision <event-id> --target <reviewed-HEAD> merges locally.
-  soyli push publishes Git state; soyli publish separately releases the napplet.
+  Merge on the upstream target branch. soyli push publishes that branch and
+  confirmed applied status, preserving other refs; soyli publish releases the
+  napplet separately. A failed push keeps its journal; rerun it from the same tip.
 Use the same selected revision for testing and merge. A changed target or proposal
 requires another review. Ordinary Git/ngit remain available for branches, patches,
 conflicts and maintainer layouts outside this simple creator workflow.

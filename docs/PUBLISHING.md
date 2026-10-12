@@ -78,7 +78,9 @@ given. A NIP-05 owner lookup is limited to eight seconds and 64 KiB, refuses
 redirects and sends no browser credentials.
 
 The repository must belong to the publishing key. soyLI never signs its
-announcement or state and never pushes to it. Push the release commit first with
+announcement or state and never pushes to it. Explicit collaboration `soyli push`
+is a separate action for publishing an existing branch; see [collaboration](COLLABORATION.md).
+Push the release commit first with
 `git push` or `ngit push`. Before signing, and again before announcing a resumed
 release, soyLI requires the commit to be contained in a ref of the repository's
 signed kind-30618 state, and a clone URL from the announcement to serve that ref

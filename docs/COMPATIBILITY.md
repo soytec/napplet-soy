@@ -1,5 +1,15 @@
 # Compatibility evidence and remaining audit
 
+## Forkless Git collaboration source qualification
+
+2026-10-12 source hosts proposal commits through upstream GRASP-01 refs without
+creating contributor repositories. Native GRASP 3.0.2 and independent ngit 2.6.1
+cover creation, revisions, checkout, acceptance and applied-status visibility in
+both directions. NIP-34 `6d2979b3` and the authoritative NIP-5D/NAP pins remain
+unchanged. Exact versions, recovery evidence and unqualified cases are recorded in
+[interoperability](INTEROPERABILITY.md#forkless-proposals-and-acceptance).
+This is local source qualification; no new CLI release or deployment is implied.
+
 ## NIP-5D PR 7 migration — 2026-10-04
 
 soyLI 0.24.0 publications target `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d51`; old `24711d9` manifests remain readable/playable by the deployed dual reader. See [the migration matrix and rollout](NIP5D-MIGRATION.md) and [release evidence](CLI-RELEASES.md). The manifest publisher/parser changes while NAP runtime and upstream package pins stay unchanged. Existing upstream Paja acceptance is evidence for the legacy format only, not a claim that that client supports PR 7.
