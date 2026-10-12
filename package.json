@@ -106,7 +106,6 @@
     "@types/three": "0.186.0",
     "@types/ws": "8.18.1",
     "@vitejs/plugin-react": "6.1.1",
-    "fake-indexeddb": "6.2.5",
     "node-addon-api": "8.9.2",
     "node-gyp": "12.4.0",
     "playwright-core-mac-compat": "npm:playwright-core@1.61.1",

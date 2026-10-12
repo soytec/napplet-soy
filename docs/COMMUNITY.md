@@ -407,8 +407,7 @@ kind-5 deletions use a separate path because Applesauce consumes them. This can
 populate social views while relays refresh. Browser storage failures leave relay
 reads available. The cache is local to this browser and does not establish a
 complete relay view for deletion or other authority-sensitive operations. This
-implementation is verified by `bun test apps/web/src/lib/event-cache.test.ts` and
-has not been deployed.
+implementation builds locally and has not been deployed.
 
 Gallery summaries fetch referenced releases/reply parents and author deletions in
 a shared follow-up query. They omit comment-reaction and general profile hydration,
