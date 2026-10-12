@@ -351,6 +351,8 @@ verifies it and never writes to that repository. See
 
 #### Historical source checks
 
+`SOURCE_PATH` identifies a source packaging restriction, not a detected credential. History diagnostics name the rejected entry (with credential redaction), its containing commit and the specific restriction: submodule/type, path length, traversal, or whitespace/backslash/control characters. Historical submodule commit references are allowed: they do not embed the referenced repository or cause soyLI to fetch it. Submodules in the release tree remain unsupported because the source archive cannot materialize them.
+
 soyLI **0.23.2** checks reachable Git history during `publish --dry-run`, as
 well as before publication/proposal preparation and again when freezing source.
 Dry-run opens no signer, runs no project scripts and publishes nothing. Its JSON
@@ -358,7 +360,7 @@ Dry-run opens no signer, runs no project scripts and publishes nothing. Its JSON
 For a project without a commit it reports `uncommitted` and leaves the history check
 pending; a clean checkpoint is still required for actual publication.
 
-Ordinary `.gitmodules` and `.gitattributes` files are allowed in selected source, the release tree, reachable history and portable remix archives. Their contents still undergo the normal credential scan during source selection and history inspection. An empty or public Git metadata file does not require history cleanup. This does not add support for actual Git submodule entries: soyLI does not fetch or embed submodule repositories.
+Ordinary `.gitmodules` and `.gitattributes` files are allowed in selected source, the release tree, reachable history and portable remix archives. Their contents still undergo the normal credential scan during source selection and history inspection. An empty or public Git metadata file does not require history cleanup. Historical Git submodule references are allowed; release-tree submodules remain unsupported. soyLI does not fetch or embed submodule repositories.
 
 Older backend guidance sometimes caused `.napplet-space/soy-backend.json` to be
 committed. This exact root-relative path may remain in **ancestry only**, provided
