@@ -46,7 +46,8 @@ supersedes the shared 25 MiB admission limit below. Hash, UTF-8, streaming size,
 public-network and sandbox checks remain required. The index projection profile
 changes so formerly oversized entries are rechecked after rollout. This changes no
 NAP, manifest field or upstream pin; source/presentation metadata remains optional.
-This is a local source update; website/indexer deployment is separate.
+Released in soyLI 0.26.1 and deployed in `20261012080150614-26110` on 2026-10-12;
+see [verification](CLI-RELEASES.md).
 
 2026-10-05 source-alias correction: safe relative aliases to public files are now
 accepted in current as well as historical Git trees. Git retains the links; the

@@ -203,7 +203,7 @@ The creator's Lightning service must advertise `allowsNostr`, a receipt-signing 
 
 The invoice offers a locally generated QR code, `lightning:` wallet link and copy control. QR encoding loads lazily in the browser, without a third-party image endpoint. When WebLN is available, **Pay with browser wallet** explicitly enables the wallet and requests payment; invoice creation never pays automatically. The public total uses kind-9735 receipts verified against the advertised provider, signed request, recipient, target, invoice amount and description; an optional preimage must match the payment hash. Event IDs and payment hashes are deduplicated. A receipt remains the Lightning provider's assertion. Changing providers may make older receipts unverifiable from the current profile.
 
-Source update 2026-10-12 (not yet deployed): payment tracking belongs to the
+Deployed 2026-10-12 in `20261012080150614-26110`: payment tracking belongs to the
 invoice, not the dialog. It continues when the dialog closes while its napplet or
 comment remains mounted, resumes on return to the page and after reload, and
 checks immediately when the browser regains focus or the user chooses **Check payment**.

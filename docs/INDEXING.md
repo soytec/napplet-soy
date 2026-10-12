@@ -38,12 +38,12 @@ Queries are bounded and read-only: manifest kinds 35129, 15129 and 5129; 200 eve
 
 Up to twelve due manifests are selected per round, with a 60-second hydration budget, bounded downloads and retry times; queued lookups run alongside scanning and serialize artifact hydration. Queued discovery retains its 45-second budget, below the queue’s 60-second abandoned-job lease. Executable bytes must match the signed SHA-256 hash, stay within 100 MiB, and decode as UTF-8 before becoming ready. Each mirror attempt has up to 30 seconds within the artifact job’s 60-second deadline, subject to the remaining round or discovery budget; the byte cap applies while streaming. Downloads follow signed hints with the existing public DNS/IP policy and no redirects. The explicitly configured dev Blossom origin also acts as a local cache for any author's signed hash, including fixtures without hints. No manifest can choose another local URL or port.
 
-The 100 MiB read allowance is a 2026-10-12 source change; soyLI still publishes
+The 100 MiB read allowance was deployed on 2026-10-12; soyLI still publishes
 HTML up to 25 MiB. The index projection profile includes the read budget so entries
-rejected under the old limit are scheduled for rechecking after rollout. Public
-admission above 25 MiB requires deployment of the updated website, indexer and
-runtime; releasing the CLI alone does not change them. Host resource limits remain
-separate and unchanged.
+rejected under the old limit are scheduled for rechecking after rollout. Website,
+indexer and runtime deployment `20261012080150614-26110` activates this policy;
+soyLI 0.26.1 provides matching CLI readers. Host resource limits remain separate
+and unchanged. See [release verification](CLI-RELEASES.md).
 
 The executable cache is capped at 1 GiB and reclaims unreferenced hashes. Optional normalized raster previews use descriptor/signature/image checks or the standalone manifest's verified hash/MIME icon, refresh every fifteen minutes and have a 256 MiB disk cap. A missing/evicted image falls back to the generated OG card. The index admits up to 10,000 winning manifests/snapshots, 10,000 archived revisions and 10,000 deletion targets; reaching capacity is reported in health and stops cursor advancement. Pinned history is retained, so capacity needs operator attention rather than silently dropping old releases. The gallery filters the whole retained current index plus the optional publicdev collection before returning 24 entries per page; search and topics can find entries older than the former 200-event window. See [discovery](DISCOVERY.md).
 

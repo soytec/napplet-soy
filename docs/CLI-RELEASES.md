@@ -1,9 +1,18 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The current published version is **0.26.0**.
+The current published version is **0.26.1**.
 
-**0.26.1 release candidate, 2026-10-12 (Europe/Vienna):**
+**0.26.1 published and deployed 2026-10-12 (Europe/Vienna):**
+[GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.26.1),
+source `d2154818b97cb127f9d0b6516fe479bf5feadb39`.
+[Release CI 38220303369](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38220303369)
+passed source checks, all four native package jobs and publication of all 11 assets.
+[Nix CI 38220303324](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38220303324)
+passed at the same source; the candidate also passed Nix CI before promotion.
+All four public archives, aggregate checksums, installer bytes and tagged-source
+manifest match. A fresh isolated macOS ARM64 installation reports 0.26.1 and
+current through both `doctor` and `update`.
 
 Published-artifact readers accept verified HTML up to **100 MiB** from every
 publisher, including existing napplets. This covers website indexing/playback,
@@ -21,8 +30,23 @@ A missing historical invoice cannot be reconstructed by this change. Other
 viewers still depend on a public receipt. See [community](COMMUNITY.md).
 
 Upgrade with `soyli update` and restart previews for the larger CLI read budget.
-The website/indexer changes and zap recovery need a host deployment. Release and
-deployment verification will be recorded after the gates pass.
+The matching VPS deployment `20261012080150614-26110` is active. Local and VPS
+TypeScript checks and 616 source tests pass, alongside Go race/relay, Blossom,
+GRASP, production build and three Linux backend isolation/backup/authorization
+checks. A 32 MiB fixture passes relay-to-index-to-browser playback; boundary tests
+cover 100 MiB acceptance and rejection above it while publishing stays at 25 MiB.
+The QR-wallet browser regression verifies confirmation, auto-close, reload
+persistence and late-receipt deduplication. It passed unchanged in a fresh process
+after a combined browser-suite run exceeded its 30-second test deadline.
+
+Public site/docs, Blossom health and relay/GRASP NIP-11 metadata respond correctly.
+The index is fresh and error-free with profile `html-104857600`; the public installer
+matches the release. Fresh live desktop and 390px browser checks verify the zap
+dialog and sandboxed game canvas without horizontal overflow or browser errors.
+No real invoice or payment was created, and physical phones were not tested.
+Caddy/CVM/TURN are active; all five PM2 services are online with zero restarts at
+verification. Shared proxy checksums are unchanged, persistent state is retained,
+and `20261009091435416-91120` remains available for rollback.
 
 **0.26.0 published 2026-10-11 (Europe/Vienna); no host deployment:**
 [GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.26.0),

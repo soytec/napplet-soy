@@ -12,7 +12,7 @@ Implemented 2026-09-12. Open a public card and choose **Play napplet**. Cards di
 
 ## Playable artifact read budget
 
-The 2026-10-12 source update accepts published HTML up to **100 MiB**, independent
+The update deployed on 2026-10-12 accepts published HTML up to **100 MiB**, independent
 of soyLI’s **25 MiB** build/publishing limit. The same read budget applies to the
 website indexer, browser player and local preview. All publishers follow the same
 admission rules, including legacy manifests. The complete artifact must pass raw
@@ -20,7 +20,8 @@ SHA-256 and UTF-8 verification before it executes. Downloads are bounded while
 streaming, with up to 30 seconds per mirror and 60 seconds overall, and can be
 cancelled when leaving the player. Managed resources retain their separate 10 MiB
 limit. The index rechecks entries rejected under the previous artifact budget.
-This source change requires a website/indexer deployment to affect napplet.soy.
+The website/indexer deployment is `20261012080150614-26110`; local preview ships
+in soyLI 0.26.1. See [release verification](CLI-RELEASES.md).
 
 ## Standards and integration
 
