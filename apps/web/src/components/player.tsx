@@ -7,6 +7,7 @@ import { usePlayerPresentation } from '@/lib/use-player-presentation';
 import { browserIdentity } from '@/lib/browser-identity';
 import { FilePicker } from '../../../../packages/runtime/src/file-picker';
 import { useNostr } from './nostr-provider';
+import { communityMode } from '@/lib/community-mode';
 import { Button } from './ui/button';
 import { PlayerChrome } from './player-chrome';
 import { SoybertWalk } from './soybert-walk';
@@ -176,6 +177,8 @@ export function Player({
         title: napplet.title,
         sign: reviewScope ? undefined : (key, event) => browserIdentity().sign(key, event),
         pubkey: reviewScope ? null : currentPubkey.current,
+        allowSocialAuthor: communityMode.allows,
+        onFollowEvent: communityMode.observeFollowEvent,
         prompt: setPrompt,
         files: setExports,
         declaration: declaration.current,

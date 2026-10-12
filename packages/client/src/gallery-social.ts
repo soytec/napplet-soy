@@ -24,6 +24,8 @@ export class GallerySocialReader {
     private client: ProtocolClient,
     private loadEndpoint = resolveZapEndpoint,
     private zapCounts?: ZapTotalsStore,
+    private allowSocialAuthor: (pubkey: string) => boolean = () => true,
+    private communityOnly = false,
   ) {}
 
   private endpoint(pubkey: string, events: SignedEvent[]) {
@@ -146,7 +148,11 @@ export class GallerySocialReader {
         .map((e) => [e.id, e]),
     );
     const manifests = new Map(group.map((n) => [n.revisionId, n.manifest]));
-    const allowedEvents = () => [...raw.values()].filter(this.client.allowed);
+    const allowedEvents = () =>
+      [...raw.values()].filter(
+        (event) =>
+          this.client.allowed(event) && (event.kind === 0 || this.allowSocialAuthor(event.pubkey)),
+      );
     let complete = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const update = () => {
@@ -266,7 +272,13 @@ export class GallerySocialReader {
                     { events, manifests },
                     await this.endpoint(n.pubkey, events),
                   );
-                  totals = this.zapCounts?.observe(scope.key, verified.receipts) ?? verified;
+                  const receipts = this.communityOnly
+                    ? verified.receipts.filter((receipt) => this.allowSocialAuthor(receipt.pubkey))
+                    : verified.receipts;
+                  totals = this.zapCounts?.observe(scope.key, receipts) ?? {
+                    zapCount: receipts.length,
+                    msats: receipts.reduce((sum, receipt) => sum + receipt.msats, 0),
+                  };
                 } catch {}
             }
             signal.throwIfAborted();

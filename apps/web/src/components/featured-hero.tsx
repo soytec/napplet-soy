@@ -10,6 +10,8 @@ import { getFeaturedGallery } from '@/lib/catalog.functions';
 import { Button } from './ui/button';
 import { PreviewCover } from './preview-cover';
 import { linkedMedia } from '../../../../packages/protocol/src/linked-media';
+import { useNostr } from './nostr-provider';
+import { communityMode } from '@/lib/community-mode';
 
 const previewClip = (entry: PublicNapplet) =>
   entry.video ?? linkedMedia(entry.manifest, entry.metadata ?? []).videos[0];
@@ -21,7 +23,11 @@ export function FeaturedHero({
   initial: PublicNapplet[];
   empty: React.ReactNode;
 }) {
-  const [entries, setEntries] = useState(initial);
+  const { community } = useNostr();
+  const [rawEntries, setEntries] = useState(initial);
+  const entries = community.enabled
+    ? rawEntries.filter((entry) => communityMode.allows(entry.pubkey))
+    : rawEntries;
   const [selection, setSelection] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
   const [clipMode, setClipMode] = useState<'auto' | 'play' | 'pause'>('auto');

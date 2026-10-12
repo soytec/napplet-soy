@@ -16,8 +16,11 @@ import {
 } from '../../../../packages/collaboration/src/protocol';
 import type { SignedEvent } from '../../../../packages/protocol/src';
 import { switchMap, Subscription } from 'rxjs';
+import { useNostr } from './nostr-provider';
+import { communityMode } from '@/lib/community-mode';
 
 export function Proposals({ manifest, reference }: { manifest?: SignedEvent; reference?: string }) {
+  const { community } = useNostr();
   const source = manifest && tag(manifest, 'source');
   const playback = useRef(0);
   const [repository, setRepository] = useState<Repository>();
@@ -95,8 +98,14 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
       subscription.unsubscribe();
     };
   }, [source, reference, generation]);
-  const proposal = rows.find((p) => p.root.id === selected);
-  const chosen = proposal?.revisions.find((r) => r.id === revision) ?? proposal?.revision;
+  const visibleRows = community.enabled
+    ? rows.filter(
+        (p) => communityMode.allows(p.root.pubkey) && communityMode.allows(p.revision.pubkey),
+      )
+    : rows;
+  const proposal = visibleRows.find((p) => p.root.id === selected);
+  const eligibleRevisions = proposal?.revisions.filter((r) => communityMode.allows(r.pubkey)) ?? [];
+  const chosen = eligibleRevisions.find((r) => r.id === revision) ?? proposal?.revision;
   async function play(original = false) {
     if (!chosen) return;
     const request = ++playback.current;
@@ -134,7 +143,7 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
           <span className="eyebrow">BUILD ON EACH OTHER</span>
           <h2>
             <GitPullRequest size={25} /> Proposed changes
-            <span className="proposal-count">{rows.length}</span>
+            <span className="proposal-count">{visibleRows.length}</span>
           </h2>
           <p>Play someone’s idea, discuss it, then bring it into the original.</p>
         </div>
@@ -147,14 +156,14 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
           <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
         </Button>
       </div>
-      {!rows.length && !loading && !error && (
+      {!visibleRows.length && !loading && !error && (
         <p className="muted">
           No proposals yet. Remix the source, make a change, then use{' '}
           <code>soyli propose "Description"</code>. No website account needed.
         </p>
       )}
       <div className="proposal-list">
-        {rows.map((p) => (
+        {visibleRows.map((p) => (
           <button
             type="button"
             key={p.root.id}
@@ -198,7 +207,7 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
                   setPlaying(null);
                 }}
               >
-                {proposal.revisions.map((r) => (
+                {eligibleRevisions.map((r) => (
                   <option key={r.id} value={r.id}>
                     {new Date(r.created_at * 1000).toLocaleString()} ·{' '}
                     {(tag(r, 'c') ?? r.id).slice(0, 10)}
@@ -239,12 +248,14 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
           </p>
           {proposal.comments.length > 0 && (
             <div className="proposal-comments">
-              {proposal.comments.map((c) => (
-                <article key={c.id}>
-                  <small>{c.pubkey.slice(0, 12)}…</small>
-                  <p>{c.content}</p>
-                </article>
-              ))}
+              {proposal.comments
+                .filter((c) => communityMode.allows(c.pubkey))
+                .map((c) => (
+                  <article key={c.id}>
+                    <small>{c.pubkey.slice(0, 12)}…</small>
+                    <p>{c.content}</p>
+                  </article>
+                ))}
             </div>
           )}
           <a href={`/proposals/${proposal.root.id}`}>Link to this proposal ↗</a>

@@ -36,7 +36,7 @@ export const Route = createFileRoute('/')({
   component: Gallery,
 });
 function Gallery() {
-  const { ready } = useNostr();
+  const { ready, community } = useNostr();
   const initial = Route.useLoaderData();
   const search = Route.useSearch();
   const [refreshVersion, setRefreshVersion] = useState(0);
@@ -63,7 +63,7 @@ function Gallery() {
     pages,
     matches,
     featured,
-  } = refreshVersion ? browseProtocol(search) : initial;
+  } = refreshVersion || community.enabled ? browseProtocol(search) : initial;
   const [showAllTags, setShowAllTags] = useState(false);
   const [active, setActive] = useState<string | null>(null);
   const [lookupError, setLookupError] = useState('');

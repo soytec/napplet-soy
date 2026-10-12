@@ -10,6 +10,7 @@ import { NappletActions } from './action-session';
 import { NappletUploads } from './upload-session';
 import { NappletAppData, appDataPolicy } from './app-data-session';
 import type { HostSign } from './action-contracts';
+import type { SignedEvent } from '../../protocol/src';
 import { PlaybackNostr } from '../../nostr/src/playback';
 import { WorkQueue } from './work-queue';
 import { NappletConfig } from './config-session';
@@ -43,6 +44,9 @@ export type HostOptions = {
   title?: string;
   localServers?: string[];
   pubkey: string | null;
+  /** Viewer preference applied to social relay reads, supplied by the trusted shell. */
+  allowSocialAuthor?: (pubkey: string) => boolean;
+  onFollowEvent?: (event: SignedEvent) => void;
   prompt: (prompt: HostPrompt | null) => void;
   files: (files: ExportFile[]) => void;
   declaration?: { schema?: unknown; error?: string };
@@ -92,7 +96,13 @@ export function attachNappletHost(options: HostOptions) {
     const lifetime = new AbortController();
     const resources = new Map<string, AbortController>();
     let backend: NappletBackend | undefined, webrtc: NappletWebrtc | undefined;
-    const nostr = new PlaybackNostr(options.relays, sendScoped, () => pubkey);
+    const nostr = new PlaybackNostr(
+      options.relays,
+      sendScoped,
+      () => pubkey,
+      undefined,
+      options.allowSocialAuthor,
+    );
     const files = new NappletFiles(sendScoped, (value) => {
       if (active && alive) options.files(value);
     });
@@ -288,8 +298,19 @@ export function attachNappletHost(options: HostOptions) {
       if (
         domain === 'lists' ||
         ['common.follow', 'common.unfollow', 'common.react', 'common.report'].includes(type)
-      )
-        return actions.handle(message);
+      ) {
+        const result = await actions.handle(message);
+        if (
+          result &&
+          'event' in result &&
+          result.event &&
+          typeof result.event === 'object' &&
+          'kind' in result.event &&
+          result.event.kind === 3
+        )
+          options.onFollowEvent?.(result.event as SignedEvent);
+        return result;
+      }
       if (domain === 'common') return nostr.common(message);
       if (type === 'theme.get')
         return {

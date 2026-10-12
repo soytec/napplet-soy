@@ -50,6 +50,19 @@ test('playback relay reads validate signatures and filters, deduplicate, and clo
     await new Promise((resolve) => setTimeout(resolve, 25));
     expect(delivered.filter((m) => m.type === 'relay.event')).toHaveLength(1);
     expect(delivered.some((m) => m.type === 'relay.eose')).toBe(true);
+    const filtered = new PlaybackNostr(
+      [`ws://127.0.0.1:${relay.port}/`],
+      () => {},
+      () => null,
+      undefined,
+      () => false,
+    );
+    try {
+      expect(await filtered.query([{ kinds: [1] }])).toEqual([]);
+      expect(await filtered.query([{ kinds: [2] }])).toEqual([{ event: wrongKind }]);
+    } finally {
+      filtered.close();
+    }
     await expect(client.handle({ type: 'relay.publish', event })).rejects.toThrow('disabled');
     await expect(
       client.handle({

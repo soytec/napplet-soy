@@ -8,6 +8,7 @@ import { protocolClient, network, manifestAllowed } from './network';
 import { queryCatalog, availableCatalog, featured } from './protocol-catalog';
 import { matchesGallery } from '../../../../packages/protocol/src/topics';
 import { zapTotalsStore } from './zap-totals';
+import { communityMode } from './community-mode';
 import type { GallerySocialData } from '../../../../packages/backend/src/gallery-social';
 
 const history = new Map<string, SignedEvent[]>();
@@ -137,7 +138,7 @@ export async function socialSnapshot(
         manifests.set(e.id, e);
       } catch {}
   const events = [...raw.values()]
-    .filter(manifestAllowed)
+    .filter((event) => manifestAllowed(event) && (event.kind === 0 || communityMode.allows(event.pubkey)))
     .sort((a, b) => b.created_at - a.created_at)
     .slice(0, 2000);
   history.set(scope.key, events);
@@ -182,6 +183,7 @@ export async function publishSocial(event: SignedEvent, relays: string[]) {
   return accepted;
 }
 let galleryReader: GallerySocialReader | undefined;
+let galleryReaderKey = '';
 export async function gallerySocial(
   search: GallerySearch,
   viewer?: string,
@@ -190,10 +192,16 @@ export async function gallerySocial(
 ): Promise<GallerySocialData> {
   const entries = (availableCatalog().length ? availableCatalog() : await queryCatalog()).filter(
     (n) =>
+      communityMode.allows(n.pubkey) &&
       matchesGallery(n, search) &&
       (search.sort !== 'featured' || featured(n)) &&
       (search.unavailable || n.availability === 'ready'),
   );
-  galleryReader ??= new GallerySocialReader(protocolClient(), undefined, zapTotalsStore);
+  const mode = communityMode.getSnapshot();
+  const key = `${mode.account}:${mode.enabled}:${mode.savedAt}`;
+  if (!galleryReader || galleryReaderKey !== key) {
+    galleryReaderKey = key;
+    galleryReader = new GallerySocialReader(protocolClient(), undefined, mode.enabled ? undefined : zapTotalsStore, communityMode.allows, mode.enabled);
+  }
   return galleryReader.read(entries, viewer, signal, onUpdate);
 }

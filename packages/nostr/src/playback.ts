@@ -62,6 +62,7 @@ export class PlaybackNostr {
     private send: Send,
     private pubkey: () => string | null,
     private pool: PlaybackReadPool = directReadPool(),
+    private allowSocialAuthor: (pubkey: string) => boolean = () => true,
   ) {}
   close() {
     this.scope.unsubscribe();
@@ -109,6 +110,8 @@ export class PlaybackNostr {
             const event = verifiedEvent(message.event);
             if (
               !matchFilters(filters, event) ||
+              ([0, 1, 3, 7, 1111, 15129, 35129, 5129].includes(event.kind) &&
+                !this.allowSocialAuthor(event.pubkey)) ||
               seen.has(event.id) ||
               event.created_at > Date.now() / 1000 + 600
             )

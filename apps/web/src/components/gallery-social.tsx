@@ -49,10 +49,11 @@ export function GallerySocialProvider({
   search: GallerySearch;
   children: ReactNode;
 }) {
-  const { pubkey } = useNostr();
+  const { pubkey, community } = useNostr();
   const key = useRef(pubkey);
   key.current = pubkey;
   const [data, setData] = useState<GallerySocialData | null>(null);
+  const [dataKey, setDataKey] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -79,9 +80,11 @@ export function GallerySocialProvider({
     requiredDomain: search.requiredDomain ?? '',
     optionalDomain: search.optionalDomain ?? '',
     ...(pubkey ? { viewer: pubkey } : {}),
+    community: `${community.enabled}:${community.ready}:${community.savedAt}`,
   }).toString();
   useEffect(() => {
     setData(null);
+    setDataKey(query);
   }, [query]);
   useEffect(() => {
     const controller = new AbortController();
@@ -157,7 +160,7 @@ export function GallerySocialProvider({
   return (
     <Context.Provider
       value={{
-        data,
+        data: dataKey === query ? data : null,
         error,
         busy,
         active,
@@ -224,7 +227,7 @@ export function GalleryCardSocial({
   children: ReactNode;
 }) {
   const social = useContext(Context),
-    { pubkey, ready } = useNostr();
+    { pubkey, ready, community } = useNostr();
   const zaps = useZapTotals(socialScope(napplet.manifest).key);
   useEffect(() => social?.register(napplet.revisionId), [social?.register, napplet.revisionId]);
   if (!social)
@@ -233,7 +236,7 @@ export function GalleryCardSocial({
         {children}
       </div>
     );
-  const counts = { ...social.data?.counts[napplet.revisionId], ...zaps };
+  const counts = { ...social.data?.counts[napplet.revisionId], ...(community.enabled ? {} : zaps) };
   const feedback = social.message?.id === napplet.revisionId ? social.message.text : undefined;
   const ownsPending = social.pending?.napplet.revisionId === napplet.revisionId;
   return (

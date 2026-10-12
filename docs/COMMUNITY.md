@@ -1,5 +1,31 @@
 # Names and community
 
+## Community Mode — implementation in progress (feature branch)
+
+The signed-in website viewer can enable Community Mode from the identity menu.
+The browser uses `nostr-social-graph` 1.0.36 rooted at that public key. Distance
+zero (self), one (followed accounts) and two (accounts followed by those accounts)
+are eligible. The mode affects the gallery, gallery social rankings and counts,
+detail comments/reactions, and social event kinds returned to napplets by the
+shared relay/outbox runtime. A directly opened napplet remains playable regardless
+of its author. The preference and binary snapshot are scoped by viewing account;
+the graph is decoded in a worker and stored in IndexedDB. The worker attempts the
+remote graph first, while verified kind-3 relay reads can populate an empty or
+cached graph. It refreshes the root and a rotating batch of 32 friends every two
+minutes while visible. An acknowledged runtime follow/unfollow updates the graph
+immediately. The remote transfer is capped at 64 MiB and 20 seconds; current remote
+responses are approximately 50 MiB; that endpoint does not support the
+`maxBytes` parameter shown in an older package README.
+
+This is a browser presentation preference, not a relay access policy or a change
+to manifest admission. Remaining work includes browser acceptance with a signed-in
+account, complete coverage of secondary social views and embedded references,
+eliminating a possible public SSR flash before account restoration, and displaying
+friend-only zap totals on direct detail pages (those totals are currently hidden
+while the mode is on). The rotating relay refresh and finite catalog discovery do
+not guarantee a complete or instant view of all friends-of-friends publications.
+No production deployment has been made for this branch.
+
 Deployed additions (2026-09-15, `20260915084016730-23084`): creator links now open
 portable `/p/<npub>` pages with ordinary Nostr metadata, all discovered creations,
 and an own-profile editor. `@handle` remains a site alias service. Comments and

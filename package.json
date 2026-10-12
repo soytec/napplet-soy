@@ -81,6 +81,7 @@
     "ipaddr.js": "2.5.0",
     "lowlight": "3.3.0",
     "lucide-react": "1.45.0",
+    "nostr-social-graph": "1.0.36",
     "nostr-tools": "2.25.2",
     "nostr-wasm": "0.1.0",
     "qrcode": "1.5.4",

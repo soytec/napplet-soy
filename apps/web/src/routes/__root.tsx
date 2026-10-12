@@ -60,6 +60,12 @@ function Root() {
           suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: appearanceBootstrap }}
         />
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(localStorage.getItem('napplet:community-active')==='1')document.documentElement.dataset.communityPending='true'}catch{}",
+          }}
+        />
         <HeadContent />
       </head>
       <body>

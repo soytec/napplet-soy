@@ -42,6 +42,7 @@ import {
 import { createSourceBrowser } from '../../../../packages/client/src/source';
 import { blossomBytes, downloadBytes, resourceUrl } from '../../../../packages/client/src/bytes';
 import { protocolClient, network, manifestAllowed, blocked, featuredRules } from './network';
+import { communityMode } from './community-mode';
 
 const entries = new Map<string, PublicNapplet>();
 const firstPublications = new Map<string, number>();
@@ -515,7 +516,7 @@ export function featured(n: PublicNapplet) {
 // Navigation reads the local projection. Relay/Blossom enrichment runs after render.
 export function browseProtocol(search: GallerySearch) {
   const known = [...entries.values()].filter(
-    (n) => manifestAllowed(n.manifest) && !locallyRemoved(n.manifest),
+    (n) => manifestAllowed(n.manifest) && !locallyRemoved(n.manifest) && communityMode.allows(n.pubkey),
   );
   const all = known.filter((n) => (search.sort === 'featured' ? featured(n) : manifestEntry(n)));
   const selected = featuredRules().flatMap((rule) => {

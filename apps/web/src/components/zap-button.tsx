@@ -39,7 +39,7 @@ export function ZapButton({
   commentTarget?: SignedEvent;
   trigger?: ReactElement;
 }) {
-  const { pubkey } = useNostr();
+  const { pubkey, community } = useNostr();
   const keyRef = useRef(pubkey);
   keyRef.current = pubkey;
   const [open, setOpen] = useState(false),
@@ -187,7 +187,9 @@ export function ZapButton({
             aria-label={commentTarget ? 'Zap comment' : undefined}
           >
             <Zap size={16} />
-            {!totals ? 'Zap' : `${(totals.msats / 1000).toLocaleString()} sats zapped`}
+            {!totals || community.enabled
+              ? 'Zap'
+              : `${(totals.msats / 1000).toLocaleString()} sats zapped`}
           </Button>
         )}
       </DialogTrigger>

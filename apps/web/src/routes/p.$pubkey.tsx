@@ -13,6 +13,8 @@ import { NappletCard } from '@/components/napplet-card';
 import { GallerySocialProvider } from '@/components/gallery-social';
 import { Button } from '@/components/ui/button';
 import { OG_VERSION } from '../../../../packages/backend/src/public-model';
+import { useNostr } from '@/components/nostr-provider';
+import { communityMode } from '@/lib/community-mode';
 
 export const Route = createFileRoute('/p/$pubkey')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -62,10 +64,14 @@ export const Route = createFileRoute('/p/$pubkey')({
   component: CreatorProfile,
 });
 function CreatorProfile() {
+  const { community } = useNostr();
   const data = Route.useLoaderData(),
     cache = useProfiles(),
     search = Route.useSearch();
   const p = data.profile;
+  const visibleEntries = community.enabled
+    ? data.entries.filter((n) => communityMode.allows(n.pubkey))
+    : data.entries;
   if (typeof window !== 'undefined') seedCatalog(data.entries);
   const refresh = useProtocolRefresh(p.pubkey, () =>
     Promise.all([readProfile(p.pubkey), queryCatalog(p.pubkey)]),
@@ -171,7 +177,10 @@ function CreatorProfile() {
         <div className="explore-top">
           <div>
             <h2>
-              Made by this creator <span className="muted">{data.total}</span>
+              Made by this creator{' '}
+              <span className="muted">
+                {community.enabled ? visibleEntries.length : data.total}
+              </span>
             </h2>
             <p>Creations discovered by this client. Every one is an invitation to remix.</p>
           </div>
@@ -191,7 +200,7 @@ function CreatorProfile() {
         </div>
         <GallerySocialProvider search={{ q: '', tag: '', sort: 'new', unavailable: search.all }}>
           <div className="napplet-grid">
-            {data.entries.map((n, index) => (
+            {visibleEntries.map((n, index) => (
               <NappletCard
                 key={n.revisionId}
                 napplet={n}
@@ -203,7 +212,7 @@ function CreatorProfile() {
             ))}
           </div>
         </GallerySocialProvider>
-        {!data.entries.length && (
+        {!visibleEntries.length && (
           <div className="empty-results">
             <h3>Room for a little weird.</h3>
             <p>

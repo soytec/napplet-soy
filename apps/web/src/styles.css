@@ -2251,6 +2251,20 @@ pre:focus-visible {
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--border);
 }
+.community-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.community-toggle input { accent-color: var(--primary); }
+html[data-community-pending='true'] .napplet-collection,
+html[data-community-pending='true'] .social-panel,
+html[data-community-pending='true'] .social-discovery,
+html[data-community-pending='true'] .profile-creations,
+html[data-community-pending='true'] .proposal-section { visibility: hidden; }
+html[data-community-pending='true'] .featured-hero { visibility: hidden; }
 .identity-field {
   font-size: 0.875rem;
   font-weight: 500;

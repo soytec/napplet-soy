@@ -28,6 +28,7 @@ import { resolveZapEndpoint, zapTotals } from '../../../../packages/client/src/z
 import { protocolClient } from '@/lib/network';
 import { readLikeState } from '../../../../packages/client/src/social';
 import { useZapTotals, zapTotalsStore } from '@/lib/zap-totals';
+import { communityMode } from '@/lib/community-mode';
 type Comment = SignedEvent & {
   deleted: boolean;
   parent: string | null;
@@ -66,17 +67,25 @@ export function NappletSocial({
   }) => ReactNode;
 }) {
   const hash = useLocation({ select: (location) => location.hash });
-  const { pubkey, connect, ready } = useNostr();
+  const { pubkey, connect, ready, community } = useNostr();
   const scopeKey = socialScope(manifest).key;
   const nappletZaps = useZapTotals(scopeKey);
   const currentKey = useRef(pubkey);
   currentKey.current = pubkey;
-  const [data, setData] = useState<SocialData | null>(null),
+  const [rawData, setRawData] = useState<SocialData | null>(null),
+    [dataModeKey, setDataModeKey] = useState(''),
     [message, setMessage] = useState(''),
     [busy, setBusy] = useState(false),
     [content, setContent] = useState(''),
     [parent, setParent] = useState<Comment | null>(null),
     [pending, setPending] = useState<SignedEvent | null>(null);
+  const modeKey = `${community.enabled}:${community.savedAt}`;
+  const data = dataModeKey === modeKey ? rawData : null;
+  const setData = (value: SocialData | null) => {
+    const current = communityMode.getSnapshot();
+    setDataModeKey(`${current.enabled}:${current.savedAt}`);
+    setRawData(value);
+  };
   const [action, setAction] = useState('');
   const [phase, setPhase] = useState('');
   const [success, setSuccess] = useState('');
@@ -161,6 +170,9 @@ export function NappletSocial({
     };
     // Display references can acquire new relay hints without changing signed identity.
   }, [scopeKey, manifest.id]);
+  useEffect(() => {
+    void socialSnapshot(manifest, relays).then((value) => setData(value));
+  }, [community.enabled, community.savedAt, community.ready, manifest.id]);
   useEffect(() => {
     if (hash !== 'comments') return;
     const target = document.getElementById(pubkey ? 'napplet-comment' : 'comment-connect');
@@ -294,7 +306,7 @@ export function NappletSocial({
             aria-label={`Zap ${title}`}
           >
             <Zap size={17} />
-            {nappletZaps && (
+            {!community.enabled && nappletZaps && (
               <span>
                 {nappletZaps.zapCount} · {(nappletZaps.msats / 1000).toLocaleString()} sats
               </span>

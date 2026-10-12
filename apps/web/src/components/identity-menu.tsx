@@ -19,6 +19,7 @@ import { LightningCode } from './lightning-code';
 import { browserIdentity, type IdentityState } from '../lib/browser-identity';
 import { defaultSignerRelays } from '../../../../packages/identity/src/signer';
 import { CreateKeyPanel, KeyBackup } from './key-backup';
+import type { communityMode } from '../lib/community-mode';
 
 export function IdentityMenu({
   open,
@@ -27,6 +28,8 @@ export function IdentityMenu({
   children,
   adminAccess,
   refreshAdminAccess,
+  community,
+  setCommunityEnabled,
 }: {
   open: boolean;
   setOpen: (open: boolean) => void;
@@ -34,6 +37,8 @@ export function IdentityMenu({
   children: ReactNode;
   adminAccess: AdminAccess;
   refreshAdminAccess: () => Promise<void>;
+  community: ReturnType<typeof communityMode.getSnapshot>;
+  setCommunityEnabled: (enabled: boolean) => void;
 }) {
   const titleId = useId(),
     descriptionId = useId();
@@ -159,6 +164,21 @@ export function IdentityMenu({
                   : 'your extension'}
             </span>
             <code className="public-key">{identity.pubkey}</code>
+            <label className="community-toggle">
+              <input
+                type="checkbox"
+                checked={community.enabled}
+                onChange={(event) => setCommunityEnabled(event.target.checked)}
+              />
+              Community Mode · friends and friends of friends
+            </label>
+            {community.enabled && (
+              <span className="muted" role="status">
+                {community.ready
+                  ? `Social graph: ${community.source}`
+                  : 'Loading your social graph…'}
+              </span>
+            )}
             <Button variant="outline" asChild>
               <Link
                 to="/p/$pubkey"
