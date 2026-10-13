@@ -1,7 +1,28 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The current published version is **0.26.1**.
+The 0.27.0 release is prepared; publication and deployment verification are pending.
+
+**0.27.0 — keyboard actions, upstream proposals and source compatibility:**
+
+- The shared website and soyLI preview runtime supports NAP-KEYS registrations,
+  default bindings and cleanup. Published games using this API work without a
+  rebuild; restart existing previews after upgrading. Reserved/conflicting hints
+  remain unbound, and rebinding UI is not implemented. See [runtime limits](PUBLIC-RUNTIME.md).
+- Proposals use the upstream repository's GRASP-01 facility instead of creating a
+  contributor repository. Signed retries verify the exact remote revision before
+  recording an applied status; supported clone hosts remain usable when other
+  advertised URLs are unsupported. See [collaboration](COLLABORATION.md).
+- Source publication accepts ordinary Git metadata and verifies source symlinks
+  while retaining exact archive bytes and credential/path checks. Existing
+  author history is not silently rewritten.
+- The website caches verified Nostr events in IndexedDB for faster repeat visits.
+  Cached events remain subject to signature verification and normal relay refresh.
+
+Upgrade with `soyli update`; restart previews to load the new runtime. Existing
+projects can run `soyli skills update` to refresh managed guidance. This release
+uses current main, including PRs #15–18; the presentation/SPEC changes in open
+PR #14 are not included. No new companion event kind is introduced.
 
 **0.26.1 published and deployed 2026-10-12 (Europe/Vienna):**
 [GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.26.1),
