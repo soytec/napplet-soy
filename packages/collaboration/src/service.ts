@@ -1,7 +1,7 @@
 import { ASSET_LOCK, parseAssets } from '../../assets/src';
 import { DiagnosticError } from '../../diagnostics/src';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { nip19 } from 'nostr-tools';
+import { nip19, type EventTemplate } from 'nostr-tools';
 import { join } from 'node:path';
 import { ProtocolClient } from '../../client/src/nostr';
 import { Accounts, captureAccount } from '../../identity/src/accounts';
@@ -10,10 +10,10 @@ import { sha256, verifiedEvent, type SignedEvent } from '../../protocol/src';
 import { defaultTargets, projectSchema, resolveTargets } from '../../publish/src/config';
 import { readBinding, effectiveProject } from '../../publish/src/binding';
 import { committedSource } from '../../publish/src/git-source';
-import { freezeSource, inspectProject } from '../../publish/src/project';
+import { durableFile, freezeSource, inspectProject } from '../../publish/src/project';
 import { executableBytes } from '../../publish/src/artifact';
 import { uploadBlob } from '../../blossom/src/client';
-import { prepareSource, publishSource, sourceGit, sourceUrls } from '../../grasp/src/client';
+import { sourceGit, sourceUrls } from '../../grasp/src/client';
 import type { PublishOptions } from '../../publish/src';
 import { Journal } from '../../publish/src/journal';
 import {
@@ -21,12 +21,14 @@ import {
   proposalId,
   readProposals,
   readRepository,
+  readRepositoryState,
   repositoryRef,
   tag,
   type Proposal,
   type Repository,
 } from './protocol';
-import { mergeReviewed, cloneUrl } from './git';
+import { mergeReviewed, selectCloneUrls } from './git';
+import { deliverProposal, publishBranch } from './transport';
 
 export type CollaborationOptions = {
   directory: string;
@@ -44,6 +46,7 @@ export async function collaborationContext(options: CollaborationOptions) {
   const targets = resolveTargets(project, options.network);
   const account = await (options.accounts ?? new Accounts(options.network)).current();
   const client = new ProtocolClient(() => [
+    ...(binding?.upstream?.relays ?? []),
     targets.relay,
     sourceUrls(
       targets.grasp,
@@ -104,6 +107,25 @@ async function atomic(path: string, value: unknown) {
   await writeFile(temp, JSON.stringify(value, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
   await rename(temp, path);
 }
+async function signExact(
+  signer: Awaited<ReturnType<Accounts['signer']>>,
+  pubkey: string,
+  template: EventTemplate,
+) {
+  const expected = JSON.stringify(template);
+  const event = verifiedEvent(await signer.signEvent(template));
+  if (
+    event.pubkey !== pubkey ||
+    JSON.stringify({
+      kind: event.kind,
+      created_at: event.created_at,
+      content: event.content,
+      tags: event.tags,
+    }) !== expected
+  )
+    throw new Error('Signer changed the requested collaboration event.');
+  return event;
+}
 export async function propose(
   options: CollaborationOptions & {
     description: string;
@@ -118,6 +140,7 @@ export async function propose(
   const context = await collaborationContext({ ...options, accounts }),
     { client, targets, account, project, binding } = context;
   let signer: Awaited<ReturnType<Accounts['signer']>> | undefined;
+  let hasSignedJournal = false;
   try {
     if (!account) throw new Error('Create or connect a creator identity first.');
     if (!binding?.upstream)
@@ -134,32 +157,116 @@ export async function propose(
       let saved: any;
       try {
         saved = JSON.parse(await readFile(path, 'utf8'));
+        hasSignedJournal = true;
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
       }
-      if (options.resume && !saved) throw new Error('No saved proposal exists on this branch.');
-      signer = await accounts.signer({
-        signal: options.signal,
-        onAuth: options.onAuth,
-        kinds: [5129, 30617, 30618, 24242, 1618, 1619],
-      });
-      if ((await signer.getPublicKey()) !== account.pubkey)
-        throw new Error('Signer identity changed.');
+      if (options.resume && !saved)
+        throw new DiagnosticError(
+          'PROPOSAL_NOT_SAVED',
+          'No saved signed proposal exists on this branch.',
+          {
+            operation: 'resume proposal',
+            recovery:
+              'Preparation did not save a signed proposal. Resolve the earlier error, then rerun soyli propose with its description, without --resume.',
+          },
+        );
+      if (saved && ![1, 2].includes(saved.version))
+        throw new Error(
+          'Unsupported saved proposal version. Keep the journal and use a compatible soyLI.',
+        );
+      if (saved) {
+        const root = verifiedEvent(saved.root),
+          event = verifiedEvent(saved.event);
+        if (
+          root.kind !== 1618 ||
+          !root.tags.some((t) => t[0] === 'a' && t[1] === repository.address) ||
+          !(
+            (event.kind === 1618 && event.id === root.id) ||
+            (event.kind === 1619 && tag(event, 'E') === root.id && tag(event, 'P') === root.pubkey)
+          ) ||
+          root.pubkey !== account.pubkey ||
+          event.pubkey !== account.pubkey ||
+          saved.repository !== repository.address ||
+          tag(event, 'c') !== saved.commit ||
+          (saved.version === 2 &&
+            (saved.network !== options.network ||
+              JSON.stringify(saved.clones) !==
+                JSON.stringify(
+                  event.tags.filter((t) => t[0] === 'clone').flatMap((t) => t.slice(1)),
+                )))
+        )
+          throw new Error('Saved proposal identity, network or source mismatch. Keep the journal.');
+      }
+      const previousJournal = saved;
       if (!options.resume) {
         const commit = await committedSource(options.directory);
+        let adopted = false;
+        if (!saved) {
+          const matches = (await readProposals(client, repository)).filter((p) => {
+            const name = tag(p.root, 'branch-name')?.replace(/^pr\//, '');
+            return (
+              ['open', 'draft'].includes(p.status) &&
+              p.root.pubkey === account.pubkey &&
+              p.head &&
+              !p.patch &&
+              name &&
+              [name, `pr/${name}`, `pr/${name}(${p.root.id.slice(0, 8)})`].includes(branch)
+            );
+          });
+          if (matches.length > 1)
+            throw new Error(
+              'Multiple proposals match this branch. Check out the intended PR with ngit before proposing.',
+            );
+          if (matches.length === 1) {
+            const existing = matches[0];
+            if (!['open', 'draft'].includes(existing.status))
+              throw new Error('Reopen this proposal before updating it.');
+            await sourceGit(options.directory, [
+              'merge-base',
+              '--is-ancestor',
+              existing.head!,
+              commit,
+            ]);
+            saved = {
+              root: existing.root,
+              event: existing.revision,
+              commit: existing.head,
+              done: true,
+            };
+            adopted = true;
+          }
+        }
         if (saved && !saved.done && saved.commit !== commit)
           throw new Error(
             'Finish the saved proposal with soyli propose --resume before proposing new edits.',
           );
-        if (!saved || saved.commit !== commit) {
+        if (!saved || saved.commit !== commit || adopted) {
           if (saved?.root) {
             const current = (await readProposals(client, repository, saved.root.id)).find(
               (p) => p.root.id === saved.root.id,
             );
-            if (!current || current.revision.id !== saved.event.id)
+            if (!current)
               throw new Error(
                 'The proposal changed remotely. Review its latest revision before updating.',
               );
+            if (current.revision.id !== saved.event.id) {
+              // Continue after an author update made through ngit only when the
+              // local history already contains that exact published revision.
+              await sourceGit(options.directory, [
+                'merge-base',
+                '--is-ancestor',
+                current.head!,
+                commit,
+              ]).catch((cause) => {
+                throw new DiagnosticError(
+                  'PROPOSAL_CHANGED',
+                  'The proposal changed remotely. Fetch and review its latest revision before updating.',
+                  { cause },
+                );
+              });
+              saved = { ...saved, event: current.revision, commit: current.head };
+            }
             if (!['open', 'draft'].includes(current.status))
               throw new Error('Reopen this proposal before updating it.');
           }
@@ -169,6 +276,9 @@ export async function propose(
             commit,
           ]);
           if (base === commit) throw new Error('There are no changes to propose.');
+          const clones = selectCloneUrls(repository.clones, options.network === 'local');
+          if (!repository.relays.length)
+            throw new Error('The upstream needs relays for forkless proposals.');
           const inspected = await inspectProject(
             options.directory,
             options.network,
@@ -187,6 +297,13 @@ export async function propose(
             commit,
           });
           const bytes = executableBytes(inspected.contents);
+          signer = await accounts.signer({
+            signal: options.signal,
+            onAuth: options.onAuth,
+            kinds: [5129, 24242, 1618, 1619],
+          });
+          if ((await signer.getPublicKey()) !== account.pubkey)
+            throw new Error('Signer identity changed.');
           const put = async (bytes: Uint8Array, type: string) => {
             await uploadBlob({
               origin: targets.blossom,
@@ -205,9 +322,10 @@ export async function propose(
           await put(bytes, 'text/html');
           if (inspected.plan.icon)
             await put(inspected.contents.get(inspected.plan.icon.file)!, inspected.plan.icon.mime);
+          if (checked.preview) await durableFile(join(folder, 'preview.png'), checked.preview);
           const image = checked.preview ? await put(checked.preview, 'image/png') : undefined;
           const now = Math.max(Math.floor(Date.now() / 1000), (saved?.event.created_at ?? 0) + 1);
-          const manifest = await signer!.signEvent({
+          const manifest = await signExact(signer!, account.pubkey, {
             kind: 5129,
             created_at: now,
             content: inspected.plan.description,
@@ -237,30 +355,10 @@ export async function propose(
               ...(image ? { image } : {}),
             }),
           );
+          await durableFile(join(folder, 'preview.json'), descriptor);
           const url = await put(descriptor, 'application/json');
-          const identifier = `proposal-${key}`;
-          const source = await prepareSource({
-            directory: join(folder, 'source'),
-            identifier,
-            title: project.title ?? project.name,
-            origin: targets.grasp,
-            signer: signer!,
-            local: options.network === 'local',
-            createdAt: now,
-            releaseRefs: {
-              ...saved?.releaseRefs,
-              [`refs/tags/release-${commit.slice(0, 16)}`]: commit,
-            },
-            upstream: repository.address,
-          });
-          const urls = sourceUrls(
-            targets.grasp,
-            account.pubkey,
-            identifier,
-            options.network === 'local',
-          );
           const event = verifiedEvent(
-            await signer!.signEvent({
+            await signExact(signer!, account.pubkey, {
               kind: saved ? 1619 : 1618,
               created_at: now,
               content: options.description,
@@ -275,94 +373,58 @@ export async function propose(
                     ]
                   : [
                       ['subject', options.description.split('\n')[0].slice(0, 160)],
-                      ['branch-name', branch],
+                      ['branch-name', branch.replace(/^pr\//, '')],
                     ]),
                 ['c', commit],
-                ['clone', urls.clone],
+                ['clone', ...clones],
                 ['merge-base', base],
                 ['soy-preview', url, await sha256(descriptor), commit],
               ],
             }),
           );
           saved = {
-            version: 1,
+            version: 2,
+            network: options.network,
             root: saved?.root ?? event,
             event,
             commit,
             base,
             folder,
-            source,
+            clones,
             targets,
             repository: repository.address,
             relays: repository.relays,
             previous: saved?.commit ?? null,
-            releaseRefs: Object.fromEntries(
-              source.state.tags
-                .filter((t) => t[0].startsWith('refs/tags/'))
-                .map((t) => [t[0], t[1]]),
-            ),
             done: false,
           };
+          if (previousJournal)
+            await atomic(
+              join(
+                options.directory,
+                '.napplet-space',
+                'proposals',
+                key,
+                `${previousJournal.event.id}.json`,
+              ),
+              previousJournal,
+            );
           await atomic(path, saved);
+          hasSignedJournal = true;
         }
       }
       if (saved.event.pubkey !== account.pubkey || saved.repository !== repository.address)
         throw new Error('Saved proposal identity mismatch.');
       // The signed event and real commit survive retries; no duplicate PR or changed preview.
-      await publishSource({
+      await deliverProposal({
         directory: join(saved.folder, 'source'),
-        origin: saved.targets.grasp,
-        publication: saved.source,
+        event: saved.event,
+        repository: saved.repository,
+        clones: saved.version === 2 ? saved.clones : repository.clones,
+        relays: saved.relays,
         local: options.network === 'local',
-        expectedCommit: saved.previous,
+        signal: options.signal,
+        checkpoint: options.checkpoint,
       });
-      await options.checkpoint?.('source');
-      await client.publish(verifiedEvent(saved.event), saved.relays);
-      // GRASP-01 holds a PR in purgatory until its c commit is available in the
-      // target repository. Push only the immutable event ref, never a maintainer branch.
-      const pushFailures: Error[] = [];
-      for (const clone of repository.clones.slice(0, 4)) {
-        try {
-          await sourceGit(join(saved.folder, 'source'), [
-            'push',
-            '--no-verify',
-            cloneUrl(clone, options.network === 'local'),
-            `${saved.commit}:refs/nostr/${saved.event.id}`,
-          ]);
-          break;
-        } catch (cause) {
-          pushFailures.push(
-            new DiagnosticError('GIT_PROPOSAL_PUSH', 'Proposal ref push failed.', {
-              target: clone,
-              cause,
-            }),
-          );
-        }
-      }
-      const inbox = new ProtocolClient(() =>
-        repository.relays.length ? repository.relays : client.relays(),
-      );
-      try {
-        const visible = await inbox.query([{ ids: [saved.event.id], limit: 1 }], repository.relays);
-        if (!visible.some((e) => e.id === saved.event.id))
-          throw new Error(
-            'The upstream relay has not made this proposal queryable. Retry with propose --resume.',
-          );
-      } catch (cause) {
-        throw new DiagnosticError(
-          'PROPOSAL_UNCONFIRMED',
-          'Could not confirm the proposal in the upstream inbox.',
-          {
-            operation: 'publish proposal',
-            recovery:
-              'Address the relay or Git error, then run soyli propose --resume to resend the saved proposal.',
-            cause: new AggregateError([cause, ...pushFailures], 'Proposal confirmation failed.'),
-          },
-        );
-      } finally {
-        inbox.close();
-      }
-      await options.checkpoint?.('proposal');
       saved.done = true;
       await atomic(path, saved);
       return {
@@ -377,6 +439,24 @@ export async function propose(
         nappletReleased: false,
       };
     });
+  } catch (cause) {
+    if (
+      !hasSignedJournal &&
+      cause instanceof Error &&
+      'code' in cause &&
+      cause.code === 'SIGNER_TIMEOUT'
+    )
+      throw new DiagnosticError(
+        'SIGNER_TIMEOUT',
+        'Remote signer timed out before a signed proposal was saved.',
+        {
+          operation: 'prepare proposal',
+          cause,
+          recovery:
+            'Unlock the selected signer and rerun soyli propose with the description, without --resume. Frozen preparation files alone are not a saved signed proposal.',
+        },
+      );
+    throw cause;
   } finally {
     await signer?.close();
     client.close();
@@ -429,20 +509,21 @@ export async function proposalAction(
           repository.euc,
           options.target,
         ]);
-      const remote = latest(
-        await client.query(
-          [
-            {
-              kinds: [30618],
-              authors: [repository.pubkey],
-              '#d': [repository.identifier],
-              limit: 5,
-            },
-          ],
-          repository.relays,
-        ),
-      )[0];
-      const remoteHead = remote && tag(remote, 'refs/heads/main');
+      const { state: remote } = await readRepositoryState(client, repository);
+      const targetBranch =
+        tag(proposal.revision, 'target-branch') ??
+        tag(proposal.root, 'target-branch') ??
+        (remote && tag(remote, 'HEAD')?.replace(/^ref: refs\/heads\//, ''));
+      if (!targetBranch || !remote)
+        throw new Error('The upstream signed state does not identify a target branch.');
+      await sourceGit(options.directory, ['check-ref-format', `refs/heads/${targetBranch}`]);
+      if (
+        (await sourceGit(options.directory, ['symbolic-ref', '--short', 'HEAD'])) !== targetBranch
+      )
+        throw new Error(`Review and merge on the proposal target branch ${targetBranch}.`);
+      const remoteHead = tag(remote, `refs/heads/${targetBranch}`);
+      if (!remoteHead)
+        throw new Error('The proposal target branch is absent from the upstream signed state.');
       if (remoteHead)
         await sourceGit(options.directory, [
           'merge-base',
@@ -473,7 +554,7 @@ export async function proposalAction(
     signer = await (options.accounts ?? new Accounts(options.network)).signer({
       signal: options.signal,
       onAuth: options.onAuth,
-      kinds: [1111, 1630, 1631, 1632, 30617, 30618],
+      kinds: [options.action === 'comment' ? 1111 : options.action === 'close' ? 1632 : 1630],
     });
     const comment = options.action === 'comment';
     const template = {
@@ -540,119 +621,245 @@ export async function proposalAction(
   }
 }
 
-/** Publish a reviewed Git merge without releasing a new napplet. */
-export async function pushSource(options: CollaborationOptions) {
+/** Publish the current upstream branch without releasing a new napplet.
+ * The signed state and applied events are saved before delivery, so a partial
+ * Git/relay failure resumes without signing new events or repeating a merge. */
+export async function pushSource(
+  options: CollaborationOptions & {
+    checkpoint?: (phase: 'git' | 'status') => Promise<void>;
+  },
+) {
   options = {
     ...options,
     accounts: await captureAccount(options.accounts ?? new Accounts(options.network)),
   };
-  const context = await collaborationContext(options);
-  const { client, account, targets } = context;
+  const { client, account } = await collaborationContext(options);
   let signer: Awaited<ReturnType<Accounts['signer']>> | undefined;
   try {
-    const linked = await linkedRepository(options, context);
-    if (linked)
-      throw new DiagnosticError(
-        'SOURCE_LINKED',
-        'This project’s source lives in your own repository; soyLI does not push to it.',
-        {
-          operation: 'push source',
-          target: linked.address,
-          recovery: `Push with git or ngit to ${linked.origin === 'publish.repository' ? 'that repository' : linked.origin.replace(/^remote /, 'the remote ')}.`,
-        },
-      );
     const repository = await projectRepository(options, client);
-    if (!account || account.pubkey !== repository.pubkey)
-      throw new Error(
-        'soyli push currently signs the repository owner’s state. Other maintainers can push with ngit.',
-      );
+    if (!account || !repository.maintainers.includes(account.pubkey))
+      throw new Error('Only an announced repository maintainer can publish its branches.');
     const commit = await committedSource(options.directory);
     const { inspectHistory } = await import('../../publish/src/git-source');
     await inspectHistory(options.directory, commit);
-    const previous = latest(
-      await client.query(
-        [{ kinds: [30618], authors: [repository.pubkey], '#d': [repository.identifier], limit: 5 }],
-        repository.relays,
-      ),
-    )[0];
-    if (
-      previous?.tags.some(
-        (t) =>
-          t[0].startsWith('refs/') &&
-          t[0] !== 'refs/heads/main' &&
-          !/^refs\/tags\/release-[a-f0-9]{16}$/.test(t[0]),
+    const branch = await sourceGit(options.directory, ['symbolic-ref', '--short', 'HEAD']);
+    const ref = `refs/heads/${branch}`;
+    await sourceGit(options.directory, ['check-ref-format', ref]);
+    const path = join(
+      options.directory,
+      '.napplet-space',
+      'push-outbox',
+      `${(await sha256(`${repository.address}:${account.pubkey}:${ref}`)).slice(0, 16)}.json`,
+    );
+    return await new Journal(options.directory, options.network).lock(async () => {
+      let saved: any;
+      try {
+        saved = JSON.parse(await readFile(path, 'utf8'));
+      } catch (cause) {
+        if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause;
+      }
+      if (
+        saved &&
+        (saved.version !== 1 ||
+          saved.repository !== repository.address ||
+          saved.pubkey !== account.pubkey ||
+          saved.ref !== ref ||
+          saved.network !== options.network)
       )
-    )
-      throw new Error('This repository has additional refs; use ngit. soyLI will not remove them.');
-    const parent = previous && tag(previous, 'refs/heads/main');
-    if (parent) await sourceGit(options.directory, ['merge-base', '--is-ancestor', parent, commit]);
-    signer = await (options.accounts ?? new Accounts(options.network)).signer({
-      signal: options.signal,
-      onAuth: options.onAuth,
-      kinds: [1111, 1630, 1631, 1632, 30617, 30618],
-    });
-    const clone = repository.clones.find((url) => url.startsWith(targets.grasp + '/'));
-    if (!clone)
-      throw new Error('Configure this repository’s GRASP origin before pushing, or use git/ngit.');
-    const publication = await prepareSource({
-      directory: options.directory,
-      identifier: repository.identifier,
-      title: tag(repository.event, 'name') ?? repository.identifier,
-      origin: targets.grasp,
-      signer,
-      local: options.network === 'local',
-      createdAt: Math.max(
-        Math.floor(Date.now() / 1000),
-        repository.event.created_at + 1,
-        (previous?.created_at ?? 0) + 1,
-      ),
-      releaseRefs: Object.fromEntries(
-        (previous?.tags ?? [])
-          .filter((t) => t[0].startsWith('refs/tags/'))
-          .map((t) => [t[0], t[1]]),
-      ),
-    });
-    // Keep the repository announcement (including its maintainer set and clone URLs) intact.
-    publication.announcement = repository.event;
-    await publishSource({
-      directory: options.directory,
-      origin: targets.grasp,
-      publication,
-      local: options.network === 'local',
-      expectedCommit: parent ?? null,
-    });
-    const proposals = await readProposals(client, repository);
-    for (const proposal of proposals.filter((p) => p.status === 'open' && p.head)) {
-      const included = await sourceGit(options.directory, [
-        'merge-base',
-        '--is-ancestor',
-        proposal.head!,
-        commit,
-      ]).then(
-        () => true,
-        () => false,
-      );
-      if (!included) continue;
-      const event = await signer.signEvent({
-        kind: 1631,
-        created_at: Math.max(
-          Math.floor(Date.now() / 1000),
-          (proposal.statusEvent?.created_at ?? proposal.revision.created_at) + 1,
-        ),
-        content: 'Merged and published in Git.',
-        tags: [
-          ['e', proposal.root.id, '', 'root'],
-          ['e', proposal.revision.id, '', 'reply'],
-          ['a', repository.address],
-          ['p', proposal.root.pubkey],
-          ['p', repository.pubkey],
-          ['merge-commit', commit],
-          ['r', commit],
-        ],
+        throw new Error('Saved branch publication identity mismatch. Keep the journal.');
+      if (saved && !saved.done && saved.commit !== commit)
+        throw new Error(
+          'Finish the saved Git publication before publishing new commits. Restore its saved branch tip and rerun soyli push; keep the journal.',
+        );
+      if (!saved || saved.done) {
+        const { state: previous, authors } = await readRepositoryState(client, repository);
+        if (!authors.includes(account.pubkey))
+          throw new Error(
+            'This maintainer has not confirmed repository state authority. Accept maintainership with ngit before pushing.',
+          );
+        if (!previous || !tag(previous, ref))
+          throw new Error(
+            'The current branch is not in the upstream signed state. Use ngit to create a branch first.',
+          );
+        const parent = tag(previous, ref)!;
+        await sourceGit(options.directory, ['merge-base', '--is-ancestor', parent, commit]);
+        const refs = previous.tags.filter((t) => t[0].startsWith('refs/'));
+        if (refs.length > 128 || refs.some((t) => t.length !== 2 || !/^[a-f0-9]{40}$/.test(t[1])))
+          throw new Error(
+            'Upstream state has unsupported refs; use ngit without changing that state through soyLI.',
+          );
+        for (const [name] of refs) await sourceGit(options.directory, ['check-ref-format', name]);
+        const proposals = await readProposals(client, repository);
+        const included: Proposal[] = [];
+        for (const proposal of proposals.filter(
+          (p) => ['open', 'draft'].includes(p.status) && p.head && !p.patch,
+        )) {
+          // A missing object means it is not included. Other Git failures retain
+          // their causes rather than being misclassified as unrelated proposals.
+          try {
+            await sourceGit(options.directory, ['cat-file', '-e', `${proposal.head}^{commit}`]);
+          } catch (cause) {
+            if (cause instanceof DiagnosticError && cause.context.exitCode === 128) continue;
+            throw cause;
+          }
+          try {
+            await sourceGit(options.directory, [
+              'merge-base',
+              '--is-ancestor',
+              proposal.head!,
+              commit,
+            ]);
+          } catch (cause) {
+            if (cause instanceof DiagnosticError && cause.context.exitCode === 1) continue;
+            throw cause;
+          }
+          const declared =
+            tag(proposal.revision, 'target-branch') ?? tag(proposal.root, 'target-branch');
+          const defaultBranch = tag(previous, 'HEAD')?.replace(/^ref: refs\/heads\//, '');
+          if ((declared ?? defaultBranch) !== branch) continue;
+          included.push(proposal);
+        }
+        signer = await options.accounts!.signer({
+          signal: options.signal,
+          onAuth: options.onAuth,
+          kinds: [30618, 1631],
+        });
+        if ((await signer.getPublicKey()) !== account.pubkey)
+          throw new Error('Signer identity changed.');
+        const now = Math.max(Math.floor(Date.now() / 1000), previous.created_at + 1);
+        const state = await signExact(signer, account.pubkey, {
+          kind: 30618,
+          created_at: now,
+          content: previous.content,
+          tags: previous.tags.map((t) => (t[0] === ref ? [ref, commit] : t)),
+        });
+        const statuses: SignedEvent[] = [];
+        for (const proposal of included)
+          statuses.push(
+            await signExact(signer, account.pubkey, {
+              kind: 1631,
+              created_at: Math.max(
+                now,
+                (proposal.statusEvent?.created_at ?? proposal.revision.created_at) + 1,
+              ),
+              content: 'Merged and published in Git.',
+              tags: [
+                ['e', proposal.root.id, '', 'root'],
+                ['e', proposal.revision.id, '', 'reply'],
+                ['a', repository.address],
+                ['p', proposal.root.pubkey],
+                ['p', repository.pubkey],
+                ['merge-commit', commit],
+                ['r', commit],
+              ],
+            }),
+          );
+        saved = {
+          version: 1,
+          network: options.network,
+          repository: repository.address,
+          pubkey: account.pubkey,
+          commit,
+          ref,
+          previous: parent,
+          previousState: previous.id,
+          state,
+          statuses,
+          clones: repository.clones,
+          relays: repository.relays,
+          done: false,
+        };
+        await atomic(path, saved);
+      }
+      const state = verifiedEvent(saved.state);
+      if (
+        state.pubkey !== account.pubkey ||
+        state.kind !== 30618 ||
+        tag(state, ref) !== commit ||
+        tag(state, 'd') !== repository.identifier
+      )
+        throw new Error('Saved repository state mismatch.');
+      const current = await readRepositoryState(client, repository);
+      if (
+        !current.authors.includes(account.pubkey) ||
+        ![saved.previousState, state.id].includes(current.state?.id)
+      )
+        throw new Error(
+          'Upstream state or maintainer authority changed since preparation. Review it before publishing; keep the saved journal.',
+        );
+      await publishBranch({
+        directory: options.directory,
+        state,
+        repository: repository.address,
+        ref,
+        previous: saved.previous,
+        clones: saved.clones,
+        relays: saved.relays,
+        local: options.network === 'local',
+        signal: options.signal,
       });
-      await client.publish(event, repository.relays);
-    }
-    return { state: 'git_published', commit, nappletReleased: false };
+      await options.checkpoint?.('git');
+      const inbox = new ProtocolClient(() => saved.relays);
+      const supersededProposals: string[] = [];
+      try {
+        for (const input of saved.statuses) {
+          const event = verifiedEvent(input);
+          if (
+            event.pubkey !== account.pubkey ||
+            event.kind !== 1631 ||
+            tag(event, 'a') !== repository.address ||
+            tag(event, 'merge-commit') !== commit
+          )
+            throw new Error('Saved applied status mismatch.');
+          const root = event.tags.find((t) => t[0] === 'e' && t[3] === 'root')?.[1];
+          const reviewed = event.tags.find((t) => t[0] === 'e' && t[3] === 'reply')?.[1];
+          if (!root || !reviewed) throw new Error('Saved applied status has no reviewed revision.');
+          // Git may already have been published on a previous attempt. A newer
+          // contribution must not be closed by that attempt's saved acceptance.
+          const proposal = (await readProposals(inbox, repository, root)).find(
+            (p) => p.root.id === root,
+          );
+          if (!proposal)
+            throw new Error('Proposal unavailable while checking its applied revision.');
+          if (proposal.revision.id !== reviewed) {
+            supersededProposals.push(root);
+            continue;
+          }
+          await inbox.publish(event, [], options.signal);
+          if (
+            !(await inbox.query([{ ids: [event.id], limit: 1 }], [], options.signal)).some(
+              (e) => e.id === event.id,
+            )
+          )
+            throw new Error('Applied status was acknowledged but is not queryable.');
+        }
+        await options.checkpoint?.('status');
+      } catch (cause) {
+        throw new DiagnosticError(
+          'PROPOSAL_STATUS_UNCONFIRMED',
+          'Git was published but proposal status is not confirmed.',
+          {
+            operation: 'confirm applied proposal status',
+            target: repository.address,
+            cause,
+            recovery:
+              'Rerun soyli push from the same commit to deliver the saved applied events. Do not repeat the merge.',
+          },
+        );
+      } finally {
+        inbox.close();
+      }
+      saved.supersededProposals = supersededProposals;
+      saved.done = true;
+      await atomic(path, saved);
+      return {
+        state: 'git_published',
+        commit,
+        branch,
+        nappletReleased: false,
+        supersededProposals,
+      };
+    });
   } finally {
     await signer?.close();
     client.close();

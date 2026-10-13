@@ -360,6 +360,25 @@ playback with separate state and guest identity. Optional `soy-preview` is a Soy
 attachment convention, explicitly documented in [COLLABORATION.md](COLLABORATION.md),
 not claimed as a standardized NAP or prerequisite for external proposals.
 
+### 2026-10-12 Forkless collaboration source correction
+
+Native GRASP 3.0.2 at the existing `cdda4a23` pin accepts non-maintainer roots and
+updates at upstream `refs/nostr/<event-id>` after event delivery. Its normative
+GRASP pin remains `f35b4f9a4ed2f0aaaf46926e4b1733c79e21b377`. The adapter now uses
+that facility directly without signing or publishing contributor repository
+announcement/state events. The ngit 2.6.1 source at
+`55f3e3a838dffd03f0fdd996103b8dc8c2cddcd6` establishes branch names without `pr/`
+and reciprocal maintainer state handling for the tested profile. The independent
+fixture covers create/update/checkout/accept in both directions. ngit 2.6.1
+`pr merge` merges into the current branch; do not infer newer documented target
+selection behavior from this test.
+
+No authoritative NIP-5D, NAP or NIP-34 pin changes. Playable attachments remain
+optional. Soy's state resolver covers owners and direct reciprocal maintainers;
+role-based or indirect recursive authority requires ngit. Native non-main/ref
+preservation and recovery fixtures supplement the independent PR test. These are
+local source checks, not a production deployment or independent browser UI check.
+
 ## Managed resource authoring review — 2026-09-20
 
 2026-10-03 authoring correction: soyLI's inventory now admits the same verified
