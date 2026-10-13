@@ -79,11 +79,11 @@ export function NappletSocial({
     [content, setContent] = useState(''),
     [parent, setParent] = useState<Comment | null>(null),
     [pending, setPending] = useState<SignedEvent | null>(null);
-  const modeKey = `${community.enabled}:${community.savedAt}`;
+  const modeKey = `${community.enabled}:${community.savedAt}:${community.lookupVersion}`;
   const data = dataModeKey === modeKey ? rawData : null;
   const setData = (value: SocialData | null) => {
     const current = communityMode.getSnapshot();
-    setDataModeKey(`${current.enabled}:${current.savedAt}`);
+    setDataModeKey(`${current.enabled}:${current.savedAt}:${current.lookupVersion}`);
     setRawData(value);
   };
   const [action, setAction] = useState('');
@@ -172,7 +172,7 @@ export function NappletSocial({
   }, [scopeKey, manifest.id]);
   useEffect(() => {
     void socialSnapshot(manifest, relays).then((value) => setData(value));
-  }, [community.enabled, community.savedAt, community.ready, manifest.id]);
+  }, [community.enabled, community.savedAt, community.ready, community.lookupVersion, manifest.id]);
   useEffect(() => {
     if (hash !== 'comments') return;
     const target = document.getElementById(pubkey ? 'napplet-comment' : 'comment-connect');

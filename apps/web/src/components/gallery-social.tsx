@@ -80,7 +80,7 @@ export function GallerySocialProvider({
     requiredDomain: search.requiredDomain ?? '',
     optionalDomain: search.optionalDomain ?? '',
     ...(pubkey ? { viewer: pubkey } : {}),
-    community: `${community.enabled}:${community.ready}:${community.savedAt}`,
+    community: `${community.enabled}:${community.ready}:${community.savedAt}:${community.lookupVersion}`,
   }).toString();
   useEffect(() => {
     setData(null);

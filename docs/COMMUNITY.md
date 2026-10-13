@@ -3,19 +3,31 @@
 ## Community Mode — implementation in progress (feature branch)
 
 The signed-in website viewer can enable Community Mode from the identity menu.
-The browser uses `nostr-social-graph` 1.0.36 rooted at that public key. Distance
+The browser uses `nostr-social-graph` 1.0.36 rooted at that public key and
+Applesauce's `createSocialGraphLoader` 6.2.0 for relay traversal. Distance
 zero (self), one (followed accounts) and two (accounts followed by those accounts)
 are eligible. The mode affects the gallery, gallery social rankings and counts,
 detail comments/reactions, and social event kinds returned to napplets by the
 shared relay/outbox runtime. A directly opened napplet remains playable regardless
 of its author. The preference and binary snapshot are scoped by viewing account;
-the graph is decoded in a worker and stored in IndexedDB. The worker attempts the
-remote graph first, while verified kind-3 relay reads can populate an empty or
-cached graph. It refreshes the root and a rotating batch of 32 friends every two
-minutes while visible. An acknowledged runtime follow/unfollow updates the graph
-immediately. The remote transfer is capped at 64 MiB and 20 seconds; current remote
-responses are approximately 50 MiB; that endpoint does not support the
-`maxBytes` parameter shown in an older package README.
+the graph is decoded in a worker and stored in IndexedDB. Relay follow-list reads,
+periodic sync, distance recalculation and membership checks also run in that worker.
+The main thread requests membership for pubkeys in batches and keeps an 8,192-key
+LRU cache, invalidated on every graph revision. The worker loads its local snapshot,
+then walks the viewer's kind-3 follow list and direct follows through configured,
+default and dedicated lookup relays (`purplepag.es`, `relay.ditto.pub` and
+`indexer.coracle.social`). It also reads the viewer's NIP-65 relay list and
+retries on listed read relays if the first crawl finds no contact list.
+Verified events update the graph as they arrive. The loader uses bounded
+128-author batches and a 4.5-second deadline per relay batch; a root-list refresh
+runs every two minutes while visible and triggers another two-hop crawl when
+direct follows change. An acknowledged runtime follow/unfollow updates the graph
+immediately.
+Only when the viewer's contact list is unavailable from relays and absent from
+the cache does the worker try the remote binary graph as a background fallback.
+That transfer remains capped at 64 MiB and 20 seconds; current remote responses
+are approximately 50 MiB, and the endpoint does not support the `maxBytes`
+parameter shown in an older package README.
 
 This is a browser presentation preference, not a relay access policy or a change
 to manifest admission. Remaining work includes browser acceptance with a signed-in

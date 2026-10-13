@@ -1,5 +1,5 @@
 import type { SignedEvent } from '../../../../packages/protocol/src';
-import { protocolClient } from './network';
+import { network } from './network';
 
 type State = {
   account: string | null;
@@ -7,28 +7,46 @@ type State = {
   ready: boolean;
   source: 'cache' | 'remote' | 'relay' | 'empty' | null;
   savedAt: number | null;
-  allowed: ReadonlySet<string>;
+  lookupVersion: number;
 };
 const KEY = 'napplet:community-mode:';
-const EMPTY = new Set<string>();
+const CACHE_LIMIT = 8192;
 let state: State = {
   account: null,
   enabled: false,
   ready: false,
   source: null,
   savedAt: null,
-  allowed: EMPTY,
+  lookupVersion: 0,
 };
 const SERVER_SNAPSHOT: State = state;
 let worker: Worker | undefined;
-let friends: string[] = [];
-let cursor = 0;
-let timer: ReturnType<typeof setTimeout> | undefined;
-let refreshRunning = false;
-let refreshController: AbortController | undefined;
+let visibilityController: AbortController | undefined;
 let epoch = 0;
+let revision = 0;
+const lookupCache = new Map<string, boolean>();
+const queuedLookups = new Set<string>();
+const pendingLookups = new Set<string>();
+let lookupScheduled = false;
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((listener) => listener());
+function flushLookups() {
+  lookupScheduled = false;
+  if (!worker || !state.enabled || !state.ready || !queuedLookups.size) return;
+  const pubkeys = [...queuedLookups].slice(0, 256);
+  for (const pubkey of pubkeys) queuedLookups.delete(pubkey);
+  worker.postMessage({ type: 'lookup', pubkeys });
+  if (queuedLookups.size) queueMicrotask(flushLookups);
+}
+function requestLookup(pubkey: string) {
+  if (pendingLookups.has(pubkey)) return;
+  pendingLookups.add(pubkey);
+  queuedLookups.add(pubkey);
+  if (!lookupScheduled) {
+    lookupScheduled = true;
+    queueMicrotask(flushLookups);
+  }
+}
 
 export const communityMode = {
   subscribe(listener: () => void) {
@@ -44,9 +62,16 @@ export const communityMode = {
     return SERVER_SNAPSHOT;
   },
   allows(pubkey: string) {
-    return (
-      !state.enabled || (state.ready && (pubkey === state.account || state.allowed.has(pubkey)))
-    );
+    if (!state.enabled || pubkey === state.account) return true;
+    if (!state.ready) return false;
+    const cached = lookupCache.get(pubkey);
+    if (cached !== undefined) {
+      lookupCache.delete(pubkey);
+      lookupCache.set(pubkey, cached);
+      return cached;
+    }
+    requestLookup(pubkey);
+    return false;
   },
   configure(account: string | null) {
     const enabled = !!account && localStorage.getItem(KEY + account) === '1';
@@ -55,16 +80,15 @@ export const communityMode = {
       return;
     }
     epoch++;
-    clearTimeout(timer);
-    timer = undefined;
-    refreshController?.abort();
-    refreshController = undefined;
-    refreshRunning = false;
+    visibilityController?.abort();
+    visibilityController = undefined;
     worker?.terminate();
     worker = undefined;
-    friends = [];
-    cursor = 0;
-    state = { account, enabled, ready: false, source: null, savedAt: null, allowed: EMPTY };
+    revision = 0;
+    lookupCache.clear();
+    queuedLookups.clear();
+    pendingLookups.clear();
+    state = { account, enabled, ready: false, source: null, savedAt: null, lookupVersion: 0 };
     emit();
     if (!enabled || !account) {
       delete document.documentElement.dataset.communityPending;
@@ -81,39 +105,77 @@ export const communityMode = {
         account: string;
         source: State['source'];
         savedAt: number;
-        allowed: string[];
-        friends: string[];
+        revision: number;
+        pubkeys?: string[];
+        allowed?: boolean[];
+        firstLayerCount: number;
+        secondLayerCount: number;
       }>,
     ) => {
       const update = message.data;
-      if (activeEpoch !== epoch || update.account !== state.account || update.type !== 'ready')
+      if (activeEpoch !== epoch || update.account !== state.account) return;
+      if (update.type === 'lookup') {
+        if (update.revision !== revision) return;
+        let changed = false;
+        update.pubkeys?.forEach((pubkey, index) => {
+          pendingLookups.delete(pubkey);
+          const allowed = update.allowed?.[index] === true;
+          lookupCache.delete(pubkey);
+          lookupCache.set(pubkey, allowed);
+          if (lookupCache.size > CACHE_LIMIT) lookupCache.delete(lookupCache.keys().next().value!);
+          changed ||= allowed;
+        });
+        if (changed) {
+          state = { ...state, lookupVersion: state.lookupVersion + 1 };
+          emit();
+        }
         return;
-      friends = update.friends;
+      }
+      if (update.type !== 'ready') return;
+      revision = update.revision;
+      lookupCache.clear();
+      pendingLookups.clear();
+      for (const pubkey of queuedLookups) pendingLookups.add(pubkey);
+      console.info('[Community Mode] Social graph updated', {
+        source: update.source,
+        firstLayerKeys: update.firstLayerCount,
+        secondLayerKeys: update.secondLayerCount,
+      });
       state = {
         ...state,
         ready: true,
         source: update.source,
         savedAt: update.savedAt,
-        allowed: new Set(update.allowed),
       };
       emit();
       requestAnimationFrame(() => {
         if (activeEpoch === epoch) delete document.documentElement.dataset.communityPending;
       });
-      if (!timer && !refreshRunning)
-        timer = setTimeout(refresh, update.source === 'remote' ? 60_000 : 0);
     };
     worker.onerror = () => {
       if (activeEpoch !== epoch) return;
-      state = { ...state, ready: true, source: 'empty', savedAt: Date.now(), allowed: EMPTY };
+      state = { ...state, ready: true, source: 'empty', savedAt: Date.now() };
       emit();
       requestAnimationFrame(() => {
         if (activeEpoch === epoch) delete document.documentElement.dataset.communityPending;
       });
     };
-    worker.postMessage({ type: 'start', account });
-    const cachedFollows = protocolClient().cached([{ kinds: [3], authors: [account] }]);
-    if (cachedFollows.length) worker.postMessage({ type: 'events', events: cachedFollows });
+    worker.postMessage({
+      type: 'start',
+      account,
+      relays: network().relays,
+      visible: document.visibilityState !== 'hidden',
+    });
+    const activeWorker = worker;
+    const visibility = () =>
+      activeWorker.postMessage({
+        type: 'visibility',
+        visible: document.visibilityState !== 'hidden',
+      });
+    visibilityController = new AbortController();
+    document.addEventListener('visibilitychange', visibility, {
+      signal: visibilityController.signal,
+    });
   },
   setEnabled(enabled: boolean) {
     if (!state.account) return;
@@ -130,43 +192,3 @@ export const communityMode = {
       worker?.postMessage({ type: 'events', events: [event] });
   },
 };
-
-async function refresh() {
-  timer = undefined;
-  if (refreshRunning || !state.enabled || !state.account) return;
-  if (document.visibilityState === 'hidden') {
-    timer = setTimeout(refresh, 60_000);
-    return;
-  }
-  refreshRunning = true;
-  const controller = new AbortController();
-  refreshController = controller;
-  const activeEpoch = epoch;
-  try {
-    // Update the root every cycle and rotate through friends in bounded batches.
-    const group = friends.length ? friends.slice(cursor, cursor + 32) : [];
-    cursor = friends.length ? (cursor + group.length) % friends.length : 0;
-    const authors = [state.account, ...group];
-    const events: SignedEvent[] = [];
-    for (let offset = 0; offset < authors.length; offset += 32) {
-      const chunk = authors.slice(offset, offset + 32);
-      events.push(
-        ...(await protocolClient().query(
-          [{ kinds: [3], authors: chunk, limit: chunk.length * 2 }],
-          [],
-          controller.signal,
-        )),
-      );
-      if (activeEpoch !== epoch) return;
-    }
-    worker?.postMessage({ type: 'events', events });
-  } catch {
-    // Retain the last usable graph and retry on the next cycle.
-  } finally {
-    if (refreshController === controller) {
-      refreshRunning = false;
-      refreshController = undefined;
-      if (activeEpoch === epoch && state.enabled) timer = setTimeout(refresh, 120_000);
-    }
-  }
-}
