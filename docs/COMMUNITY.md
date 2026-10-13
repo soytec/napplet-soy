@@ -18,7 +18,9 @@ then walks the viewer's kind-3 follow list and direct follows through configured
 default and dedicated lookup relays (`purplepag.es`, `relay.ditto.pub` and
 `indexer.coracle.social`). It also reads the viewer's NIP-65 relay list and
 retries on listed read relays if the first crawl finds no contact list.
-Verified events update the graph as they arrive. The loader uses bounded
+Signed contact lists use worker-specific bounds so lists with more than 256
+follows are accepted without changing the site's general event parser. Verified
+events update the graph as they arrive. The loader uses bounded
 128-author batches and a 4.5-second deadline per relay batch; a root-list refresh
 runs every two minutes while visible and triggers another two-hop crawl when
 direct follows change. An acknowledged runtime follow/unfollow updates the graph

@@ -5,6 +5,7 @@ import { filter, Subscription, takeUntil, timer } from 'rxjs';
 import { verifiedEvent } from '../../../../packages/protocol/src';
 import defaultRelays from '../../../../packages/nostr/discovery-relays.json';
 import { readRelayUrl } from '../../../../packages/nostr/src/relay-policy';
+import { verifiedFollowEvent } from './community-follow-event';
 
 type Request =
   | { type: 'start'; account: string; relays: string[]; visible: boolean }
@@ -169,7 +170,7 @@ function scheduleSync(delay: number) {
 function acceptEvents(events: NostrEvent[], relayVerified = false) {
   const verified = events.flatMap((event) => {
     try {
-      return event.kind === 3 ? [relayVerified ? event : verifiedEvent(event)] : [];
+      return event.kind === 3 ? [relayVerified ? event : verifiedFollowEvent(event)] : [];
     } catch {
       return [];
     }
@@ -223,7 +224,7 @@ function startCrawl(distance: 0 | 1) {
       takeUntil(timer(4500)),
       filter((event) => {
         try {
-          verifiedEvent(event);
+          verifiedFollowEvent(event);
           return true;
         } catch {
           return false;
