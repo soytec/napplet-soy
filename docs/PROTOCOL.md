@@ -317,3 +317,10 @@ unpublished proof scoped to provider/module. Provider signatures attest builds;
 they are not proof of honest execution. Public admission defaults off; explicit creator admission and verified Linux isolation are required. See
 [DYNAMIC-BACKENDS.md](DYNAMIC-BACKENDS.md) for implemented behavior and limits.
 A possible upstream CEP is explicitly deferred; upstream protocol pins are unchanged.
+
+## NAP-KEYS host support — 2026-10-13 source
+
+The keyboard fix uses [NAP-KEYS PR 9 at 8869a4c](https://github.com/napplet/naps/blob/8869a4cf77b023f4b049f47c546910a0280dc1a6/naps/NAP-KEYS.md)
+and the existing shim 0.30.0. No event kind, manifest extension, author restriction
+or NIP-5D pin changes. All publishers receive the same frame-scoped action API.
+See [runtime behavior, limits and shim normalization caveat](PUBLIC-RUNTIME.md#keyboard-actions--2026-10-13-source).
