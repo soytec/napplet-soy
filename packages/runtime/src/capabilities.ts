@@ -4,6 +4,7 @@ export const RUNTIME_DOMAINS = [
   'identity',
   'storage',
   'theme',
+  'keys',
   'resource',
   'relay',
   'outbox',
@@ -17,7 +18,7 @@ export const RUNTIME_DOMAINS = [
   'cvm',
   'webrtc',
 ] as const;
-export const RUNTIME_PROFILE = 'space-playback-4';
+export const RUNTIME_PROFILE = 'space-playback-5';
 
 // Only request types understood by this host. Notifications, responses and future
 // operations must be ignored, including unknown operations in supported domains.
@@ -49,6 +50,7 @@ export const HOST_REQUESTS = new Set(
     ],
     storage: ['get', 'set', 'remove', 'keys'],
     theme: ['get'],
+    keys: ['registerAction', 'unregisterAction', 'forward'],
     resource: ['info', 'bytes', 'bytesMany', 'cancel'],
     relay: ['query', 'subscribe', 'close', 'publish', 'publishEncrypted'],
     outbox: ['getEvent', 'query', 'subscribe', 'close', 'publish', 'resolveRelays'],
