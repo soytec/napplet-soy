@@ -125,7 +125,9 @@ export async function inspectHistory(directory: string, commit: string) {
             operation: 'inspect public Git history',
             detail: `Containing commit: ${containingCommit}\nRelease commit: ${commit}`,
             recovery:
-              'Inspect the named entry in the containing commit with git ls-tree. This is a source packaging restriction, not a credential detection. Removing it from HEAD or changing publish.files does not remove reachable history. Keep a repository backup before any explicitly approved history cleanup. soyLI has not rewritten history.',
+              match?.[1] === '160000' && containingCommit === commit
+                ? 'Remove the submodule from the release tree, or replace it with the public regular source files you want to share, then save an ordinary commit and retry. Historical submodule references are allowed. No history rewrite is needed; soyLI does not fetch submodule contents.'
+                : 'Inspect the named entry in the containing commit with git ls-tree. This is a source packaging restriction, not a credential detection. Removing it from HEAD or changing publish.files does not remove reachable history. Keep a repository backup before any explicitly approved history cleanup. soyLI has not rewritten history.',
           },
         );
       const [mode, id] = [match![1], match![3]];

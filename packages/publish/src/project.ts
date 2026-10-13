@@ -400,6 +400,11 @@ export async function freezeSource(
   // The exact selection is needed when checking frozen builds outside a Git worktree.
   const commit = parent.commit;
   const archive = join(directory, 'source.tar');
+  // The portable archive represents the complete verified tree, not a Git export.
+  // info/attributes takes precedence over root/nested .gitattributes (including
+  // directory exclusions). Override only the export rules in this private clone;
+  // keep the author's attributes, source bytes, history and working repo intact.
+  await durableFile(join(repo, '.git/info/attributes'), '* -export-ignore -export-subst\n');
   await sourceGit(repo, ['archive', '--format=tar', `--output=${archive}`, commit]);
   const original = await regularFile(directory, 'source.tar', 50 * 1024 * 1024);
   const bytes = materializeSourceArchive(original, history.aliases);

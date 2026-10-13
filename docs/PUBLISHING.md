@@ -211,9 +211,13 @@ project scripts. Standard build metadata and required NAP domains are checked.
 
 The browser check runs the frozen HTML under our current shared host, CSP, opaque iframe sandbox and shim. It checks startup, the shell handshake, script errors and CSP violations, while blocking external network requests. It does not use an inherited preview server or modified runtime bundle. This is a startup smoke check, not comprehensive gameplay, performance, NAP, or external-service conformance testing. The compiler runs in a fresh Bun process to avoid the pinned runtime's known build/read issue after networking. The check report records the runtime profile and browser version.
 
-The archive comes from Git's tar of the exact frozen commit. Safe aliases are
-materialized as regular files using the exact committed target bytes, including
-binary content and trailing newlines; the Git repository itself keeps its links.
+The archive comes from Git's tar of the exact frozen commit. The publisher disables
+`export-ignore` and `export-subst` in its private frozen clone, so root and nested
+`.gitattributes` cannot omit tracked files or rewrite their bytes. The original
+attributes remain in the source archive and Git history; the author's repository
+is unchanged. Safe aliases are materialized as regular files using the exact
+committed target bytes, including binary content and trailing newlines; the Git
+repository itself keeps its links.
 Each materialized copy counts toward the 1,024-file and 40 MiB expanded-source
 limits. The untrusted archive reader still rejects links. Archives without aliases
 keep their original bytes, preserving existing archive hashes and resume behavior.

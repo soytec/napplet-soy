@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdtemp, readlink, rm, symlink } from 'node:fs/promises';
+import { mkdir, mkdtemp, readlink, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceGit } from '../../../packages/grasp/src/client';
@@ -146,6 +146,47 @@ test('real CLI accepts source-code and Git metadata symlinks in current source a
     expect(JSON.parse(historical.out).sourceHistory.status).toBe('checked');
     expect(await sourceGit(f.project, ['rev-parse', 'HEAD'])).toBe(head);
     expect(await sourceGit(f.project, ['rev-parse', 'HEAD^'])).toBe(original);
+    expect(await sourceGit(f.project, ['status', '--porcelain'])).toBe('');
+  } finally {
+    await f.close();
+  }
+}, 15000);
+
+test('real CLI explains current submodule removal without history cleanup and redacts its path', async () => {
+  const f = await fixture();
+  const secret = 'nsec1' + 'q'.repeat(58);
+  const path = `library-${secret}`;
+  try {
+    const original = await f.commit();
+    await mkdir(join(f.project, path));
+    await sourceGit(f.project, ['update-index', '--add', '--cacheinfo', `160000,${original},${path}`]);
+    await sourceGit(f.project, ['commit', '-m', 'Current submodule']);
+    const head = await sourceGit(f.project, ['rev-parse', 'HEAD']);
+    for (const json of [false, true]) {
+      const result = await f.run(['publish', '--project', f.project, ...(json ? ['--json'] : [])]);
+      expect(result.code, result.out + result.err).toBe(1);
+      expect(result.out + result.err).not.toContain(secret);
+      if (json) {
+        const error = JSON.parse(result.out).error;
+        expect(error.code).toBe('SOURCE_PATH');
+        expect(error.message).toContain('submodule entries');
+        expect(error.details.join('\n')).toContain(head);
+        expect(error.recovery).toContain('ordinary commit');
+        expect(error.recovery).toContain('No history rewrite is needed');
+        expect(error.recovery).not.toContain('history cleanup');
+      } else {
+        expect(result.err).toContain('ordinary commit');
+        expect(result.err).toContain('No history rewrite is needed');
+      }
+    }
+    expect(await sourceGit(f.project, ['rev-parse', 'HEAD'])).toBe(head);
+    await sourceGit(f.project, ['rm', '--cached', '--', path]);
+    await rm(join(f.project, path), { recursive: true });
+    await sourceGit(f.project, ['commit', '-m', 'Remove current submodule']);
+    const fixed = await f.dry();
+    expect(fixed.code, fixed.out + fixed.err).toBe(0);
+    expect(JSON.parse(fixed.out).sourceHistory.status).toBe('checked');
+    expect(await sourceGit(f.project, ['rev-parse', 'HEAD^'])).toBe(head);
     expect(await sourceGit(f.project, ['status', '--porcelain'])).toBe('');
   } finally {
     await f.close();
