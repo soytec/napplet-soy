@@ -1,9 +1,34 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The 0.27.0 release is prepared; publication and deployment verification are pending.
+The current published version is **0.27.0**.
 
 **0.27.0 — keyboard actions, upstream proposals and source compatibility:**
+
+Published and deployed **2026-10-13 (Europe/Vienna)** from source
+`97bcd01f662c5a1256779b55ed5cb776e954f79e`.
+[GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.27.0),
+[native CI 38390155381](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38390155381)
+and [Nix CI 38389684968](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38389684968)
+all passed. The four native jobs cover installer/updater regressions and fresh
+account-free projects; Nix covers realization, forced rebuild and offline VM checks.
+All 11 public assets, checksums, installer bytes and manifest/source match. An isolated
+fresh install reports current through doctor/update; a real 0.26.1 → 0.27.0 update
+preserves account/project markers. The published binary's preview passes keyboard
+movement and ordinary text editing without browser errors.
+
+Website release `20261013113411602-54987` is active. Local and VPS TypeScript and
+634 source tests pass, plus Go race/relay, 18 Blossom, nine GRASP and three Linux
+backend checks, and the production build. Public Puddlehop responds to ArrowUp/W
+and P in detail and fullscreen views. Desktop and 390px browser checks pass gallery,
+zap-dialog and sandboxed gameplay without overflow or page errors. The older smoke
+check's exact heading selector was corrected to include the decorative period;
+application code and timeouts were unchanged. No invoice or payment was created.
+
+Public health reports the new release with a fresh, error-free index. Five PM2
+services are online with zero restarts; Caddy/CVM/TURN are active. Source fingerprints
+and the served installer match; shared proxy hashes are unchanged, the other site
+returns HTTPS 200, and `20261013102615716-41516` remains available for rollback.
 
 - The shared website and soyLI preview runtime supports NAP-KEYS registrations,
   default bindings and cleanup. Published games using this API work without a
