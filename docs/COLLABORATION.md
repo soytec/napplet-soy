@@ -151,6 +151,10 @@ still verifies linked source read-only. Push saves its signed state and exact ap
 events in `.napplet-space/push-outbox/` before delivery. Applied status is sent only
 after Git publication is confirmed and itself requires relay read-back. A partial
 failure resumes from the same local tip without another merge or new signatures.
+Before sending each saved applied event, push rechecks the proposal's current revision.
+If it has changed, the old applied event stays in the journal but is not sent. Git
+publication still completes, and `supersededProposals` lists proposals needing a fresh
+review/merge. A later push can accept the new revision once it is actually integrated.
 If the tip, upstream state or maintainer authority changes during recovery, stop and
 reconcile it; do not discard the journal or force-push around the check.
 
@@ -205,3 +209,9 @@ publication identity; do not reset or force-push over them to bypass a conflict.
 Implementation is local until explicitly deployed. Native tests exercise two independent
 creators, real relay/Blossom/GRASP services and an independent Git reader. See the test
 results recorded with the change; no external ngit version is bundled by soyLI.
+
+Proposal submission selects up to four distinct supported clone URLs in advertised
+order, filtering unsupported alternatives before applying that limit. An SSH or
+other unsupported alternative does not block a usable HTTPS host (loopback HTTP
+in the explicit local profile). No eligible host produces an actionable error before
+preview preparation or upload. The repository announcement is unchanged.

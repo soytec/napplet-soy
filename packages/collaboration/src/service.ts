@@ -27,7 +27,7 @@ import {
   type Proposal,
   type Repository,
 } from './protocol';
-import { mergeReviewed, cloneUrl } from './git';
+import { mergeReviewed, selectCloneUrls } from './git';
 import { deliverProposal, publishBranch } from './transport';
 
 export type CollaborationOptions = {
@@ -276,6 +276,9 @@ export async function propose(
             commit,
           ]);
           if (base === commit) throw new Error('There are no changes to propose.');
+          const clones = selectCloneUrls(repository.clones, options.network === 'local');
+          if (!repository.relays.length)
+            throw new Error('The upstream needs relays for forkless proposals.');
           const inspected = await inspectProject(
             options.directory,
             options.network,
@@ -354,11 +357,6 @@ export async function propose(
           );
           await durableFile(join(folder, 'preview.json'), descriptor);
           const url = await put(descriptor, 'application/json');
-          const clones = repository.clones
-            .slice(0, 4)
-            .map((url) => cloneUrl(url, options.network === 'local'));
-          if (!clones.length || !repository.relays.length)
-            throw new Error('The upstream needs clone servers and relays for forkless proposals.');
           const event = verifiedEvent(
             await signExact(signer!, account.pubkey, {
               kind: saved ? 1619 : 1618,
@@ -802,6 +800,7 @@ export async function pushSource(
       });
       await options.checkpoint?.('git');
       const inbox = new ProtocolClient(() => saved.relays);
+      const supersededProposals: string[] = [];
       try {
         for (const input of saved.statuses) {
           const event = verifiedEvent(input);
@@ -812,6 +811,20 @@ export async function pushSource(
             tag(event, 'merge-commit') !== commit
           )
             throw new Error('Saved applied status mismatch.');
+          const root = event.tags.find((t) => t[0] === 'e' && t[3] === 'root')?.[1];
+          const reviewed = event.tags.find((t) => t[0] === 'e' && t[3] === 'reply')?.[1];
+          if (!root || !reviewed) throw new Error('Saved applied status has no reviewed revision.');
+          // Git may already have been published on a previous attempt. A newer
+          // contribution must not be closed by that attempt's saved acceptance.
+          const proposal = (await readProposals(inbox, repository, root)).find(
+            (p) => p.root.id === root,
+          );
+          if (!proposal)
+            throw new Error('Proposal unavailable while checking its applied revision.');
+          if (proposal.revision.id !== reviewed) {
+            supersededProposals.push(root);
+            continue;
+          }
           await inbox.publish(event, [], options.signal);
           if (
             !(await inbox.query([{ ids: [event.id], limit: 1 }], [], options.signal)).some(
@@ -836,9 +849,16 @@ export async function pushSource(
       } finally {
         inbox.close();
       }
+      saved.supersededProposals = supersededProposals;
       saved.done = true;
       await atomic(path, saved);
-      return { state: 'git_published', commit, branch, nappletReleased: false };
+      return {
+        state: 'git_published',
+        commit,
+        branch,
+        nappletReleased: false,
+        supersededProposals,
+      };
     });
   } finally {
     await signer?.close();

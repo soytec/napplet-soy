@@ -2,7 +2,7 @@ import { DiagnosticError } from '../../diagnostics/src';
 import { ProtocolClient } from '../../client/src/nostr';
 import { sourceGit } from '../../grasp/src/client';
 import { verifiedEvent, type SignedEvent } from '../../protocol/src';
-import { cloneUrl, fetchCommit } from './git';
+import { selectCloneUrls, fetchCommit } from './git';
 import { commitPattern, tag, values } from './protocol';
 
 /** GRASP-01 event first, immutable objects second, independent read-back last.
@@ -35,10 +35,9 @@ export async function deliverProposal(input: {
     input.signal?.throwIfAborted();
     await client.publish(event, input.relays, input.signal);
     let hosted = false;
-    for (const clone of input.clones.slice(0, 4)) {
+    for (const url of selectCloneUrls(input.clones, input.local)) {
       input.signal?.throwIfAborted();
       try {
-        const url = cloneUrl(clone, input.local);
         await sourceGit(input.directory, [
           'push',
           '--no-verify',
@@ -53,9 +52,9 @@ export async function deliverProposal(input: {
       } catch (cause) {
         failures.push(
           cause instanceof DiagnosticError
-            ? new DiagnosticError(cause.code, cause.message, { ...cause.context, target: clone })
+            ? new DiagnosticError(cause.code, cause.message, { ...cause.context, target: url })
             : new DiagnosticError('GIT_PROPOSAL_PUSH', 'Proposal ref hosting failed.', {
-                target: clone,
+                target: url,
                 cause,
               }),
         );
@@ -123,10 +122,9 @@ export async function publishBranch(input: {
   const failures: Error[] = [];
   try {
     await sourceGit(input.directory, ['cat-file', '-e', `${commit}^{commit}`]);
-    for (const clone of input.clones.slice(0, 4)) {
+    for (const url of selectCloneUrls(input.clones, input.local)) {
       input.signal?.throwIfAborted();
       try {
-        const url = cloneUrl(clone, input.local);
         const remote = await sourceGit(input.directory, ['ls-remote', url, input.ref]);
         const head = remote.split('\t')[0];
         if (head !== input.previous && head !== commit)
@@ -151,9 +149,9 @@ export async function publishBranch(input: {
       } catch (cause) {
         failures.push(
           cause instanceof DiagnosticError
-            ? new DiagnosticError(cause.code, cause.message, { ...cause.context, target: clone })
+            ? new DiagnosticError(cause.code, cause.message, { ...cause.context, target: url })
             : new DiagnosticError('GIT_BRANCH_PUSH', 'Merged branch publication failed.', {
-                target: clone,
+                target: url,
                 cause,
               }),
         );

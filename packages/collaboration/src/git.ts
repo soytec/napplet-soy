@@ -25,6 +25,32 @@ export function cloneUrl(value: string, local = false) {
     throw new Error('Use a public HTTPS Git URL, or loopback HTTP in the local network.');
   return u.href;
 }
+/** Select supported Git hosts without letting an alternate Git transport
+ * invalidate usable HTTPS (or explicit local HTTP) candidates. */
+export function selectCloneUrls(inputs: string[], local = false): string[] {
+  const selected: string[] = [],
+    failures: Error[] = [];
+  for (const input of inputs) {
+    try {
+      const url = cloneUrl(input, local);
+      if (!selected.includes(url)) selected.push(url);
+      if (selected.length === 4) break;
+    } catch (cause) {
+      failures.push(cause instanceof Error ? cause : new Error('Invalid Git clone URL.'));
+    }
+  }
+  if (!selected.length)
+    throw new DiagnosticError('GIT_CLONE_URLS', 'The repository has no supported Git clone URL.', {
+      operation: 'select Git hosts',
+      cause: failures.length
+        ? new AggregateError(failures, 'All advertised clone URLs were refused.')
+        : undefined,
+      recovery: local
+        ? 'The upstream must advertise a loopback HTTP Git clone URL for --network local.'
+        : 'The upstream must advertise a public HTTPS Git clone URL. Use Git/ngit for other transports.',
+    });
+  return selected;
+}
 export async function fetchCommit(
   directory: string,
   clones: string[],
@@ -33,7 +59,7 @@ export async function fetchCommit(
 ) {
   if (!commitPattern.test(commit)) throw new Error('Proposal needs an exact Git commit.');
   const failures: Error[] = [];
-  for (const input of clones.slice(0, 4)) {
+  for (const input of selectCloneUrls(clones, local)) {
     try {
       const url = cloneUrl(input, local);
       await sourceGit(directory, [

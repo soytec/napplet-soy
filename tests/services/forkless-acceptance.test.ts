@@ -22,7 +22,7 @@ import {
 } from '../../packages/collaboration/src/protocol';
 import { stack } from './publish-stack';
 
-test('forkless acceptance publishes a non-main default through a confirmed maintainer and preserves unrelated refs', async () => {
+async function acceptance(newerRevision: boolean) {
   const services = await stack();
   const ownerKey = new PrivateKeySigner(),
     maintainerKey = new PrivateKeySigner();
@@ -38,7 +38,11 @@ test('forkless acceptance publishes a non-main default through a confirmed maint
   };
   const owner = new Accounts('local', join(services.directory, 'owner'), vault);
   const maintainer = new Accounts('local', join(services.directory, 'maintainer'), vault);
-  const contributor = new Accounts('local', join(services.directory, 'contributor'), vault);
+  const contributor = new Accounts(
+    'local',
+    join(services.directory, 'contributor/accounts/local'),
+    vault,
+  );
   const client = new ProtocolClient(() => [services.targets.grasp.replace('http:', 'ws:') + '/']);
   try {
     const alice = await owner.import(nip19.nsecEncode(ownerKey.key));
@@ -100,7 +104,21 @@ test('forkless acceptance publishes a non-main default through a confirmed maint
       kind: 30617,
       created_at: source.announcement.created_at + 1,
       content: '',
-      tags: [...source.announcement.tags, ['maintainers', charlie.pubkey]],
+      tags: [
+        ...source.announcement.tags.map((t) =>
+          t[0] === 'clone'
+            ? [
+                'clone',
+                'ssh://git@example.org/branches.git',
+                'git@example.org:branches.git',
+                'git://example.org/branches.git',
+                'file:///not-a-host',
+                ...t.slice(1),
+              ]
+            : t,
+        ),
+        ['maintainers', charlie.pubkey],
+      ],
     });
     await client.publish(announcement);
     const repo = await readRepository(client, `30617:${alice.pubkey}:branches`);
@@ -131,7 +149,7 @@ test('forkless acceptance publishes a non-main default through a confirmed maint
     const binding = {
       address: repo.address,
       relays: repo.relays,
-      clone: repo.clones[0],
+      clone: urls.clone,
       commit: base,
       manifest: null,
     };
@@ -187,7 +205,7 @@ test('forkless acceptance publishes a non-main default through a confirmed maint
       revision: proposal.revision,
       target: base,
     });
-    const merged = await sourceGit(original, ['rev-parse', 'HEAD']);
+    let merged = await sourceGit(original, ['rev-parse', 'HEAD']);
     const accounts = {
       current: () => maintainer.current(),
       signer: async (options: Parameters<Accounts['signer']>[0]) => {
@@ -195,7 +213,57 @@ test('forkless acceptance publishes a non-main default through a confirmed maint
         return maintainer.signer(options);
       },
     };
-    await pushSource({ directory: original, network: 'local', accounts });
+    await expect(
+      pushSource({
+        directory: original,
+        network: 'local',
+        accounts,
+        checkpoint: async (phase) => {
+          if (phase === 'git') throw new Error('Interrupted after Git publication');
+        },
+      }),
+    ).rejects.toThrow('Interrupted after Git publication');
+    let reviewed = proposal;
+    if (newerRevision) {
+      await Bun.write(join(branch, 'index.html'), '<p>Later unmerged revision</p>');
+      await checkpoint(branch, 'Later revision', bob.pubkey);
+      reviewed = await propose({
+        directory: branch,
+        network: 'local',
+        accounts: contributor,
+        description: 'Later revision',
+        check: async () => ({ profile: 'fixture', browser: 'fixture' }),
+      });
+      expect(reviewed.revision).not.toBe(proposal.revision);
+    }
+    // Recovery needs no signing permission, even if a newer revision is skipped.
+    const recovered = await pushSource({
+      directory: original,
+      network: 'local',
+      accounts: {
+        current: () => maintainer.current(),
+        signer: async () => {
+          throw new Error('Recovery must not sign');
+        },
+      },
+    });
+    expect(recovered.supersededProposals).toEqual(newerRevision ? [proposal.proposal] : []);
+    expect(await sourceGit(original, ['rev-parse', 'HEAD'])).toBe(merged);
+    if (newerRevision) {
+      expect((await readProposals(client, repo))[0].status).toBe('open');
+      expect(await client.query([{ kinds: [1631], '#e': [proposal.proposal] }])).toHaveLength(0);
+      await proposalAction({
+        directory: original,
+        network: 'local',
+        accounts: maintainer,
+        proposal: reviewed.proposal,
+        action: 'merge',
+        revision: reviewed.revision,
+        target: merged,
+      });
+      merged = await sourceGit(original, ['rev-parse', 'HEAD']);
+      await pushSource({ directory: original, network: 'local', accounts });
+    }
     const published = (await readRepositoryState(client, repo)).state!;
     expect(published.pubkey).toBe(charlie.pubkey);
     expect(tag(published, 'refs/heads/main')).toBe(base);
@@ -212,9 +280,73 @@ test('forkless acceptance publishes a non-main default through a confirmed maint
       `${merged}\trefs/heads/develop`,
     );
     expect((await readRepository(client, repo.address)).event.id).toBe(announcement.id);
-    expect((await readProposals(client, repo))[0].status).toBe('merged');
+    const accepted = (await readProposals(client, repo))[0];
+    expect(accepted.status).toBe('merged');
+    expect(accepted.statusEvent?.tags).toContainEqual(['e', reviewed.revision, '', 'reply']);
+    if (!newerRevision) {
+      // Exercise the actionable exhausted-alternatives diagnostic through soyli itself.
+      await sourceGit(branch, ['checkout', '-b', 'pr/unsupported-host']);
+      const secret = 'clone-fixture-password';
+      const announcementRelay = new ProtocolClient(() => [services.targets.relay]);
+      await announcementRelay.publish(
+        await ownerKey.signEvent({
+          kind: 30617,
+          created_at: Math.max(Math.floor(Date.now() / 1000), announcement.created_at + 1),
+          content: '',
+          tags: [
+            ...announcement.tags.filter((t) => t[0] !== 'clone'),
+            [
+              'clone',
+              'ssh://git@example.org/branches.git',
+              `https://user:${secret}@example.org/repo`,
+            ],
+          ],
+        }),
+      );
+      announcementRelay.close();
+      for (const json of [false, true]) {
+        const child = Bun.spawn(
+          [
+            process.execPath,
+            new URL('../../apps/cli/src/index.ts', import.meta.url).pathname,
+            'propose',
+            'Unsupported host',
+            '--network',
+            'local',
+            ...(json ? ['--json'] : []),
+          ],
+          {
+            cwd: branch,
+            env: {
+              PATH: process.env.PATH,
+              SPACE_ACCOUNT_HOME: join(services.directory, 'contributor'),
+            },
+            stdin: 'ignore',
+            stdout: 'pipe',
+            stderr: 'pipe',
+          },
+        );
+        const [code, out, err] = await Promise.all([
+          child.exited,
+          new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
+        ]);
+        expect(code, out + err).toBe(1);
+        expect(out + err).toContain('GIT_CLONE_URLS');
+        expect(out + err).toContain('loopback HTTP');
+        expect(out + err).not.toContain(secret);
+        if (json) expect(JSON.parse(out).error.operation).toBe('select Git hosts');
+      }
+    }
   } finally {
     client.close();
     await services.close();
   }
-}, 60000);
+}
+
+for (const newerRevision of [false, true])
+  test(
+    `forkless acceptance preserves refs and resumes ${newerRevision ? 'without accepting a newer revision' : 'the reviewed revision'}`,
+    () => acceptance(newerRevision),
+    60000,
+  );
