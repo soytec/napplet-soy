@@ -99,18 +99,38 @@ export async function inspectHistory(directory: string, commit: string) {
     const entries = new Map<string, { mode: string; id: string }>();
     const directories = new Set<string>();
     for (const entry of tree) {
-      const match = /^(100644|100755|120000) blob ([a-f0-9]{40})\t(.+)$/.exec(entry);
-      if (
-        !match ||
-        match[3].length > 200 ||
-        match[3].split('/').some((part) => !part || part === '.' || part === '..') ||
-        /[\\\s\u0000-\u001f\u007f]/.test(match[3])
-      )
-        throw new PublishError(
+      const match = /^(\d+) (\w+) ([a-f0-9]{40})\t([\s\S]+)$/.exec(entry);
+      const path = match?.[4] ?? '';
+      // Gitlinks store a commit reference, not embedded submodule contents.
+      // Only the release tree needs to be materialized into a source archive.
+      if (match?.[1] === '160000' && match[2] === 'commit' && containingCommit !== commit) continue;
+      const reason = !match
+        ? 'Malformed Git tree entry.'
+        : match[1] === '160000'
+          ? 'Git submodule entries are not supported; soyLI does not fetch or embed submodule repositories.'
+          : !['100644', '100755', '120000'].includes(match[1]) || match[2] !== 'blob'
+            ? 'This Git entry type or file mode is not supported.'
+            : path!.length > 200
+              ? 'Source paths longer than 200 characters are not supported.'
+              : path!.split('/').some((part) => !part || part === '.' || part === '..')
+                ? 'Source paths cannot contain empty or traversal components.'
+                : /[\\\s\u0000-\u001f\u007f]/.test(path!)
+                  ? 'Source paths containing whitespace, backslashes or control characters are not supported.'
+                  : undefined;
+      if (reason)
+        throw new SourceHistoryError(
           'SOURCE_PATH',
-          `Git history at commit ${containingCommit} has an unsupported source path or entry. Submodules and special entries are not supported.`,
+          `Git history contains an unsupported source entry: ${path ? JSON.stringify(path) : '(unreadable path)'}. ${reason}`,
+          {
+            operation: 'inspect public Git history',
+            detail: `Containing commit: ${containingCommit}\nRelease commit: ${commit}`,
+            recovery:
+              match?.[1] === '160000' && containingCommit === commit
+                ? 'Remove the submodule from the release tree, or replace it with the public regular source files you want to share, then save an ordinary commit and retry. Historical submodule references are allowed. No history rewrite is needed; soyLI does not fetch submodule contents.'
+                : 'Inspect the named entry in the containing commit with git ls-tree. This is a source packaging restriction, not a credential detection. Removing it from HEAD or changing publish.files does not remove reachable history. Keep a repository backup before any explicitly approved history cleanup. soyLI has not rewritten history.',
+          },
         );
-      const [, mode, id, path] = match;
+      const [mode, id] = [match![1], match![3]];
       entries.set(path, { mode, id });
       const parts = path.split('/');
       while (parts.pop() && parts.length) directories.add(parts.join('/'));

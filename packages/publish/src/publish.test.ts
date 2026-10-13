@@ -1786,3 +1786,48 @@ test('larger public playback does not raise soyLI publication above 25 MiB', asy
     await f.close();
   }
 });
+
+for (const withAliases of [false, true])
+  test(`publication archives ignore Git export rules and remix exact source${withAliases ? ' with aliases' : ''}`, async () => {
+    const f = await fixture();
+    try {
+      const encoder = new TextEncoder();
+      const files = new Map<string, Uint8Array<ArrayBuffer>>(Object.entries({
+        '.gitattributes': '.gitattributes export-ignore\n.gitmodules export-ignore\nsrc export-ignore\nAGENTS.md export-ignore\nCLAUDE.md export-ignore\nindex.html export-subst\n',
+        '.gitmodules': '',
+        'index.html': '<!doctype html><title>Exact source</title><p>$Format:%H$</p>\n',
+        'AGENTS.md': '# Public instructions\n',
+        'src/.gitattributes': '* export-ignore export-subst\n',
+        'src/main.ts': 'export const revision = "$Format:%H$";\n',
+      }).map(([path, value]) => [path, encoder.encode(value)]));
+      files.set('src/data.bin', new Uint8Array([0, 255, 13, 10, 10]));
+      for (const [path, bytes] of files) await Bun.write(join(f.project, path), bytes);
+      if (withAliases) {
+        await symlink('AGENTS.md', join(f.project, 'CLAUDE.md'));
+        await symlink('main.ts', join(f.project, 'src/alias.ts'));
+      }
+      await publishProject(f.options);
+      const job = await f.load();
+      const archived = sourceArchive(f.blobs.get(job.archiveHash)!);
+      for (const [path, bytes] of files) expect(archived.get(path)).toEqual(bytes);
+      if (withAliases) {
+        expect(archived.get('CLAUDE.md')).toEqual(files.get('AGENTS.md'));
+        expect(archived.get('src/alias.ts')).toEqual(files.get('src/main.ts'));
+        expect(await sourceGit(f.project, ['ls-tree', 'HEAD', 'CLAUDE.md'])).toStartWith('120000 blob ');
+      }
+      const remixed = await createRemix(f.root, 'exact-source', {
+        manifest: job.snapshot!,
+        artifact: f.blobs.get(job.plan.artifactHash)!,
+        files: archived,
+      });
+      for (const [path, bytes] of files)
+        expect(await Bun.file(join(remixed.directory, path)).bytes()).toEqual(bytes);
+      expect(await sourceGit(f.project, ['rev-parse', 'HEAD'])).toBe(job.commit);
+      expect(await sourceGit(f.project, ['status', '--porcelain'])).toBe('');
+      expect(await Bun.file(join(f.project, '.git/info/attributes')).exists()).toBe(false);
+      await publishProject({ ...f.options, resume: true });
+      expect((await f.load()).archiveHash).toBe(job.archiveHash);
+    } finally {
+      await f.close();
+    }
+  }, 15000);

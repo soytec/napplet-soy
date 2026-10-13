@@ -44,7 +44,7 @@ export function sourceArchive(bytes: Uint8Array) {
               !p ||
               p === '.' ||
               p === '..' ||
-              /^(?:\.git|\.gitattributes|\.gitmodules|\.napplet-space|node_modules|\.env(?:\..*)?|.*\.(?:nsec|ncryptsec|pem|key))$/i.test(
+              /^(?:\.git|\.napplet-space|node_modules|\.env(?:\..*)?|.*\.(?:nsec|ncryptsec|pem|key))$/i.test(
                 p,
               ),
           )
