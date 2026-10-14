@@ -1,10 +1,13 @@
 import { bech32 } from '@scure/base';
 import { RelayPool } from 'applesauce-relay';
 import { matchFilters, nip19, type Filter } from 'nostr-tools';
-import { Subscription, take, takeUntil, timer, type Observable } from 'rxjs';
+import { defer, NEVER, Subscription, take, takeUntil, timer, type Observable } from 'rxjs';
 import { z } from 'zod';
 import { verifiedEvent, type SignedEvent } from '../../protocol/src';
 import { readRelayUrl } from './relay-policy';
+import { OutboxRelayPlanner } from './outbox-routing';
+import { OutboxEventStore } from './outbox-store';
+import { diagnose, DiagnosticError, formatDiagnostic } from '../../diagnostics/src';
 import { APP_DATA_KIND, APP_DATA_PROFILE } from '../../app-data/src/app-data-contract';
 
 const hex = z.string().regex(/^[a-f0-9]{64}$/);
@@ -35,9 +38,29 @@ export function playbackFilters(input: unknown): Filter[] {
         throw new Error('Invalid filter');
   return filters;
 }
-type Result = { event: SignedEvent };
+type Result = { event: SignedEvent; sidecar?: { relayHints: string[] } };
 type Send = (message: Record<string, unknown>) => void;
-export type ReadMessage = { type: string; from: string; event?: unknown; reason?: string };
+function readFailure(message: string, relays: string[], cause?: unknown) {
+  return formatDiagnostic(
+    diagnose(
+      new DiagnosticError('OUTBOX_READ', message, {
+        operation: 'Read Nostr events',
+        target: relays.join(', '),
+        cause,
+        recovery:
+          'Check selected relay availability and policy, then retry with a narrower query if needed.',
+      }),
+    ),
+  ).slice(0, 1800);
+}
+
+export type ReadMessage = {
+  type: string;
+  from: string;
+  event?: unknown;
+  reason?: string;
+  error?: unknown;
+};
 export interface PlaybackReadPool {
   req(
     relays: string[],
@@ -57,14 +80,32 @@ export function directReadPool(pool = new RelayPool()): PlaybackReadPool {
 export class PlaybackNostr {
   private subscriptions = new Map<string, Subscription>();
   private scope = new Subscription();
+  private closeReasons = new Map<string, string>();
+  private closedIds = new Set<string>();
+  readonly planner: OutboxRelayPlanner;
+  readonly events: OutboxEventStore;
   constructor(
     readonly relays: string[],
     private send: Send,
     private pubkey: () => string | null,
     private pool: PlaybackReadPool = directReadPool(),
-  ) {}
+    private policy: { discloseRelayHints?: boolean; refreshMs?: number } = {},
+  ) {
+    this.events = new OutboxEventStore(pool, relays);
+    this.planner = new OutboxRelayPlanner(relays, async (authors, timeoutMs, signal) => {
+      const result = await this.collect(
+        [{ kinds: [10002], authors, limit: 32 }],
+        relays,
+        timeoutMs,
+        signal,
+      );
+      return { events: result.events.map(({ event }) => event), incomplete: result.incomplete };
+    });
+  }
   close() {
     this.scope.unsubscribe();
+    this.planner.close();
+    this.events.close();
     this.subscriptions.clear();
     this.pool.close();
   }
@@ -72,62 +113,132 @@ export class PlaybackNostr {
     filters: Filter[],
     relays: string[],
     callback: (result: Result) => void,
-    done: (incomplete: boolean) => void,
+    done: (incomplete: boolean, error?: string) => void,
     live = false,
     timeout = 5000,
+    seen = new Set<string>(),
+    terminal?: (reason: string) => void,
+    backfillLimit = 200,
+    backfilled = { count: 0 },
   ) {
     const group = new Subscription(),
-      seen = new Set<string>(),
-      eose = new Set<string>();
+      eose = new Set<string>(),
+      closedRelays = new Set<string>();
     if (this.scope.closed || !relays.length) {
-      queueMicrotask(() => done(true));
+      queueMicrotask(() => {
+        done(
+          true,
+          readFailure(
+            this.scope.closed
+              ? 'Player closed or account changed.'
+              : 'No policy-allowed relay destinations are available.',
+            relays,
+          ),
+        );
+        if (live)
+          terminal?.(
+            'No policy-allowed relay destinations are available. Check relay configuration.',
+          );
+      });
       return group;
     }
+    const started = Date.now();
+    let messages = 0;
     let complete = false,
-      failed = false;
-    const finish = (incomplete = true) => {
+      failed = false,
+      backfill = true,
+      failureReason =
+        'Relay subscriptions closed before completing. Retry or select another relay.';
+    if (live) {
+      const timerId = setTimeout(() => {
+        backfill = false;
+      }, timeout);
+      group.add(() => clearTimeout(timerId));
+    }
+    const finish = (incomplete = true, error?: string) => {
       if (!complete) {
         complete = true;
-        done(incomplete);
+        done(incomplete, error);
       }
     };
-    const stream = this.pool
-      .req(relays, filters, { live, timeoutMs: timeout })
-      .pipe(take(2000), takeUntil(timer(live ? 300000 : timeout)))
+    const stream = defer(() => this.pool.req(relays, filters, { live, timeoutMs: timeout }))
+      .pipe(take(live ? Infinity : 2000), takeUntil(live ? NEVER : timer(timeout)))
       .subscribe({
         next: (message) => {
-          if (message.type === 'EOSE' || message.type === 'CLOSED') {
-            if (message.type === 'CLOSED') failed = true;
+          if (!relays.includes(message.from)) return;
+          messages++;
+          if (message.type === 'EOSE' || message.type === 'CLOSED' || message.type === 'ERROR') {
+            if (message.type === 'CLOSED' || message.type === 'ERROR') {
+              failed = true;
+              closedRelays.add(message.from);
+              failureReason =
+                message.type === 'ERROR'
+                  ? readFailure('Relay request failed.', [message.from], message.error)
+                  : readFailure(
+                      'Relay closed subscription.',
+                      [message.from],
+                      message.reason ? new Error(message.reason) : undefined,
+                    );
+            }
             eose.add(message.from);
             if (eose.size >= relays.length) {
-              finish(failed);
-              if (!live) group.unsubscribe();
+              backfill = false;
+              finish(failed, failed ? failureReason : undefined);
+              if (!live || closedRelays.size >= relays.length) {
+                group.unsubscribe();
+                if (live) terminal?.(failureReason);
+              }
             }
           }
           if (message.type !== 'EVENT') return;
           try {
             const event = verifiedEvent(message.event);
-            if (
-              !matchFilters(filters, event) ||
-              seen.has(event.id) ||
-              event.created_at > Date.now() / 1000 + 600
-            )
+            if (!matchFilters(filters, event) || event.created_at > Date.now() / 1000 + 600) return;
+            this.events.ingest(event, message.from);
+            if (seen.has(event.id)) {
+              if (!live && this.policy.discloseRelayHints)
+                callback({ event, sidecar: { relayHints: [message.from] } });
               return;
+            }
             seen.add(event.id);
-            callback({ event });
-            if (seen.size >= (live ? 500 : 200)) {
-              finish();
+            if (live && seen.size > 2048) seen.delete(seen.values().next().value!);
+            if (live && backfill && !eose.has(message.from) && backfilled.count++ >= backfillLimit)
+              return;
+            callback({
+              event,
+              ...(this.policy.discloseRelayHints
+                ? { sidecar: { relayHints: [message.from] } }
+                : {}),
+            });
+            if (!live && seen.size >= 200) {
+              finish(
+                true,
+                readFailure('Verified event quota of 200 reached before relay EOSE.', relays),
+              );
               group.unsubscribe();
             }
           } catch {}
         },
-        error: () => {
-          finish(true);
+        error: (cause) => {
+          const error = readFailure('Relay subscription transport failed.', relays, cause);
+          finish(true, error);
           group.unsubscribe();
+          if (live) terminal?.(error);
         },
         complete: () => {
-          finish(true);
+          const error = failed
+            ? failureReason
+            : readFailure(
+                messages >= 2000
+                  ? 'Relay message quota of 2000 reached before EOSE.'
+                  : Date.now() - started >= timeout - 5
+                    ? 'Relay read timed out before EOSE.'
+                    : 'Relay transport ended before all selected relays reached EOSE.',
+                relays,
+              );
+          finish(true, error);
           group.unsubscribe();
+          if (live) terminal?.(error);
         },
       });
     group.add(stream);
@@ -141,72 +252,115 @@ export class PlaybackNostr {
     filters: Filter[],
     relays = this.relays,
     timeout = 5000,
-  ): Promise<{ events: Result[]; incomplete: boolean }> {
+    signal?: AbortSignal,
+  ): Promise<{ events: Result[]; incomplete: boolean; error?: string }> {
     return new Promise((resolve) => {
       const events: Result[] = [];
+      const index = new Map<string, Result>();
       const sub = this.read(
         filters,
         relays,
-        (event) => events.push(event),
-        (incomplete) => resolve({ events, incomplete }),
+        (result) => {
+          const previous = index.get(result.event.id);
+          if (previous) {
+            if (result.sidecar && previous.sidecar)
+              previous.sidecar.relayHints = [
+                ...new Set([...previous.sidecar.relayHints, ...result.sidecar.relayHints]),
+              ];
+          } else {
+            events.push(result);
+            index.set(result.event.id, result);
+          }
+        },
+        (incomplete, error) => resolve({ events, incomplete, ...(error ? { error } : {}) }),
         false,
         timeout,
       );
+      if (signal?.aborted) sub.unsubscribe();
+      else if (signal) {
+        const abort = () => sub.unsubscribe();
+        signal.addEventListener('abort', abort, { once: true });
+        sub.add(() => signal.removeEventListener('abort', abort));
+      }
       // Closing a player also settles its outstanding requests.
-      sub.add(() => resolve({ events, incomplete: true }));
+      sub.add(() =>
+        resolve({
+          events,
+          incomplete: true,
+          error: readFailure(
+            'Read cancelled because the player closed or account changed.',
+            relays,
+          ),
+        }),
+      );
     });
   }
   async plan(authors: string[], direction = 'read', timeout = 2000) {
-    if (!authors.length) return { relays: this.relays, source: 'fallback', missingAuthors: [] };
-    const records = await this.query(
-      [{ kinds: [10002], authors: authors.slice(0, 16), limit: 32 }],
-      this.relays,
+    const { incomplete, limited, ...plan } = await this.planner.resolve(
+      authors,
+      direction === 'read' ? 'author-read' : 'recipient-inbox',
       timeout,
     );
-    const latest = new Map<string, SignedEvent>();
-    for (const { event } of records) {
-      const previous = latest.get(event.pubkey);
-      if (
-        !previous ||
-        event.created_at > previous.created_at ||
-        (event.created_at === previous.created_at && event.id < previous.id)
-      )
-        latest.set(event.pubkey, event);
-    }
-    const selected = new Set<string>(),
-      missing: string[] = [];
-    for (const author of authors) {
-      const tags = latest.get(author)?.tags ?? [];
-      const found = tags
-        .filter(
-          (t) => t[0] === 'r' && (!t[2] || t[2] === (direction === 'read' ? 'write' : 'read')),
-        )
-        .map((t) => {
-          try {
-            return readRelayUrl(t[1], this.relays, true);
-          } catch {
-            return '';
-          }
-        })
-        .filter(Boolean);
-      if (!found.length) missing.push(author);
-      found.forEach((url) => selected.add(url));
-    }
-    return {
-      relays: selected.size ? [...selected].slice(0, 8) : this.relays,
-      source: selected.size ? 'nip65' : 'fallback',
-      missingAuthors: missing,
-    };
+    return plan;
   }
+
   async handle(message: Record<string, unknown>) {
+    if (!String(message.type).endsWith('.subscribe')) return this.handleMessage(message);
+    const subId = z.string().min(1).max(128).parse(message.subId);
+    if (this.scope.closed) throw new Error('Player closed');
+    if (this.subscriptions.has(subId) || this.subscriptions.size >= 8)
+      throw new Error('Subscription quota exceeded');
+    const pending = new Subscription();
+    this.closedIds.delete(subId);
+    this.subscriptions.set(subId, pending);
+    this.closeReasons.set(
+      subId,
+      'Player closed or account changed. Reopen the subscription if needed.',
+    );
+    this.scope.add(pending);
+    pending.add(() => {
+      if (this.subscriptions.get(subId) === pending) this.subscriptions.delete(subId);
+      this.send({
+        type: `${String(message.type).split('.')[0]}.closed`,
+        subId,
+        reason: this.closeReasons.get(subId) ?? 'Subscription closed',
+      });
+      this.closeReasons.delete(subId);
+      this.closedIds.add(subId);
+      while (this.closedIds.size > 128)
+        this.closedIds.delete(this.closedIds.values().next().value!);
+    });
+    try {
+      return await this.handleMessage(message, pending);
+    } catch (error) {
+      this.closeReasons.set(subId, readFailure('Subscription setup failed.', this.relays, error));
+      pending.unsubscribe();
+      return {};
+    }
+  }
+  private async handleMessage(message: Record<string, unknown>, pending?: Subscription) {
+    const cancellation = new AbortController();
+    pending?.add(() => cancellation.abort());
     const type = String(message.type),
       domain = type.split('.')[0];
     if (type.endsWith('.publish') || type.endsWith('.publishEncrypted'))
       throw new Error('Publishing is disabled in this playback client.');
     if (type.endsWith('.close')) {
       const id = z.string().max(128).parse(message.subId);
-      this.subscriptions.get(id)?.unsubscribe();
-      this.subscriptions.delete(id);
+      if (this.subscriptions.has(id)) {
+        this.closeReasons.set(id, 'Closed by napplet.');
+        this.subscriptions.get(id)?.unsubscribe();
+        this.subscriptions.delete(id);
+      } else if (!this.closedIds.has(id)) {
+        this.closedIds.add(id);
+        while (this.closedIds.size > 128)
+          this.closedIds.delete(this.closedIds.values().next().value!);
+        this.send({
+          type: `${domain}.closed`,
+          subId: id,
+          reason: 'Subscription already closed or unknown.',
+        });
+      }
       return {};
     }
     if (type === 'outbox.resolveRelays') {
@@ -216,6 +370,7 @@ export class PlaybackNostr {
           pubkey: hex.optional(),
           direction: z.enum(['read', 'write']).optional(),
         })
+        .strict()
         .parse(message.target);
       return {
         plan: await this.plan(
@@ -236,6 +391,7 @@ export class PlaybackNostr {
         timeoutMs: z.number().int().min(100).max(10000).optional(),
         limit: z.number().int().min(1).max(200).optional(),
       })
+      .strict()
       .parse(message.options ?? {});
     // The SDK starts its timer before posting to the host. Its timeout covers
     // discovery, reads AND delivery of our result, not just network activity.
@@ -269,62 +425,164 @@ export class PlaybackNostr {
           ...(options.author ? [options.author] : []),
           ...filters.flatMap((f) => f.authors ?? []),
         ]),
-      ].slice(0, 16);
-      const plan = await this.plan(authors, 'read', Math.min(2000, Math.floor(readBudget / 3)));
+      ];
+      const plan = await this.planner.resolve(
+        authors,
+        'author-read',
+        Math.min(2000, Math.floor(readBudget / 3)),
+        false,
+        cancellation.signal,
+      );
       relays = plan.relays;
       // Explicit application/storage relays are a usable read plan even when
       // the author has never published NIP-65 metadata. Actual relay failures
       // still mark the result incomplete below.
-      incomplete = plan.missingAuthors.length > 0 && !hints.length;
+      incomplete =
+        plan.limited ||
+        (plan.incomplete && !(hints.length && plan.missingAuthors.length === authors.length));
     }
-    relays = explicit
-      ? [explicit]
-      : appStorage
-        ? [...new Set(hints)]
-        : [...new Set([...hints, ...relays])].slice(0, 8);
+    const candidates = [...new Set([...hints, ...relays])];
+    if (!explicit && !appStorage && candidates.length > 8) incomplete = true;
+    relays = explicit ? [explicit] : appStorage ? [...new Set(hints)] : candidates.slice(0, 8);
     if (this.scope.closed) throw new Error('Player closed');
     if (type.endsWith('.subscribe')) {
       const subId = z.string().max(128).parse(message.subId);
-      if (this.subscriptions.has(subId) || this.subscriptions.size >= 8)
-        throw new Error('Subscription quota exceeded');
-      const sub = this.read(
-        filters,
-        relays,
-        (result) => this.send({ type: `${domain}.event`, subId, result }),
-        () => {
-          if (domain === 'relay') this.send({ type: 'relay.eose', subId });
-        },
-        true,
-      );
-      this.subscriptions.set(subId, sub);
-      sub.add(() => {
-        this.subscriptions.delete(subId);
-        this.send({
-          type: `${domain}.closed`,
-          subId,
-          reason: 'Subscription closed or host limit reached',
-        });
-      });
+      if (!pending || pending.closed) return {};
+      const seen = new Set<string>();
+      const backfilled = { count: 0 };
+      let current: Subscription | undefined;
+      let previous = '';
+      const replace = (next: string[]) => {
+        if (pending.closed || JSON.stringify(next) === previous) return;
+        previous = JSON.stringify(next);
+        current?.unsubscribe();
+        current = this.read(
+          filters,
+          next,
+          (result) => this.send({ type: `${domain}.event`, subId, result }),
+          () => {
+            if (domain === 'relay') this.send({ type: 'relay.eose', subId });
+          },
+          true,
+          requestTimeout,
+          seen,
+          (reason) => {
+            this.closeReasons.set(subId, reason);
+            pending.unsubscribe();
+          },
+          options.limit ??
+            Math.min(
+              200,
+              filters.reduce((sum, filter) => sum + (filter.limit ?? 50), 0),
+            ),
+          backfilled,
+        );
+        pending.add(current);
+      };
+      replace(relays);
+      if (domain === 'outbox' && !explicit && !appStorage) {
+        const authors = [
+          ...new Set([
+            ...(options.authors ?? []),
+            ...(options.author ? [options.author] : []),
+            ...filters.flatMap((f) => f.authors ?? []),
+          ]),
+        ];
+        let refreshing = false;
+        const refresh = async () => {
+          if (pending.closed || refreshing) return;
+          refreshing = true;
+          try {
+            const plan = await this.planner.resolve(
+              authors,
+              'author-read',
+              Math.min(2000, readBudget),
+              true,
+              cancellation.signal,
+            );
+            replace([...new Set([...hints, ...plan.relays])].slice(0, 8));
+          } catch {
+            /* A refresh failure retains the existing policy-checked route. */
+          } finally {
+            refreshing = false;
+          }
+        };
+        const interval = setInterval(() => void refresh(), this.policy.refreshMs ?? 60000);
+        pending.add(() => clearInterval(interval));
+        pending.add(
+          this.events.changes$.subscribe((event) => {
+            if (event.kind === 10002 && authors.includes(event.pubkey)) {
+              if (!this.planner.observe(event)) return;
+              void this.planner
+                .resolve(
+                  authors,
+                  'author-read',
+                  Math.min(2000, readBudget),
+                  false,
+                  cancellation.signal,
+                )
+                .then((plan) => replace([...new Set([...hints, ...plan.relays])].slice(0, 8)))
+                .catch(() => {});
+            }
+          }),
+        );
+      }
       return {};
     }
     if (type === 'outbox.getEvent' || type.endsWith('.query')) {
-      const collected = await this.collect(filters, relays, Math.max(1, deadline - Date.now()));
-      const events = collected.events.slice(0, options.limit ?? 200);
+      const collected =
+        type === 'outbox.getEvent'
+          ? await this.events
+              .loadEventWithCoverage(
+                String(message.eventId),
+                relays,
+                Math.max(1, deadline - Date.now()),
+                cancellation.signal,
+              )
+              .then((loaded) => ({
+                events: loaded.events.map((event) => ({
+                  event,
+                  ...(this.policy.discloseRelayHints
+                    ? { sidecar: { relayHints: this.events.observedRelays(event.id) } }
+                    : {}),
+                })),
+                incomplete: loaded.incomplete,
+                ...(loaded.error ? { error: loaded.error } : {}),
+              }))
+          : await this.collect(filters, relays, Math.max(1, deadline - Date.now()));
+      const maximum =
+        options.limit ??
+        Math.min(
+          200,
+          filters.reduce((sum, filter) => sum + (filter.limit ?? 50), 0),
+        );
+      const events = (
+        collected.events.length > maximum
+          ? collected.events.sort(
+              (a, b) =>
+                b.event.created_at - a.event.created_at || a.event.id.localeCompare(b.event.id),
+            )
+          : collected.events
+      ).slice(0, maximum);
       incomplete ||= collected.incomplete;
       return type === 'outbox.getEvent'
         ? {
             result: events[0],
             incomplete,
-            ...(collected.incomplete && !events.length
-              ? { error: 'Relay read did not complete. Please retry.' }
-              : {}),
+            ...(collected.error
+              ? { error: collected.error }
+              : collected.incomplete && !events.length
+                ? { error: 'Relay read did not complete. Please retry.' }
+                : {}),
           }
         : {
             events,
             ...(domain === 'outbox' ? { incomplete } : {}),
-            ...(collected.incomplete && !events.length
-              ? { error: 'Relay read did not complete. Please retry.' }
-              : {}),
+            ...(collected.error
+              ? { error: collected.error }
+              : collected.incomplete && !events.length
+                ? { error: 'Relay read did not complete. Please retry.' }
+                : {}),
           };
     }
     throw new Error('Unsupported relay operation');

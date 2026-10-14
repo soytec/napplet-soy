@@ -51,14 +51,16 @@ test('playback relay reads validate signatures and filters, deduplicate, and clo
     expect(delivered.filter((m) => m.type === 'relay.event')).toHaveLength(1);
     expect(delivered.some((m) => m.type === 'relay.eose')).toBe(true);
     await expect(client.handle({ type: 'relay.publish', event })).rejects.toThrow('disabled');
-    await expect(
-      client.handle({
-        type: 'relay.subscribe',
-        subId: 'escape',
-        relay: 'wss://127.0.0.1/',
-        filters: {},
-      }),
-    ).rejects.toThrow('not allowed');
+    await client.handle({
+      type: 'relay.subscribe',
+      subId: 'escape',
+      relay: 'wss://127.0.0.1/',
+      filters: {},
+    });
+    expect(
+      delivered.find((message) => message.type === 'relay.closed' && message.subId === 'escape')
+        ?.reason,
+    ).toContain('not allowed');
     client.close();
     await new Promise((resolve) => setTimeout(resolve, 10));
     const before = requests.filter((r) => r[0] === 'REQ').length;

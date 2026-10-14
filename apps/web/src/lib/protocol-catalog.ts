@@ -337,23 +337,29 @@ async function forGroups<T>(items: T[], size: number, read: (group: T[]) => Prom
     }),
   );
 }
-export function queryCatalog(author?: string, search?: DiscoverySearch): Promise<PublicNapplet[]> {
+export function queryCatalog(
+  author?: string,
+  search?: DiscoverySearch,
+  known: SignedEvent[] = [],
+): Promise<PublicNapplet[]> {
   if (
-    search &&
-    (search.archetype || search.intent || search.requiredDomain || search.optionalDomain)
+    known.length ||
+    (search &&
+      (search.archetype || search.intent || search.requiredDomain || search.optionalDomain))
   ) {
     const key = JSON.stringify([
       author,
-      search.archetype,
-      search.intent,
-      search.requiredDomain,
-      search.optionalDomain,
+      search?.archetype,
+      search?.intent,
+      search?.requiredDomain,
+      search?.optionalDomain,
+      known.map((event) => event.id).sort(),
     ]);
     if ((targetedFresh.get(key) ?? 0) > Date.now() - 30000)
       return Promise.resolve([...entries.values()].filter(manifestEntry));
     const pending = targetedPending.get(key);
     if (pending) return pending;
-    const query = refreshCatalog(author, search)
+    const query = refreshCatalog(author, search, known)
       .then((result) => {
         targetedFresh.set(key, Date.now());
         if (targetedFresh.size > 128) targetedFresh.delete(targetedFresh.keys().next().value!);
@@ -368,10 +374,14 @@ export function queryCatalog(author?: string, search?: DiscoverySearch): Promise
     catalogPending = undefined;
   }));
 }
-async function refreshCatalog(author?: string, search?: DiscoverySearch) {
-  if (!author && !search && catalogFresh > Date.now() - 30000)
+async function refreshCatalog(
+  author?: string,
+  search?: DiscoverySearch,
+  known: SignedEvent[] = [],
+) {
+  if (!author && !search && !known.length && catalogFresh > Date.now() - 30000)
     return [...entries.values()].filter(manifestEntry);
-  const filters = search
+  const filters: Filter[] = search
     ? targetedDiscoveryFilters(
         {
           archetypes: search.archetype ? [search.archetype] : [],
@@ -382,6 +392,19 @@ async function refreshCatalog(author?: string, search?: DiscoverySearch) {
         { limit: 300, legacyRequirements: true },
       ).fallback
     : [{ kinds: [35129, 15129, 5129], limit: 300 }];
+  // INTENT discovery must also observe revisions that remove/change their
+  // advertised role. Exact coordinates avoid depending on the global feed limit.
+  for (const event of known.slice(0, 100)) {
+    if (event.kind !== 35129 && event.kind !== 15129) continue;
+    filters.push({
+      kinds: [event.kind],
+      authors: [event.pubkey],
+      ...(event.kind === 35129
+        ? { '#d': [event.tags.find((tag) => tag[0] === 'd')?.[1] ?? ''] }
+        : {}),
+      limit: 5,
+    });
+  }
   const events = await protocolClient().query(
     filters.map((filter) => ({
       ...filter,
@@ -394,7 +417,7 @@ async function refreshCatalog(author?: string, search?: DiscoverySearch) {
     if (!winners.has(key)) winners.set(key, e);
   }
   // Targeted reads must not replace a known newer publication with an older match.
-  if (search)
+  if (search || known.length)
     for (const entry of entries.values()) {
       const e = entry.manifest;
       const key = catalogKey(e);

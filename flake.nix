@@ -72,6 +72,7 @@
             ./docs/BACKEND-CREATOR.md
             ./docs/DYNAMIC-BACKENDS-CREATOR.md
             ./docs/SHARED-DATA.md
+            ./docs/OUTBOX.md
           ]
         );
       };

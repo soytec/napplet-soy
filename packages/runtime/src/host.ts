@@ -3,12 +3,19 @@ import { blossomBytes, downloadBytes, readBytes } from '../../client/src/bytes';
 import { resourceMime } from '../../client/src/resource-mime';
 import { MAX_RESOURCE_BYTES } from '../../client/src/resource-limits';
 import { z } from 'zod';
+import { sha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex } from '@noble/hashes/utils.js';
+import { redactDiagnostic } from '../../diagnostics/src';
 import { HOST_REQUESTS, RUNTIME_DOMAINS } from './capabilities';
 import { scopedStorage } from './storage';
 import { NappletFiles, type ExportFile, type FilePick } from './filesystem';
 import { NappletActions } from './action-session';
 import { NappletUploads } from './upload-session';
 import { NappletAppData, appDataPolicy } from './app-data-session';
+import { APP_DATA_KIND } from '../../app-data/src/app-data-contract';
+import { NappletOutbox } from './outbox-session';
+import { NappletMapPublication, isMapPublication } from './map-publication-session';
+import { intentMessageBytes, type IntentWorkspace } from './intent-session';
 import type { HostSign } from './action-contracts';
 import { PlaybackNostr } from '../../nostr/src/playback';
 import { WorkQueue } from './work-queue';
@@ -33,11 +40,15 @@ export type HostPrompt = {
   dismiss: () => void;
 };
 export type HostOptions = {
+  /** Trusted shell catalog/lifecycle broker; the frame cannot supply these values. */
+  intent?: { workspace: IntentWorkspace; catalogId: string };
   frame: HTMLIFrameElement;
   identity: string;
   manifestId: string;
   relays: string[];
   actionRelays?: string[];
+  /** Trusted host disclosure policy, never supplied by the sandbox. */
+  outboxPolicy?: { discloseRelayHints?: boolean };
   servers?: string[];
   uploadServers?: string[];
   sign?: HostSign;
@@ -82,6 +93,7 @@ export function attachNappletHost(options: HostOptions) {
   const send = (message: Record<string, unknown>) => {
     if (alive) source?.postMessage(message, '*');
   };
+  const intentEndpoint = options.intent?.workspace.attach(options.intent.catalogId, send);
   // The iframe/handshake outlive account scopes. Each request captures its scope;
   // retiring it settles promises and prevents delayed results reaching a new user.
   const createAccount = (pubkey: string | null) => {
@@ -95,7 +107,13 @@ export function attachNappletHost(options: HostOptions) {
     const lifetime = new AbortController();
     const resources = new Map<string, AbortController>();
     let backend: NappletBackend | undefined, webrtc: NappletWebrtc | undefined;
-    const nostr = new PlaybackNostr(options.relays, sendScoped, () => pubkey);
+    const nostr = new PlaybackNostr(
+      [...new Set([...options.relays, ...(options.actionRelays ?? [])])],
+      sendScoped,
+      () => pubkey,
+      undefined,
+      options.outboxPolicy,
+    );
     const files = new NappletFiles(sendScoped, (value) => {
       if (active && alive) options.files(value);
     });
@@ -162,12 +180,77 @@ export function attachNappletHost(options: HostOptions) {
       signal: lifetime.signal,
       consent: (value, signal) => consent('action', value, signal),
     });
+    const publicationPlan = async (key: string, routing: unknown, signal: AbortSignal) => {
+      signal.throwIfAborted();
+      const relays = await nostr.planner.publication(key, routing, 2000, signal);
+      signal.throwIfAborted();
+      return relays;
+    };
+    const outbox = new NappletOutbox({
+      pubkey,
+      sign: options.sign,
+      signal: lifetime.signal,
+      plan: publicationPlan,
+      consent: (value, signal) => consent('action', `${options.identity}\n${value}`, signal),
+      onPublished: (event) => {
+        nostr.events.ingest(event);
+      },
+    });
+    const publications = new Map<
+      string,
+      { fingerprint: string; result: Promise<Record<string, unknown>> }
+    >();
+    let publicationBytes = 0;
+    const publish = (message: Record<string, unknown>) => {
+      const dispatch = () => {
+        if (isMapPublication(message)) return maps.handle(message);
+        if ((message.event as { kind?: unknown } | undefined)?.kind === APP_DATA_KIND)
+          return appData.handle(message);
+        if (message.type === 'outbox.publish') return outbox.handle(message);
+        return Promise.resolve({
+          ok: false,
+          error: 'publish-denied: general template signing requires OUTBOX and viewer consent.',
+        });
+      };
+      if (message.type !== 'outbox.publish') return dispatch();
+      const id = String(message.id ?? '');
+      if (!id) return Promise.resolve({ ok: false, error: 'invalid-request-id' });
+      const encoded = new TextEncoder().encode(JSON.stringify([message.event, message.options]));
+      const fingerprint = bytesToHex(sha256(encoded));
+      const previous = publications.get(id);
+      if (previous)
+        return previous.fingerprint === fingerprint
+          ? previous.result
+          : Promise.resolve({
+              ok: false,
+              error: 'request-id-reused: use a fresh request ID for a different publication.',
+            });
+      const reservation = encoded.length * 2 + 8192;
+      if (publications.size >= 256 || publicationBytes + reservation > 16 * 1024 * 1024)
+        return Promise.resolve({
+          ok: false,
+          error: 'publication-limit: reopen the player before making more publication requests.',
+        });
+      publicationBytes += reservation;
+      const result = dispatch();
+      publications.set(id, { fingerprint, result });
+      return result;
+    };
     const appData = new NappletAppData({
       policy: dataPolicy,
       pubkey,
       sign: options.sign,
       signal: lifetime.signal,
       consent: (value, signal) => consent('action', value, signal),
+      plan: publicationPlan,
+    });
+    const maps = new NappletMapPublication({
+      pubkey,
+      sign: options.sign,
+      relays: options.actionRelays ?? options.relays,
+      signal: lifetime.signal,
+      consent: (value, signal) => consent('action', value, signal),
+      plan: publicationPlan,
     });
     const uploads = new NappletUploads({
       pubkey,
@@ -285,7 +368,13 @@ export function attachNappletHost(options: HostOptions) {
       if (domain === 'fs')
         return files.handle(message, (name) => choose('save', name), chooseFiles, lifetime.signal);
       if (domain === 'identity') return nostr.identity(action);
-      if (type === 'outbox.publish' || type === 'relay.publish') return appData.handle(message);
+      if (domain === 'intent')
+        return intentEndpoint
+          ? intentEndpoint.handle(message)
+          : { result: { ok: false, error: 'No intent workspace is available in this surface.' } };
+      if (type === 'outbox.publish' || type === 'relay.publish') {
+        return publish(message);
+      }
       if (domain === 'relay' || domain === 'outbox') return nostr.handle(message);
       if (domain === 'upload') return uploads.handle(message);
       if (
@@ -390,6 +479,9 @@ export function attachNappletHost(options: HostOptions) {
         nostr.close();
         actions.close();
         appData.close();
+        maps.close();
+        outbox.close();
+        publications.clear();
         active = false;
         lifetime.abort();
         resources.clear();
@@ -434,10 +526,14 @@ export function attachNappletHost(options: HostOptions) {
       initialized = true;
       send({
         type: 'shell.init',
-        capabilities: { domains: [...RUNTIME_DOMAINS], appData: dataPolicy },
+        capabilities: {
+          domains: RUNTIME_DOMAINS.filter((domain) => domain !== 'intent' || !!intentEndpoint),
+          appData: dataPolicy,
+        },
         services: [],
       });
       config.ready();
+      intentEndpoint?.ready();
       keys.ready();
       return;
     }
@@ -499,25 +595,40 @@ export function attachNappletHost(options: HostOptions) {
       scope.cancel(message.id);
       return;
     }
-    let size: number;
-    try {
-      size = JSON.stringify(message).length;
-    } catch {
-      return;
-    }
-    if (size > 360000) return;
     if (Date.now() - windowStart >= 60000) {
       windowStart = Date.now();
       calls = 0;
       scope.resetBudget();
     }
+    const lifecycle = /^(?:outbox|relay)\.(?:subscribe|close)$/.test(message.type);
     const failure = (error: unknown) => {
-      const detail =
+      const detail = redactDiagnostic(
         error instanceof z.ZodError
           ? 'Invalid request'
           : error instanceof Error
             ? error.message
-            : 'Request failed';
+            : 'Request failed',
+        1600,
+      );
+      if (lifecycle) {
+        if (typeof message.subId === 'string' && message.subId.length <= 128)
+          scope.send({
+            type: `${message.type.split('.')[0]}.closed`,
+            subId: message.subId,
+            reason: detail,
+          });
+        return;
+      }
+      if (message.type.startsWith('intent.')) {
+        scope.send({
+          type: `${message.type}.result`,
+          id: message.id,
+          ...(message.type === 'intent.invoke'
+            ? { result: { ok: false, error: detail } }
+            : { error: detail }),
+        });
+        return;
+      }
       if (message.type.startsWith('resource.'))
         scope.send({
           type: `${message.type}.error`,
@@ -550,6 +661,17 @@ export function attachNappletHost(options: HostOptions) {
           });
       }
     };
+    let size: number;
+    const intent = message.type.startsWith('intent.');
+    try {
+      // INTENT payloads use structured clone, not JSON. Apply the same bounded
+      // accounting as the broker before dispatch, including unknown fields.
+      size = intent ? intentMessageBytes(message) : JSON.stringify(message).length;
+    } catch (error) {
+      if (intent) failure(error);
+      return;
+    }
+    if (!intent && size > 360000) return;
     const realtime = message.type === 'webrtc.send';
     if (Date.now() - rtcWindow >= 1000) {
       rtcWindow = Date.now();
@@ -566,7 +688,11 @@ export function attachNappletHost(options: HostOptions) {
     scope.requests.add(failure);
     void scope
       .handle(message)
-      .then((result) => scope.send({ type: `${message.type}.result`, id: message.id, ...result }))
+      .then((result) => {
+        // RELAY/OUTBOX subscribe and close are lifecycle operations. Their
+        // contracts define event/closed pushes, not synthetic *.result messages.
+        if (!lifecycle) scope.send({ type: `${message.type}.result`, id: message.id, ...result });
+      })
       .catch(failure)
       .finally(() => scope.requests.delete(failure));
   };
@@ -587,6 +713,7 @@ export function attachNappletHost(options: HostOptions) {
     close() {
       if (!alive) return;
       alive = false;
+      intentEndpoint?.close();
       unsubscribePermission();
       unsubscribeTheme?.();
       window.removeEventListener('message', listener);
