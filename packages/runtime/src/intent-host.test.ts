@@ -22,7 +22,7 @@ test('bound host replies with official invoke result and cold delivery follows t
   workspace.register({ id: 'attested-source', contracts: [] });
   workspace.register({
     id: 'editor',
-    contracts: [{ convention: 'napplet:map/edit', params: ['address'] }],
+    contracts: [{ convention: 'napplet:black-site/map-edit', params: ['address'] }],
   });
   const sentSource: Record<string, unknown>[] = [],
     sentTarget: Record<string, unknown>[] = [];
@@ -52,9 +52,9 @@ test('bound host replies with official invoke result and cold delivery follows t
       type: 'intent.invoke',
       id: 'call',
       request: {
-        archetype: 'map',
-        action: 'edit',
-        convention: 'napplet:map/edit',
+        archetype: 'black-site',
+        action: 'map-edit',
+        convention: 'napplet:black-site/map-edit',
         payload: { address: 'one' },
         sender: 'forged',
       },
@@ -65,9 +65,9 @@ test('bound host replies with official invoke result and cold delivery follows t
       id: 'call',
       result: {
         ok: true,
-        archetype: 'map',
-        action: 'edit',
-        convention: 'napplet:map/edit',
+        archetype: 'black-site',
+        action: 'map-edit',
+        convention: 'napplet:black-site/map-edit',
         handler: 'editor',
       },
     });
@@ -80,9 +80,9 @@ test('bound host replies with official invoke result and cold delivery follows t
       type: 'intent.deliver',
       delivery: {
         sender: 'attested-source',
-        archetype: 'map',
-        action: 'edit',
-        convention: 'napplet:map/edit',
+        archetype: 'black-site',
+        action: 'map-edit',
+        convention: 'napplet:black-site/map-edit',
         payload: { address: 'one' },
       },
     });

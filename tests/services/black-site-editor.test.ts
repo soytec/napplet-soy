@@ -133,10 +133,10 @@ test('native Black Site editor publishes, updates, remixes and deletes through r
           ['d', 'fixture-map-editor'],
           ['title', 'Fixture map editor'],
           ['x', editorHash],
-          ['z', 'map'],
+          ['z', 'black-site'],
           ...['edit', 'open', 'remix', 'new'].map((action) => [
             'i',
-            `napplet:map/${action}`,
+            `napplet:black-site/map-${action}`,
             'address',
             'relays',
           ]),

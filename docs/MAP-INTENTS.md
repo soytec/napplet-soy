@@ -47,12 +47,12 @@ Blossom bytes.
 A handler advertises standard `z` archetype and queryless `i` convention tags.
 Contracts use exact `napplet:<archetype>/<action>` identity; query parameters
 are invocation data, not a different convention. A map editor can advertise
-`napplet:map/edit`, `napplet:map/open`, `napplet:map/remix` and `napplet:map/new`.
+`napplet:black-site/map-edit`, `napplet:black-site/map-open`, `napplet:black-site/map-remix` and `napplet:black-site/map-new`.
 Payload meaning belongs to that handler's documented contract. For the Black
 Site editor, opening an existing map uses its author-qualified map address:
 
 ```ts
-await intent.invoke('napplet:map/edit', {
+await intent.invoke('napplet:black-site/map-edit', {
   payload: { address: '35858:<map-author-hex>:<map-id>' },
 });
 ```
