@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sourceGit } from '../../grasp/src/client';
 import { checkpoint, committedSource, inspectHistory } from '../../publish/src/git-source';
-import { cloneUrl, mergeReviewed } from './git';
+import { cloneUrl, selectCloneUrls, mergeReviewed } from './git';
 import { diagnose, formatDiagnostic } from '../../diagnostics/src';
 
 test('real Git merge preflight preserves conflict filenames from stdout', async () => {
@@ -206,4 +206,23 @@ test('reviewed merge preserves valid aliases and uses its supplied author withou
   } finally {
     await fixture.close();
   }
+});
+
+test('proposal hosts select eligible alternatives before applying the four-host budget', () => {
+  const blocked = [
+    'ssh://git@example.org/repo',
+    'git@example.org:repo',
+    'file:///tmp/repo',
+    'https://127.0.0.1/repo',
+    'ext::sh',
+  ];
+  const publicHosts = Array.from({ length: 5 }, (_, i) => `https://host${i}.example/repo`);
+  expect(selectCloneUrls([...blocked, publicHosts[0], ...publicHosts])).toEqual(
+    publicHosts.slice(0, 4),
+  );
+  expect(
+    selectCloneUrls(['ssh://git@example.org/repo', 'http://127.0.0.1:8082/repo'], true),
+  ).toEqual(['http://127.0.0.1:8082/repo']);
+  expect(() => selectCloneUrls(blocked)).toThrow('no supported Git clone URL');
+  expect(() => selectCloneUrls([])).toThrow('no supported Git clone URL');
 });

@@ -4,15 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import {
   publicLink,
   publicPoster,
+  publicPreviewVideo,
   type PublicNapplet,
 } from '../../../../packages/backend/src/public-model';
 import { getFeaturedGallery } from '@/lib/catalog.functions';
 import { Button } from './ui/button';
 import { PreviewCover } from './preview-cover';
-import { linkedMedia } from '../../../../packages/protocol/src/linked-media';
 
-const previewClip = (entry: PublicNapplet) =>
-  entry.video ?? linkedMedia(entry.manifest, entry.metadata ?? []).videos[0];
+const previewClip = (entry: PublicNapplet) => publicPreviewVideo(entry);
 
 export function FeaturedHero({
   initial,

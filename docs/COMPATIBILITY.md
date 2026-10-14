@@ -1,5 +1,15 @@
 # Compatibility evidence and remaining audit
 
+## Forkless Git collaboration source qualification
+
+2026-10-12 source hosts proposal commits through upstream GRASP-01 refs without
+creating contributor repositories. Native GRASP 3.0.2 and independent ngit 2.6.1
+cover creation, revisions, checkout, acceptance and applied-status visibility in
+both directions. NIP-34 `6d2979b3` and the authoritative NIP-5D/NAP pins remain
+unchanged. Exact versions, recovery evidence and unqualified cases are recorded in
+[interoperability](INTEROPERABILITY.md#forkless-proposals-and-acceptance).
+This is local source qualification; no new CLI release or deployment is implied.
+
 ## NIP-5D PR 7 migration — 2026-10-04
 
 soyLI 0.24.0 publications target `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d51`; old `24711d9` manifests remain readable/playable by the deployed dual reader. See [the migration matrix and rollout](NIP5D-MIGRATION.md) and [release evidence](CLI-RELEASES.md). The manifest publisher/parser changes while NAP runtime and upstream package pins stay unchanged. Existing upstream Paja acceptance is evidence for the legacy format only, not a claim that that client supports PR 7.
@@ -145,6 +155,7 @@ proposal revisions; mapping the remaining domains to individual NAP revisions/de
 | `shell`    | ready/init once, supports, ready callback, services; empty named-service list                                                                                    | `runtime/prelude.ts`, `host.ts`; runtime browser handshake and unknown-message tests                                                                                 |
 | `identity` | getPublicKey, getRelays (NIP-65), getProfile, getFollows, getMutes, changed push; getList/getZaps/getBlocked/getBadges return unsupported-policy errors          | `nostr/playback.ts`, host account scopes; playback unit tests and account-switch browser test                                                                        |
 | `storage`  | get/set/remove/keys; shared and instance SDK scopes; bounded strings/keys; no device/cloud sync                                                                  | `runtime/storage.ts` and tests; runtime browser persistence/isolation                                                                                                |
+| `keys`     | Named actions, default bindings, unregister and focused Escape forwarding                                                                                        | Frame-scoped limits; reserved/conflicting hints unbound; see keyboard section below                                                                                  |
 | `theme`    | get resolved shell colors; live theme.changed through installed onChanged hook                                                                                   | `runtime/appearance.ts`, `runtime/host.ts`; pinned-shim browser checks cover get/onChanged, unsubscribe and unchanged gameplay/settings; [appearance](APPEARANCE.md) |
 | `resource` | info, bytes, bytesMany, cancel; shim data URL/object URL helpers; HTTPS/Blossom mediation; unsupported schemes and unsafe destinations/formats rejected          | `runtime/host.ts`, backend resource responder; resource tests, queued cancellation, public packaged-loader historical check                                          |
 | `relay`    | query/subscribe/close on allowed relays; publish limited to scoped public app-data records with viewer consent; publishEncrypted denied                          | `nostr/playback.ts`; actual WebSocket fixtures, signature/filter/dedup tests; denied publish browser test                                                            |
@@ -164,7 +175,7 @@ explicitly unsupported. Artwork/context do not cause fetching. Session/transport
 unit tests, the real-shim CLI browser test, the Drone Zone live stream and the VPS
 Node fallback were exercised. See [MEDIA.md](MEDIA.md) for limits and release status.
 
-No `inc`, `intent`, `keys`, `notify`, payment, raw-device
+No `inc`, `intent`, `notify`, payment, raw-device
 or unrestricted signing capability is advertised. Required unavailable domains
 gate playback uniformly for every publisher. Website social signing is separate
 from a napplet's grants.
@@ -236,3 +247,12 @@ lifecycle evidence and corrected upstream harness diagnostics remain open.
 The 0.15.0 source profile is `space-playback-4`; FS #88, UPLOAD #33, COMMON #67
 and LISTS #68 are pinned in [NAP-REVIEW](NAP-REVIEW.md). [Runtime actions](RUNTIME-ACTIONS.md)
 records the supported subset and verification; full NAP conformance is not claimed.
+
+### NAP-KEYS — 2026-10-13 source
+
+NAP-KEYS PR 9 is pinned to `8869a4cf77b023f4b049f47c546910a0280dc1a6`,
+with existing shim 0.30.0. Shared host registration, binding pushes, unregister
+and focused Escape forwarding are implemented. The real shim/browser regression
+is `tests/services/keys-preview.test.ts`; [runtime limits and known normalization
+difference](PUBLIC-RUNTIME.md#keyboard-actions--2026-10-13-source) document the
+partial surface, reserved defaults and deferred rebinding UI.

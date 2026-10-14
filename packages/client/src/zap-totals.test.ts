@@ -26,3 +26,28 @@ test('confirmed payments update all observers and reconcile with delayed/duplica
   store.observe('another', []);
   expect(changes).toBe(3);
 });
+
+test('confirmed local payments survive reload, expire locally, and merge once with receipts', () => {
+  const values = new Map<string, string>();
+  const storage = () => ({
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      values.set(key, value);
+    },
+  });
+  const now = Date.now(),
+    paid = { paymentHash: 'd'.repeat(64), msats: 21000 };
+  const before = new ZapTotalsStore(storage, () => now);
+  before.observe('napplet', [{ paymentHash: 'a'.repeat(64), msats: 1000 }]);
+  before.confirm('napplet', paid);
+  const restored = new ZapTotalsStore(storage, () => now + 1000);
+  expect(restored.get('napplet')).toEqual({ zapCount: 1, msats: 21000 });
+  restored.observe('napplet', [paid, paid]);
+  expect(restored.get('napplet')).toEqual({ zapCount: 1, msats: 21000 });
+  expect(new ZapTotalsStore(storage, () => now + 31 * 86400000).get('napplet')).toBeUndefined();
+  const blocked = new ZapTotalsStore(() => {
+    throw new Error('Storage blocked');
+  });
+  blocked.confirm('napplet', paid);
+  expect(blocked.get('napplet')).toEqual({ zapCount: 1, msats: 21000 });
+});

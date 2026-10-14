@@ -24,7 +24,10 @@ export function resourceUrl(value: string, local: string[] = []) {
 }
 export async function readBytes(response: Response, max = MAX_ARTIFACT_BYTES) {
   if (!response.ok || !response.body) throw new Error('Download unavailable');
-  if (Number(response.headers.get('content-length')) > max) throw new Error('too-large');
+  if (Number(response.headers.get('content-length')) > max) {
+    await response.body.cancel();
+    throw new Error('too-large');
+  }
   const reader = response.body.getReader(),
     chunks: Uint8Array[] = [];
   let length = 0;
@@ -69,22 +72,26 @@ export async function blossomBytes(
   signal: AbortSignal,
   max = MAX_ARTIFACT_BYTES,
   local: string[] = [],
+  perServerTimeoutMs = 8000,
 ) {
   if (!/^[a-f0-9]{64}$/.test(hash)) throw new Error('Invalid content hash');
+  let tooLarge = false;
   for (const server of [...new Set(servers)].slice(0, 8)) {
     try {
       const url = `${server.replace(/\/$/, '')}/${hash}`;
       const bytes = await downloadBytes(
         url,
-        AbortSignal.any([signal, AbortSignal.timeout(8000)]),
+        AbortSignal.any([signal, AbortSignal.timeout(perServerTimeoutMs)]),
         max,
         local,
       );
       if ((await sha256(bytes)) === hash) return bytes;
-    } catch {
+    } catch (error) {
+      tooLarge ||= error instanceof Error && error.message === 'too-large';
       signal.throwIfAborted();
     }
   }
+  if (tooLarge) throw new Error(`This download exceeds the ${max / 1024 ** 2} MiB read limit.`);
   throw new Error(
     'No configured Blossom server returned the verified file. Check its URL and CORS support.',
   );

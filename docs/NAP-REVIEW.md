@@ -14,6 +14,26 @@ in `20261009091435416-91120` on 2026-10-09; source/native/Nix, target service
 checks and live desktop/mobile gallery plus exact historical-byte checks pass.
 See [release evidence](CLI-RELEASES.md).
 
+## Direct presentation review — 2026-10-06
+
+The authoritative NIP-5D pin remains `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d51`.
+It defines hash/MIME icons but no screenshot/video fields. Reviewed
+[napplet/web PR 111](https://github.com/napplet/web/pull/111) at
+`6dd79febfa9807d5d3f51cabd77b793f5893d4b7`: that draft uploads screenshots using
+the older manifest path/aggregate shape; it assigns no new event kind or standalone
+screenshot tag. It therefore does not supply the missing standalone schema.
+
+The user approved direct references on existing manifests and stopping new
+Zapstore descriptors. Source now uses the explicit optional downstream profile
+`soy.presentation/1`, documented in [PREVIEWS.md](PREVIEWS.md). It binds screenshot
+and preview hashes/MIME types to each signed revision; declared Blossom origins
+provide bytes. All authors use the same reader and verification, with no provenance
+gate. Missing or malformed optional fields leave playback intact. Legacy descriptors
+and frozen publications retain compatibility. No NIP/NAP pin or shim change is
+claimed; upstream agreement and independent-client rendering remain unverified.
+Released as soyLI 0.28.0 on 2026-10-14 after compatible reader deployment and live
+legacy playback/media verification. See [release evidence](CLI-RELEASES.md).
+
 ## NIP-22 comment audit — 2026-10-05
 
 Reviewed the official [NIP-22 at 13664fb](https://github.com/nostr-protocol/nips/blob/13664fb18a3ce5fa48a849de012ab789d82eb254/22.md).
@@ -39,6 +59,15 @@ Selected authority: [dskvr/nips PR 7](https://github.com/dskvr/nips/pull/7), hea
 The announcement mentions screenshot tags and possible intent hints, but neither has a wire contract in this pinned PR. Existing optional screenshot/video descriptors remain; no screenshot tag, intent grant or dispatch message is invented. NIP-91 intersections are an opt-in query optimization with standard tag-filter fallback. All required domains are still checked locally.
 
 Shim 0.30.0, nap/core 0.32.0, starter SDK 0.24.4, Vite plugin 0.11.2 and the upstream boilerplate/skill snapshots remain pinned. Soy's publisher and guidance adapters implement the new manifest; the old plugin's emitted event is not used for publishing. See [migration/rollout](NIP5D-MIGRATION.md) and [creator contract](NIP5D-CREATOR.md). Local implementation is distinct from release/deployment; dated records below describe their original baseline.
+
+2026-10-12 artifact read policy: published HTML readers now accept up to 100 MiB
+from every publisher, while soyLI keeps its 25 MiB build/publishing budget. This
+supersedes the shared 25 MiB admission limit below. Hash, UTF-8, streaming size,
+public-network and sandbox checks remain required. The index projection profile
+changes so formerly oversized entries are rechecked after rollout. This changes no
+NAP, manifest field or upstream pin; source/presentation metadata remains optional.
+Released in soyLI 0.26.1 and deployed in `20261012080150614-26110` on 2026-10-12;
+see [verification](CLI-RELEASES.md).
 
 2026-10-05 source-alias correction: safe relative aliases to public files are now
 accepted in current as well as historical Git trees. Git retains the links; the
@@ -363,6 +392,25 @@ playback with separate state and guest identity. Optional `soy-preview` is a Soy
 attachment convention, explicitly documented in [COLLABORATION.md](COLLABORATION.md),
 not claimed as a standardized NAP or prerequisite for external proposals.
 
+### 2026-10-12 Forkless collaboration source correction
+
+Native GRASP 3.0.2 at the existing `cdda4a23` pin accepts non-maintainer roots and
+updates at upstream `refs/nostr/<event-id>` after event delivery. Its normative
+GRASP pin remains `f35b4f9a4ed2f0aaaf46926e4b1733c79e21b377`. The adapter now uses
+that facility directly without signing or publishing contributor repository
+announcement/state events. The ngit 2.6.1 source at
+`55f3e3a838dffd03f0fdd996103b8dc8c2cddcd6` establishes branch names without `pr/`
+and reciprocal maintainer state handling for the tested profile. The independent
+fixture covers create/update/checkout/accept in both directions. ngit 2.6.1
+`pr merge` merges into the current branch; do not infer newer documented target
+selection behavior from this test.
+
+No authoritative NIP-5D, NAP or NIP-34 pin changes. Playable attachments remain
+optional. Soy's state resolver covers owners and direct reciprocal maintainers;
+role-based or indirect recursive authority requires ngit. Native non-main/ref
+preservation and recovery fixtures supplement the independent PR test. These are
+local source checks, not a production deployment or independent browser UI check.
+
 ## Managed resource authoring review — 2026-09-20
 
 2026-10-03 authoring correction: soyLI's inventory now admits the same verified
@@ -463,3 +511,10 @@ this is HTML association metadata, not a NAP operation or manifest extension.
 The existing NIP-5D and NAP-RESOURCE pins and `blossom:sha256:<hash>` playback
 calls remain unchanged. Missing related links never prevent playback or change
 publisher admission. See [coverage and limits](ASSETS.md#related-resource-links--soyli-0253).
+
+## NAP-KEYS host support — 2026-10-13 source
+
+The keyboard fix uses [NAP-KEYS PR 9 at 8869a4c](https://github.com/napplet/naps/blob/8869a4cf77b023f4b049f47c546910a0280dc1a6/naps/NAP-KEYS.md)
+and the existing shim 0.30.0. No event kind, manifest extension, author restriction
+or NIP-5D pin changes. All publishers receive the same frame-scoped action API.
+See [runtime behavior, limits and shim normalization caveat](PUBLIC-RUNTIME.md#keyboard-actions--2026-10-13-source).

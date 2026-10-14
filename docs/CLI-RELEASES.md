@@ -1,7 +1,180 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The current published version is **0.25.3**.
+The current published version is **0.28.0**.
+
+**0.28.0 — direct-manifest presentation:**
+
+Published **2026-10-14 (Europe/Vienna)** from source
+`be8f05a96ab09f7a0b2314d70b35eb443b6f549b`.
+[GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.28.0),
+[native CI 38548936478](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38548936478)
+and [Nix CI 38546524537](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38546524537)
+passed for the exact source. All 11 public assets, checksums, installer bytes and
+manifest/source match. An isolated fresh installation reports current through
+doctor/update; a real 0.27.0 → 0.28.0 update preserves account/project markers.
+
+Compatible readers were deployed first in `20261014095809139-41654`, with the
+website installer still pinned to 0.27.0 until CLI publication. TypeScript and
+644 source tests pass locally, in CI and on the VPS, alongside Go race/relay,
+18 Blossom, nine GRASP and three Linux backend checks. Desktop/mobile browser
+fixtures cover legacy and direct presentation; real local services verify fresh
+publication. Live verification confirms legacy gallery covers, sandboxed gameplay
+at desktop/390px widths, retained social totals and cached cover/video range routes.
+Independent-client rendering of the optional extension remains unverified.
+
+The final website release `20261014103151932-82151` serves the byte-identical
+0.28.0 installer. Source fingerprints and shared proxy hashes match; all five PM2
+services are online with zero restarts and Caddy/CVM/TURN are active. The index
+reports the active release and a fresh scan; the other site returns HTTPS 200.
+Persistent state and the reader-first release remain available for rollback. External
+`nostr.oxtr.dev` query failures predate this rollout. No public test publications,
+invoices or payments were created. See [deployment record](DEPLOYMENT.md).
+
+Includes merged [PR #14](https://github.com/zeSchlausKwab/napplet-soy/pull/14).
+Fresh publications put screenshot and optional clip hashes/MIME types on the
+signed current manifest and an explicitly requested snapshot. No new kind-32267
+companion or `app` reference is emitted. The documented `soy.presentation/1`
+profile is a Soy extension, not an upstream NIP-5D requirement.
+
+Old manifests and linked companions remain readable. Interrupted publication
+jobs retain their exact signatures and format; a subsequent fresh publication
+adopts direct presentation without changing the author or napplet address.
+Installing the update does not republish existing napplets.
+
+The matching shell verifies direct covers/clips and uses them for gallery,
+sharing, OG images and deletion inventories. Optional media never becomes a
+playback requirement. Deploy these readers before distributing the new CLI.
+
+Upgrade with `soyli update`, restart previews and run `soyli skills update` in
+existing projects. Modified guidance is preserved and reported as a conflict.
+The bundled guide explains optional snapshots and links to the public media
+contract. `SPEC.md` records the event contracts and collaboration over ordinary
+Git, NIP-34 and GRASP; unrelated protocol questions remain open.
+
+**0.27.0 — keyboard actions, upstream proposals and source compatibility:**
+
+Published and deployed **2026-10-13 (Europe/Vienna)** from source
+`97bcd01f662c5a1256779b55ed5cb776e954f79e`.
+[GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.27.0),
+[native CI 38390155381](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38390155381)
+and [Nix CI 38389684968](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38389684968)
+all passed. The four native jobs cover installer/updater regressions and fresh
+account-free projects; Nix covers realization, forced rebuild and offline VM checks.
+All 11 public assets, checksums, installer bytes and manifest/source match. An isolated
+fresh install reports current through doctor/update; a real 0.26.1 → 0.27.0 update
+preserves account/project markers. The published binary's preview passes keyboard
+movement and ordinary text editing without browser errors.
+
+Website release `20261013113411602-54987` is active. Local and VPS TypeScript and
+634 source tests pass, plus Go race/relay, 18 Blossom, nine GRASP and three Linux
+backend checks, and the production build. Public Puddlehop responds to ArrowUp/W
+and P in detail and fullscreen views. Desktop and 390px browser checks pass gallery,
+zap-dialog and sandboxed gameplay without overflow or page errors. The older smoke
+check's exact heading selector was corrected to include the decorative period;
+application code and timeouts were unchanged. No invoice or payment was created.
+
+Public health reports the new release with a fresh, error-free index. Five PM2
+services are online with zero restarts; Caddy/CVM/TURN are active. Source fingerprints
+and the served installer match; shared proxy hashes are unchanged, the other site
+returns HTTPS 200, and `20261013102615716-41516` remains available for rollback.
+
+- The shared website and soyLI preview runtime supports NAP-KEYS registrations,
+  default bindings and cleanup. Published games using this API work without a
+  rebuild; restart existing previews after upgrading. Reserved/conflicting hints
+  remain unbound, and rebinding UI is not implemented. See [runtime limits](PUBLIC-RUNTIME.md).
+- Proposals use the upstream repository's GRASP-01 facility instead of creating a
+  contributor repository. Signed retries verify the exact remote revision before
+  recording an applied status; supported clone hosts remain usable when other
+  advertised URLs are unsupported. See [collaboration](COLLABORATION.md).
+- Source publication accepts ordinary Git metadata and verifies source symlinks
+  while retaining exact archive bytes and credential/path checks. Existing
+  author history is not silently rewritten.
+- The website caches verified Nostr events in IndexedDB for faster repeat visits.
+  Cached events remain subject to signature verification and normal relay refresh.
+
+Upgrade with `soyli update`; restart previews to load the new runtime. Existing
+projects can run `soyli skills update` to refresh managed guidance. This release
+uses current main, including PRs #15–18; the presentation/SPEC changes in open
+PR #14 are not included. No new companion event kind is introduced.
+
+**0.26.1 published and deployed 2026-10-12 (Europe/Vienna):**
+[GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.26.1),
+source `d2154818b97cb127f9d0b6516fe479bf5feadb39`.
+[Release CI 38220303369](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38220303369)
+passed source checks, all four native package jobs and publication of all 11 assets.
+[Nix CI 38220303324](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38220303324)
+passed at the same source; the candidate also passed Nix CI before promotion.
+All four public archives, aggregate checksums, installer bytes and tagged-source
+manifest match. A fresh isolated macOS ARM64 installation reports 0.26.1 and
+current through both `doctor` and `update`.
+
+Published-artifact readers accept verified HTML up to **100 MiB** from every
+publisher, including existing napplets. This covers website indexing/playback,
+soyLI preview, remixing, proposal review and existing-artifact migration. New
+soyLI builds/publications retain their **25 MiB** limit. Streaming, hash, UTF-8,
+network and sandbox checks remain enforced; source and resource budgets are
+unchanged. Downloads have more time, and the index rechecks entries rejected
+under the former size policy after host rollout. No napplet republish is needed.
+
+The matching website update tracks zap payments after the dialog closes and
+resumes pending confirmations after reload. Verified local payments survive
+reload and are deduplicated when a public receipt arrives. A provider check,
+wallet proof or verified receipt is required; no receipt or payment is invented.
+A missing historical invoice cannot be reconstructed by this change. Other
+viewers still depend on a public receipt. See [community](COMMUNITY.md).
+
+Upgrade with `soyli update` and restart previews for the larger CLI read budget.
+The matching VPS deployment `20261012080150614-26110` is active. Local and VPS
+TypeScript checks and 616 source tests pass, alongside Go race/relay, Blossom,
+GRASP, production build and three Linux backend isolation/backup/authorization
+checks. A 32 MiB fixture passes relay-to-index-to-browser playback; boundary tests
+cover 100 MiB acceptance and rejection above it while publishing stays at 25 MiB.
+The QR-wallet browser regression verifies confirmation, auto-close, reload
+persistence and late-receipt deduplication. It passed unchanged in a fresh process
+after a combined browser-suite run exceeded its 30-second test deadline.
+
+Public site/docs, Blossom health and relay/GRASP NIP-11 metadata respond correctly.
+The index is fresh and error-free with profile `html-104857600`; the public installer
+matches the release. Fresh live desktop and 390px browser checks verify the zap
+dialog and sandboxed game canvas without horizontal overflow or browser errors.
+No real invoice or payment was created, and physical phones were not tested.
+Caddy/CVM/TURN are active; all five PM2 services are online with zero restarts at
+verification. Shared proxy checksums are unchanged, persistent state is retained,
+and `20261009091435416-91120` remains available for rollback.
+
+**0.26.0 published 2026-10-11 (Europe/Vienna); no host deployment:**
+[GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.26.0),
+source `a91afb159da16304a5f93e3616ae30e7db6cd074`.
+[Release CI 38118210471](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38118210471)
+passed TypeScript, 609 source tests (4,918 assertions across 137 files), four native
+package jobs and publication of all 11 assets.
+[Nix CI 38117977397](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38117977397)
+passed realization, forced rebuild and offline NixOS VM checks at the same source.
+All public archive and aggregate checksums, installer bytes and tagged-source
+manifest match. An isolated public macOS ARM64 installation reports current through
+`doctor` and `update`; a real 0.25.3 → 0.26.0 upgrade preserves account/project markers.
+
+Includes [PR #9](https://github.com/zeSchlausKwab/napplet-soy/pull/9) with bounded
+NIP-65 outbox delivery. `soyli publish` reads the creator's verified relay list and
+copies the signed release to up to eight additional write relays. Primary success
+is saved before optional delivery; the optional phase has an eight-second budget
+and four concurrent destinations. Failed optional copies remain visible in status
+without undoing a successful primary publication.
+
+Attempted outbox destinations are retained for later unpublish/delete, including
+partial and retired destinations. Cleanup inventories all retained publication
+jobs and refuses silent truncation. `soyli migrate --resume` retries distribution
+of its saved signed conversion without changing the napplet identity or signing
+replacement events. Required-delivery cancellation retains an actionable cause.
+See [relay delivery](PUBLISHING.md#your-outbox-relays-nip-65) and [lifecycle](LIFECYCLE.md).
+
+Upgrade with `soyli update` and restart previews. Existing project relay settings,
+frozen jobs and NIP-5D/NAP pins remain authoritative. No napplet migration or
+republish is required. CLI changes are available through this release; the browser
+cleanup improvements and website installer pin need a separate host deployment.
+Unknown third-party copies cannot be recalled automatically. Forwarding the
+creator's kind-10002 relay-list event itself is not part of this release.
 
 **0.25.3 published 2026-10-09 (Europe/Vienna); no host deployment:**
 [GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.25.3),

@@ -225,14 +225,16 @@ paths. This binding stays out of Git changes proposed upstream. Never put secret
 in either file. Preserve the binding and journals when moving the project.
 
 New projects expose publish.networks.public and publish.networks.local explicitly:
-relay is the primary manifest/descriptor relay, blossom receives the HTML, source
+relay is the primary manifest relay, blossom receives the HTML, source
 archive, preview image and selected WebM, grasp is the NIP-34 Git service, and site displays the
 result. The defaults use wss://relay.napplet.soy, https://blossom.napplet.soy,
 https://git.napplet.soy and https://napplet.soy. Edit those fields to choose services.
 CLI --relay/--blossom/--grasp/--site overrides apply only to that publication.
-The optional mirrors array receives extra descriptor/manifest copies only after
+The optional mirrors array receives extra manifest copies only after
 our primary relay acknowledges publication; failures do not undo the primary
-publication. Use mirrors: [] to disable extra copies. Never substitute a foreign
+publication. Use mirrors: [] to disable extra copies. Publishing also copies the
+release to the creator's NIP-65 write relays (best effort, at most eight, read from
+the current kind 10002 list on each run). Never substitute a foreign
 primary relay silently. relays and servers at the top level are runtime read and
 resource hints, not publishing destinations. Git must provide NIP-34/GRASP support.
 
@@ -242,16 +244,19 @@ saved release destinations. Keep the publication journal to preserve that histor
 
 Publishing automatically captures a 1200 × 750 PNG from the sandbox when no
 preview.image is selected, using preview.delayMs (1500 by default, 250–10000).
-It uploads the PNG to the selected Blossom server and publishes a linked signed
-app descriptor so other clients can discover it. This fallback prevents accidental
+It uploads the PNG to the selected Blossom server and signs its hash/MIME in the
+napplet manifest. The optional soy.presentation/1 convention uses presentation,
+screenshot and preview tags; these are not established NIP-5D fields. Clients that
+ignore them can still play the same napplet. No new Zapstore event is generated.
+This fallback prevents accidental
 imageless releases; an inspected screenshot is still the preferred finishing step.
 For an interactive scene needing a start click, take a representative PNG during
 manual/browser testing and select it with preview.image. Only PNG up to 5 MiB and
 4096 × 4096 is currently accepted. Remove preview.image to resume automatic capture.
 Optional clips use silent VP8 WebM up to 5 MiB, 1200 × 750 and 12 seconds.
 soyli record produces 960 × 600 video; the recorder may add a brief final frame.
-Publishing freezes its bytes and NIP-92 imeta on the linked app descriptor, retaining
-ordinary PNG metadata for clients that do not display video. Never fabricate a clip
+Publishing freezes its bytes and a signed preview hash/MIME on the napplet manifest,
+retaining a screenshot for clients that do not display video. Never fabricate a clip
 or change preview.video.artifactHash to bypass the stale-build check.
 The local preview setting is authoring configuration, not a new Nostr manifest tag.
 
@@ -299,14 +304,17 @@ assets, presentation files and backend build inputs must still be regular files.
 One remix supports both paths, in either order:
 - soyli publish releases your own version under its local publication identity.
 - soyli propose "Description" submits an ordinary NIP-34 proposal upstream with a
-  checked runnable preview. Run it again after a new checkpoint to update that PR.
-  Use propose --resume after an interrupted submission.
+  checked runnable preview, without creating a contributor repository. Run it
+  again after a new checkpoint to update that PR. Use propose --resume only after
+  a signed proposal was saved; a preparation timeout needs the original command.
 - soyli review opens the local proposal inbox, source diff and original/proposed
   player. Opening a review never runs contributor setup/build scripts. Explicit
   review <id> --rebuild opts into them in a temporary checkout.
 - soyli proposals --json gives agent-readable proposals and exact revisions.
 - soyli merge <id> --revision <event-id> --target <reviewed-HEAD> merges locally.
-  soyli push publishes Git state; soyli publish separately releases the napplet.
+  Merge on the upstream target branch. soyli push publishes that branch and
+  confirmed applied status, preserving other refs; soyli publish releases the
+  napplet separately. A failed push keeps its journal; rerun it from the same tip.
 Use the same selected revision for testing and merge. A changed target or proposal
 requires another review. Ordinary Git/ngit remain available for branches, patches,
 conflicts and maintainer layouts outside this simple creator workflow.

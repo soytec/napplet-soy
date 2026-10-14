@@ -1,5 +1,17 @@
+import { publicationDestinations } from '../../nostr/src/publication-copies';
+import {
+  planLifecycle,
+  createLifecycleReceipt,
+  executeLifecycle,
+  lifecycleFinished,
+  parseReceipt,
+} from '../../lifecycle/src';
 import { migrationTemplate } from '../../migration/src';
-import { descriptorVideos } from '../../protocol/src/preview-video';
+import {
+  MANIFEST_PRESENTATION_PROFILE,
+  manifestScreenshotSources,
+  manifestVideoSources,
+} from '../../protocol/src/presentation';
 import { importAsset, readAssets, validateAssets } from '../../assets/src';
 import { createRemix } from '../../remix/src';
 import { sourceArchive } from '../../remix/src/archive';
@@ -15,7 +27,8 @@ import {
   verifiedEvent,
   type SignedEvent,
 } from '../../protocol/src';
-import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
+import { generateSecretKey, getPublicKey, matchFilter, nip19 } from 'nostr-tools';
+import { DiagnosticError } from '../../diagnostics/src';
 import { validateManifest } from '../../protocol/src/manifest';
 import { sourceGit, sourceUrls } from '../../grasp/src/client';
 import {
@@ -455,27 +468,29 @@ test('managed external assets are uploaded before announcement, resume unchanged
     await f.close();
   }
 });
-test('preview upload and linked descriptor survive interruption with identical signatures and image bytes', async () => {
+test('preview upload and direct manifest references survive interruption with identical signatures and image bytes', async () => {
   const f = await fixture();
   try {
     f.options.requirePreview = true;
     f.options.check = async () => ({ profile: 'test', browser: 'test', preview: previewPng });
     f.deps.checkpoint = async (job) => {
-      if (job.receipts.descriptor) throw new Error('Crash after descriptor acknowledgement');
+      if (job.receipts.preview) throw new Error('Crash after preview upload');
     };
     await expect(publishProject(f.options)).rejects.toMatchObject({ code: 'PUBLISH_FAILED' });
     const interrupted = await f.load();
     expect(interrupted.receipts).toMatchObject({
       preview: true,
-      descriptor: true,
       snapshot: false,
     });
     expect(f.blobs.get(interrupted.preview!.hash)).toEqual(previewPng);
-    const ref = appReferences(interrupted.current!)[0];
-    expect(ref.kind).toBe(32267);
-    expect(ref.relay).toBe(interrupted.plan.targets.relay);
-    expect(ref.pubkey).toBe(f.creator.pubkey);
-    expect(descriptorImages(interrupted.preview!.descriptor!)).toEqual([
+    expect(appReferences(interrupted.current!)).toEqual([]);
+    expect(interrupted.preview!.descriptor).toBeUndefined();
+    expect(interrupted.receipts.descriptor).toBeUndefined();
+    expect(interrupted.current!.tags).toContainEqual([
+      'presentation',
+      MANIFEST_PRESENTATION_PROFILE,
+    ]);
+    expect(manifestScreenshotSources(interrupted.current!).map((c) => c.url)).toEqual([
       `${interrupted.plan.targets.blossom}/${await sha256(previewPng)}`,
     ]);
     delete f.deps.checkpoint;
@@ -499,71 +514,76 @@ test('preview upload and linked descriptor survive interruption with identical s
   }
 });
 
-test('video upload resumes with the exact bytes, signed NIP-92 attachment and static cover', async () => {
-  const f = await fixture();
-  try {
-    const video = await Bun.file(
-      new URL('../../../tests/fixtures/preview.webm', import.meta.url),
-    ).bytes();
-    f.options.requirePreview = true;
-    f.options.check = async () => ({
-      profile: 'test',
-      browser: 'test',
-      preview: previewPng,
-      video,
-    });
-    f.deps.checkpoint = async (job) => {
-      if (job.receipts.descriptor) throw new Error('Crash after descriptor acknowledgement');
-    };
-    await expect(publishProject(f.options)).rejects.toMatchObject({ code: 'PUBLISH_FAILED' });
-    const interrupted = await f.load();
-    expect(interrupted.receipts).toMatchObject({
-      preview: true,
-      video: true,
-      descriptor: true,
-      snapshot: false,
-    });
-    expect(f.blobs.get(interrupted.preview!.hash)).toEqual(previewPng);
-    expect(f.blobs.get(interrupted.video!.hash)).toEqual(video);
-    expect(descriptorVideos(interrupted.preview!.descriptor!)).toEqual([
-      {
-        url: `${interrupted.plan.targets.blossom}/${interrupted.video!.hash}`,
-        hash: interrupted.video!.hash,
-      },
-    ]);
-    const ref = appReferences(interrupted.current!)[0];
-    expect(ref.kind).toBe(32267);
-    expect(ref.relay).toBe(interrupted.plan.targets.relay);
-    expect(ref.pubkey).toBe(f.creator.pubkey);
-    expect(descriptorImages(interrupted.preview!.descriptor!)).toEqual([
-      `${interrupted.plan.targets.blossom}/${await sha256(previewPng)}`,
-    ]);
-    delete f.deps.checkpoint;
-    f.options.check = async () => {
-      throw new Error('Resume must never recapture');
-    };
-    await publishProject({ ...f.options, resume: true });
-    const resumed = await f.load();
-    expect(resumed.preview).toEqual(interrupted.preview);
-    expect(resumed.video).toEqual(interrupted.video);
-    expect(resumed.current).toEqual(interrupted.current);
-    expect(resumed.snapshot).toEqual(interrupted.snapshot);
-    expect(resumed.status).toBe('announced_pending_index');
-    await f.journal.save({ ...resumed, video: { ...resumed.video!, width: 959 } });
-    await expect(publishProject({ ...f.options, resume: true })).rejects.toMatchObject({
-      code: 'FROZEN_PREVIEW_CHANGED',
-    });
-    await f.journal.save(resumed);
-    await Bun.write(join(f.journal.directory(resumed.id), 'preview.webm'), 'tampered');
-    const before = f.writes.length;
-    await expect(publishProject({ ...f.options, resume: true })).rejects.toMatchObject({
-      code: 'FROZEN_PREVIEW_CHANGED',
-    });
-    expect(f.writes.length).toBe(before);
-  } finally {
-    await f.close();
-  }
-});
+for (const snapshot of [false, true]) {
+  test(`${snapshot ? 'paired' : 'named-only'} video upload resumes with exact bytes, manifest references and static cover`, async () => {
+    const f = await fixture();
+    f.options.snapshot = snapshot;
+    try {
+      const video = await Bun.file(
+        new URL('../../../tests/fixtures/preview.webm', import.meta.url),
+      ).bytes();
+      f.options.requirePreview = true;
+      f.options.check = async () => ({
+        profile: 'test',
+        browser: 'test',
+        preview: previewPng,
+        video,
+      });
+      f.deps.checkpoint = async (job) => {
+        if (job.receipts.video && job.receipts.preview)
+          throw new Error('Crash after preview uploads');
+      };
+      await expect(publishProject(f.options)).rejects.toMatchObject({ code: 'PUBLISH_FAILED' });
+      const interrupted = await f.load();
+      expect(interrupted.receipts).toMatchObject({
+        preview: true,
+        video: true,
+        ...(snapshot ? { snapshot: false } : {}),
+      });
+      expect(f.blobs.get(interrupted.preview!.hash)).toEqual(previewPng);
+      expect(f.blobs.get(interrupted.video!.hash)).toEqual(video);
+      expect(
+        manifestVideoSources(interrupted.current!).map(({ url, hash }) => ({ url, hash })),
+      ).toEqual([
+        {
+          url: `${interrupted.plan.targets.blossom}/${interrupted.video!.hash}`,
+          hash: interrupted.video!.hash,
+        },
+      ]);
+      expect(appReferences(interrupted.current!)).toEqual([]);
+      expect(interrupted.preview!.descriptor).toBeUndefined();
+      expect(manifestScreenshotSources(interrupted.current!).map((c) => c.url)).toEqual([
+        `${interrupted.plan.targets.blossom}/${await sha256(previewPng)}`,
+      ]);
+      delete f.deps.checkpoint;
+      f.options.check = async () => {
+        throw new Error('Resume must never recapture');
+      };
+      await publishProject({ ...f.options, resume: true });
+      const resumed = await f.load();
+      expect(resumed.preview).toEqual(interrupted.preview);
+      expect(resumed.video).toEqual(interrupted.video);
+      expect(resumed.current).toEqual(interrupted.current);
+      expect(resumed.snapshot).toEqual(interrupted.snapshot);
+      expect(resumed.status).toBe('announced_pending_index');
+      expect(!!resumed.snapshot).toBe(snapshot);
+      expect([...f.events.values()].flat().filter((e) => e.kind === 32267)).toEqual([]);
+      await f.journal.save({ ...resumed, video: { ...resumed.video!, width: 959 } });
+      await expect(publishProject({ ...f.options, resume: true })).rejects.toMatchObject({
+        code: 'FROZEN_PREVIEW_CHANGED',
+      });
+      await f.journal.save(resumed);
+      await Bun.write(join(f.journal.directory(resumed.id), 'preview.webm'), 'tampered');
+      const before = f.writes.length;
+      await expect(publishProject({ ...f.options, resume: true })).rejects.toMatchObject({
+        code: 'FROZEN_PREVIEW_CHANGED',
+      });
+      expect(f.writes.length).toBe(before);
+    } finally {
+      await f.close();
+    }
+  });
+}
 
 test('older releases gain a preview without code edits; Blossom can change on a subsequent release', async () => {
   const f = await fixture();
@@ -593,6 +613,53 @@ test('older releases gain a preview without code edits; Blossom can change on a 
     await f.close();
   }
 });
+
+for (const snapshot of [false, true]) {
+  test(`${snapshot ? 'paired' : 'named-only'} frozen descriptor jobs resume unchanged, then migrate on an explicit fresh publication`, async () => {
+    const f = await fixture();
+    f.options.snapshot = snapshot;
+    try {
+      f.options.check = async () => ({ profile: 'test', browser: 'test', preview: previewPng });
+      let interrupted = false;
+      f.deps.checkpoint = async (job) => {
+        if (!job.source && !interrupted) {
+          interrupted = true;
+          // Simulate an already frozen job from the prior CLI without editing its files.
+          delete job.presentationProfile;
+          job.receipts.descriptor = false;
+          await f.journal.save(job);
+          throw new Error('Old process stopped before signing');
+        }
+      };
+      await expect(publishProject(f.options)).rejects.toMatchObject({ code: 'PUBLISH_FAILED' });
+      delete f.deps.checkpoint;
+      await publishProject({ ...f.options, resume: true });
+      const old = await f.load();
+      expect(appReferences(old.current!)[0].kind).toBe(32267);
+      expect(descriptorImages(old.preview!.descriptor!)).toHaveLength(1);
+      expect(old.receipts.descriptor).toBe(true);
+      const signed = old.current;
+      await publishProject({ ...f.options, resume: true });
+      expect((await f.load()).current).toEqual(signed);
+      await publishProject(f.options);
+      const fresh = await f.load();
+      expect(fresh.presentationProfile).toBe(MANIFEST_PRESENTATION_PROFILE);
+      expect(fresh.plan.artifactHash).toBe(old.plan.artifactHash);
+      expect(fresh.plan.identifier).toBe(old.plan.identifier);
+      expect(fresh.plan.pubkey).toBe(old.plan.pubkey);
+      expect(fresh.commit).toBe(old.commit);
+      expect(fresh.archiveHash).toBe(old.archiveHash);
+      expect(!!fresh.snapshot).toBe(snapshot);
+      expect(fresh.current!.id).not.toBe(old.current!.id);
+      expect(appReferences(fresh.current!)).toEqual([]);
+      expect(fresh.preview!.descriptor).toBeUndefined();
+      expect(manifestScreenshotSources(fresh.current!)).toHaveLength(1);
+      expect([...f.events.values()].flat().filter((e) => e.kind === 32267)).toHaveLength(1);
+    } finally {
+      await f.close();
+    }
+  });
+}
 
 test('required preview cannot be silently omitted and a selected missing image fails before publication', async () => {
   const f = await fixture();
@@ -1206,6 +1273,148 @@ test('a repeated publication repairs missing relay events/blobs and retries fail
   }
 });
 
+async function relayList(f: Awaited<ReturnType<typeof fixture>>, tags: string[][]) {
+  const signer = await f.accounts.signer({ kinds: [10002] });
+  const event = verifiedEvent(
+    await signer.signEvent({
+      kind: 10002,
+      created_at: Math.floor(Date.now() / 1000) - 60,
+      content: '',
+      tags,
+    }),
+  );
+  await signer.close();
+  return event;
+}
+function cliStatus(project: string, json: boolean) {
+  const child = Bun.spawn(
+    [
+      ...(process.env.SPACE_TEST_CLI
+        ? [process.env.SPACE_TEST_CLI]
+        : [process.execPath, new URL('../../../apps/cli/src/index.ts', import.meta.url).pathname]),
+      'status',
+      '--project',
+      project,
+      '--network',
+      'local',
+      ...(json ? ['--json'] : []),
+    ],
+    { stdout: 'pipe', stderr: 'pipe', stdin: 'ignore' },
+  );
+  return Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+}
+test('a publication is copied to the creator NIP-65 write relays on a best-effort basis', async () => {
+  const f = await fixture();
+  try {
+    const mirror = 'ws://127.0.0.1:4567/';
+    const write = 'ws://127.0.0.1:5001/';
+    const both = 'ws://127.0.0.1:5003/';
+    f.options.targets = { mirrors: [mirror] };
+    const primary = 'ws://127.0.0.1:19347/relay';
+    f.record(
+      primary,
+      await relayList(f, [
+        ['r', write, 'write'],
+        ['r', 'ws://127.0.0.1:5002/', 'read'],
+        ['r', both],
+        ['r', mirror],
+        // A public relay is outside the local publication policy.
+        ['r', 'wss://relay.example.com/', 'write'],
+      ]),
+    );
+    f.deps.relays!.read = async (url, filter) =>
+      (f.events.get(url) ?? []).filter((e) => matchFilter(filter, e));
+    const ensure = f.deps.relays!.ensure;
+    f.deps.relays!.ensure = async (url, event) => {
+      if (url === both && event.kind === 35129)
+        throw new Error('outbox refused\nAuthorization: Bearer fixture-outbox-token');
+      await ensure(url, event);
+    };
+    const first = await publishProject(f.options);
+    if (first.status === 'dry_run') throw new Error('Expected a publication');
+    const job = await f.load();
+    expect(job.receipts.current).toBe(true);
+    expect(job.outbox).toMatchObject({
+      source: 'nip65',
+      relays: [write, both],
+      ignored: 1,
+      copies: { [write]: true, [both]: false },
+      errors: {
+        [both]: {
+          eventId: job.current!.id,
+          eventKind: 35129,
+          diagnostic: { operation: 'publish to creator outbox relay', retryable: true },
+        },
+      },
+    });
+    expect(job.outbox!.errors[both].diagnostic.message).toContain('outbox refused');
+    expect(JSON.stringify(job)).not.toContain('fixture-outbox-token');
+    expect(f.events.get(write)!.map((e) => e.id)).toEqual([job.snapshot!.id, job.current!.id]);
+    expect(f.events.get('ws://127.0.0.1:5002/')).toBeUndefined();
+    expect(first.outbox).toEqual(job.outbox!);
+    for (const json of [false, true]) {
+      const [code, output, error] = await cliStatus(f.project, json);
+      expect(code, output + error).toBe(0);
+      expect(output).not.toContain('fixture-outbox-token');
+      if (json) expect(JSON.parse(output).outbox.copies[write]).toBe(true);
+      else {
+        expect(output).toContain(`Your outbox relays (NIP-65, best effort): 1/2 copied · ${write}`);
+        expect(output).toContain(`Optional outbox copy failed: ${both}`);
+        expect(output).toContain('outbox refused');
+      }
+    }
+    f.deps.relays!.ensure = ensure;
+    const repaired = await publishProject(f.options);
+    expect(repaired).toMatchObject({
+      currentId: job.current!.id,
+      outbox: { copies: { [write]: true, [both]: true }, errors: {} },
+    });
+    expect(f.events.get(both)).toHaveLength(2);
+  } finally {
+    await f.close();
+  }
+});
+test('outbox relay-list lookup failures and missing lists never block the primary publication', async () => {
+  const f = await fixture();
+  try {
+    f.deps.relays!.read = async (url, filter) => {
+      if (filter.kinds?.includes(10002))
+        throw new DiagnosticError('RELAY_READ', 'Publication relay query failed.', {
+          target: url,
+          cause: new Error('relay list offline token=fixture-lookup-secret'),
+        });
+      return [];
+    };
+    await publishProject(f.options);
+    const job = await f.load();
+    expect(job.receipts.current).toBe(true);
+    expect(job.outbox).toMatchObject({
+      source: 'unavailable',
+      relays: [],
+      lookupError: { code: 'OUTBOX_LOOKUP', operation: 'look up creator outbox relays' },
+    });
+    expect(job.outbox!.lookupError!.details!.join('\n')).toContain('relay list offline');
+    expect(job.outbox!.lookupError!.details!.join('\n')).toContain(
+      'Target: ws://127.0.0.1:19347/relay',
+    );
+    const [code, output, error] = await cliStatus(f.project, false);
+    expect(code, output + error).toBe(0);
+    expect(output).toContain('the relay list could not be read');
+    expect(output).toContain('OUTBOX_LOOKUP');
+    expect(output).not.toContain('fixture-lookup-secret');
+    f.deps.relays!.read = async () => [];
+    const unchanged = await publishProject(f.options);
+    expect(unchanged).toMatchObject({ outbox: { source: 'none', relays: [] } });
+    expect((unchanged as { outbox: { lookupError?: unknown } }).outbox.lookupError).toBeUndefined();
+  } finally {
+    await f.close();
+  }
+});
+
 test('public and local endpoints cannot be mixed and saved targets cannot change during resume', async () => {
   const f = await fixture();
   try {
@@ -1273,6 +1482,7 @@ test('publishing unchanged code after an author deletion creates new current and
 });
 test('a project with its own NIP-34 remote publishes against it without signing or pushing a second repository', async () => {
   const f = await fixture();
+  f.options.check = async () => ({ profile: 'test', browser: 'test', preview: previewPng });
   const relay = 'ws://127.0.0.1:7777/';
   const clone = 'http://127.0.0.1:9999/creator/my-repo.git';
   const remote = (identifier: string, pubkey = f.creator.pubkey) =>
@@ -1470,3 +1680,218 @@ test('resuming a frozen named-only release cannot add a snapshot and old paired 
     await f.close();
   }
 });
+
+test('overlong canonical outbox destinations are skipped before network writes and CLI status stays completed', async () => {
+  const f = await fixture();
+  try {
+    const long = 'ws://127.0.0.1/' + 'a'.repeat(300),
+      expanded = 'ws://127.0.0.1/' + '界'.repeat(30);
+    const primary = 'ws://127.0.0.1:19347/relay';
+    f.record(
+      primary,
+      await relayList(f, [
+        ['r', long],
+        ['r', expanded],
+      ]),
+    );
+    f.deps.relays!.read = async (url, filter) =>
+      (f.events.get(url) ?? []).filter((e) => matchFilter(filter, e));
+    await publishProject(f.options);
+    const job = await f.load();
+    expect(job.status).toBe('announced_pending_index');
+    expect((await f.journal.index()).active).toBeNull();
+    expect(job.outbox).toMatchObject({ ignored: 2, relays: [] });
+    expect(f.events.has(long)).toBe(false);
+    expect(f.events.has(new URL(expanded).href)).toBe(false);
+    const [code, output, error] = await cliStatus(f.project, false);
+    expect(code, output + error).toBe(0);
+    expect(output).toContain('Skipped 2 listed write relays');
+    expect(output).toContain('256-character canonical URL bound');
+  } finally {
+    await f.close();
+  }
+});
+
+test('completed primary is durable before optional lookup and lifecycle removes retired and partial copies beyond eight relays', async () => {
+  const f = await fixture();
+  try {
+    const primary = 'ws://127.0.0.1:19347/relay';
+    const mirrors = Array.from({ length: 7 }, (_, i) => `ws://127.0.0.1:${5000 + i}/`);
+    const outbox = Array.from({ length: 8 }, (_, i) => `ws://127.0.0.1:${6000 + i}/`);
+    f.options.targets = { mirrors };
+    f.record(
+      primary,
+      await relayList(
+        f,
+        outbox.map((url) => ['r', url]),
+      ),
+    );
+    f.deps.relays!.read = async (url, filter) => {
+      if (filter.kinds?.includes(10002)) {
+        const job = await f.load();
+        expect(job.status).toBe('announced_pending_index');
+        expect((await f.journal.index()).active).toBeNull();
+      }
+      return (f.events.get(url) ?? []).filter((e) => matchFilter(filter, e));
+    };
+    const ensure = f.deps.relays!.ensure;
+    f.deps.relays!.ensure = async (url, event) => {
+      if (url === outbox[0] && event.kind === 35129)
+        throw new Error('fixture current refused after snapshot accepted');
+      await ensure(url, event);
+    };
+    await publishProject(f.options);
+    const first = await f.load();
+    expect(f.events.get(outbox[0])!.map((e) => e.kind)).toEqual([5129]);
+    // Remove the old list so selection unambiguously follows the creator's replacement.
+    f.events.set(
+      primary,
+      f.events.get(primary)!.filter((e) => e.kind !== 10002),
+    );
+    f.record(primary, await relayList(f, [['r', outbox[7]]]));
+    await publishProject(f.options);
+    const job = await f.load();
+    expect(job.outbox!.relays).toEqual([outbox[7]]);
+    expect(job.outboxHistory).toEqual(outbox);
+    const relayKey = (url: string) =>
+      [...f.events.keys()].find((key) => key.replace(/\/$/, '') === url.replace(/\/$/, '')) ?? url;
+    const io = {
+      read: async (url: string, filter: any) =>
+        (f.events.get(relayKey(url)) ?? []).filter((e) => matchFilter(filter, e)),
+      publish: async (url: string, deletion: SignedEvent) => {
+        expect(deletion.kind).toBe(5);
+        const target = relayKey(url);
+        f.events.set(
+          target,
+          (f.events.get(target) ?? []).filter(
+            (e) => !deletion.tags.some((t) => t[0] === 'e' && t[1] === e.id),
+          ),
+        );
+        f.record(target, deletion);
+      },
+      fetch: async () => {
+        throw new Error('unpublish must retain storage');
+      },
+    };
+    const plan = await planLifecycle({
+      operation: 'unpublish',
+      manifest: job.current!,
+      saved: [first.current!, first.snapshot!],
+      snapshotPairs: [{ current: first.current!, snapshot: first.snapshot! }],
+      relays: publicationDestinations([job]),
+      local: true,
+      io,
+    });
+    expect(plan.relays).toHaveLength(16);
+    const receipt = createLifecycleReceipt(plan, 'unpublish');
+    expect(parseReceipt(receipt).plan.relays).toHaveLength(16);
+    const signer = await f.accounts.signer({ kinds: [5] });
+    try {
+      await executeLifecycle(receipt, {
+        signer,
+        local: true,
+        io,
+        save: async () => {},
+      });
+    } finally {
+      await signer.close();
+    }
+    expect(lifecycleFinished(receipt)).toBe(true);
+    for (const url of [primary, ...mirrors, ...outbox])
+      expect(
+        (f.events.get(url) ?? []).some(
+          (e) => e.id === job.current!.id || e.id === job.snapshot!.id,
+        ),
+      ).toBe(false);
+  } finally {
+    await f.close();
+  }
+});
+
+test('cancelling optional delivery retains primary success and does not require a nonexistent pending resume', async () => {
+  const f = await fixture(),
+    controller = new AbortController();
+  try {
+    f.options.signal = controller.signal;
+    f.deps.relays!.read = async (_url, filter) => {
+      if (filter.kinds?.includes(10002)) controller.abort();
+      return [];
+    };
+    const result = await publishProject(f.options);
+    expect(result.status).toBe('announced_pending_index');
+    const job = await f.load();
+    expect(job.error).toBeUndefined();
+    expect(job.outbox!.lookupError!.code).toBe('OPTIONAL_COPY_CANCELLED');
+    expect((await f.journal.index()).active).toBeNull();
+    const [code, output, error] = await cliStatus(f.project, false);
+    expect(code, output + error).toBe(0);
+    expect(output).toContain('OPTIONAL_COPY_CANCELLED');
+  } finally {
+    await f.close();
+  }
+});
+
+test('larger public playback does not raise soyLI publication above 25 MiB', async () => {
+  const f = await fixture();
+  try {
+    await Bun.write(
+      join(f.project, 'index.html'),
+      '<!doctype html><p>Too large to publish</p>'.padEnd(32 * 1024 * 1024, ' '),
+    );
+    await expect(publishProject({ ...f.options, dryRun: true })).rejects.toThrow('supported size');
+    expect(f.writes).toHaveLength(0);
+    expect(f.blobs.size).toBe(0);
+  } finally {
+    await f.close();
+  }
+});
+
+for (const withAliases of [false, true])
+  test(`publication archives ignore Git export rules and remix exact source${withAliases ? ' with aliases' : ''}`, async () => {
+    const f = await fixture();
+    try {
+      const encoder = new TextEncoder();
+      const files = new Map<string, Uint8Array<ArrayBuffer>>(
+        Object.entries({
+          '.gitattributes':
+            '.gitattributes export-ignore\n.gitmodules export-ignore\nsrc export-ignore\nAGENTS.md export-ignore\nCLAUDE.md export-ignore\nindex.html export-subst\n',
+          '.gitmodules': '',
+          'index.html': '<!doctype html><title>Exact source</title><p>$Format:%H$</p>\n',
+          'AGENTS.md': '# Public instructions\n',
+          'src/.gitattributes': '* export-ignore export-subst\n',
+          'src/main.ts': 'export const revision = "$Format:%H$";\n',
+        }).map(([path, value]) => [path, encoder.encode(value)]),
+      );
+      files.set('src/data.bin', new Uint8Array([0, 255, 13, 10, 10]));
+      for (const [path, bytes] of files) await Bun.write(join(f.project, path), bytes);
+      if (withAliases) {
+        await symlink('AGENTS.md', join(f.project, 'CLAUDE.md'));
+        await symlink('main.ts', join(f.project, 'src/alias.ts'));
+      }
+      await publishProject(f.options);
+      const job = await f.load();
+      const archived = sourceArchive(f.blobs.get(job.archiveHash)!);
+      for (const [path, bytes] of files) expect(archived.get(path)).toEqual(bytes);
+      if (withAliases) {
+        expect(archived.get('CLAUDE.md')).toEqual(files.get('AGENTS.md'));
+        expect(archived.get('src/alias.ts')).toEqual(files.get('src/main.ts'));
+        expect(await sourceGit(f.project, ['ls-tree', 'HEAD', 'CLAUDE.md'])).toStartWith(
+          '120000 blob ',
+        );
+      }
+      const remixed = await createRemix(f.root, 'exact-source', {
+        manifest: job.snapshot!,
+        artifact: f.blobs.get(job.plan.artifactHash)!,
+        files: archived,
+      });
+      for (const [path, bytes] of files)
+        expect(await Bun.file(join(remixed.directory, path)).bytes()).toEqual(bytes);
+      expect(await sourceGit(f.project, ['rev-parse', 'HEAD'])).toBe(job.commit);
+      expect(await sourceGit(f.project, ['status', '--porcelain'])).toBe('');
+      expect(await Bun.file(join(f.project, '.git/info/attributes')).exists()).toBe(false);
+      await publishProject({ ...f.options, resume: true });
+      expect((await f.load()).archiveHash).toBe(job.archiveHash);
+    } finally {
+      await f.close();
+    }
+  }, 15000);

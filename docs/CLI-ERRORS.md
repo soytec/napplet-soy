@@ -1,5 +1,19 @@
 # soyLI error diagnostics
 
+Forkless proposal hosting reports `PROPOSAL_HOSTING` with the upstream clone,
+Git exit status and useful server output, without automatically creating a fork.
+`PROPOSAL_UNCONFIRMED` retains relay or advertised-clone failures after signing.
+The transport keeps the underlying Git diagnostic close enough to the terminal
+boundary that bounded cause formatting does not drop its actionable output.
+Real CLI JSON checks exercise HTTP 403 hosting refusal and saved-event recovery.
+
+A proposal `SIGNER_TIMEOUT` before journaling explicitly instructs retrying the
+description command without `--resume`. `PROPOSAL_NOT_SAVED` distinguishes absent
+signed state from frozen preparation files. Real encrypted NIP-46 CLI tests cover
+that timeout, permission scope and redaction. `GIT_PUBLICATION_UNCONFIRMED` retains
+branch-hosting causes; `PROPOSAL_STATUS_UNCONFIRMED` means Git succeeded but applied
+status is pending, and instructs rerunning `soyli push` without another merge.
+
 `CONFORMANCE_BROWSER` identifies missing compatible headless Chromium or FFmpeg
 for the project's own Playwright version, including the expected revision and
 executable path. Nix builds report this before running the project conformance
@@ -94,6 +108,19 @@ clears that mirror's failure. Older journals without this field remain readable.
 Run `soyli publish` again to repair copies of the saved release; unchanged source
 reuses the existing signed events. Failed primary publication still uses
 `publish --resume`.
+
+Best-effort copies to the creator's NIP-65 write relays are reported separately as
+`outbox` in the same results and journal: per-relay `copies`, `errors` with the
+same diagnostic shape, and `lookupError` (`OUTBOX_LOOKUP`) when no relay list was
+read. Lookup diagnostics keep each failed lookup relay as a target and cause.
+Terminal status/publish output and the workshop show `Optional outbox copy failed`
+warnings and lookup failures; none of them fail the publication. Real CLI tests
+cover terminal and JSON output and redaction. Canonical relay URLs exceeding
+256 characters are skipped before writes, with a terminal explanation. The total
+optional network phase is capped at eight seconds; `OPTIONAL_COPY_TIMEOUT` or
+`OPTIONAL_COPY_CANCELLED` leaves primary completion intact and identifies every
+unfinished destination for retry. Attempted destinations remain in the cumulative
+`outboxHistory` even when the next lookup selects a different list.
 
 For example, a failed project dependency installation can report:
 

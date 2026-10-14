@@ -1,7 +1,7 @@
 import ipaddr from 'ipaddr.js';
 import { nip19, type Filter, type EventTemplate } from 'nostr-tools';
 import {
-  MAX_ARTIFACT_BYTES,
+  MAX_READ_ARTIFACT_BYTES,
   verifiedEvent,
   sha256,
   encodeAddress,
@@ -14,6 +14,7 @@ import {
 } from '../../protocol/src/manifest';
 import { appReferences, descriptorImages } from '../../protocol/src/preview';
 import { descriptorVideos } from '../../protocol/src/preview-video';
+import { manifestScreenshots, manifestPreviewVideo } from '../../protocol/src/presentation';
 import { standalonePresentationKey } from '../../protocol/src/presentation-pairs';
 import { repositoryRef } from '../../collaboration/src/protocol';
 import { diagnose, DiagnosticError } from '../../diagnostics/src';
@@ -133,10 +134,12 @@ export async function planLifecycle(input: {
   const manifest = verifiedEvent(input.manifest),
     key = nappletKey(manifest),
     author = manifest.pubkey;
-  const relays = unique(input.relays.map((r) => lifecycleEndpoint(r, 'relay', input.local))).slice(
-    0,
-    8,
-  );
+  const relays = unique(input.relays.map((r) => lifecycleEndpoint(r, 'relay', input.local)));
+  if (relays.length > 256)
+    throw new DiagnosticError(
+      'LIFECYCLE_RELAYS',
+      'The known publication destinations exceed the 256-relay inventory limit. No destinations were silently dropped.',
+    );
   if (!relays.length) throw new Error('Choose at least one relay.');
   const warnings: string[] = [...(input.history?.warnings ?? [])];
   let complete = input.history?.complete ?? true;
@@ -307,6 +310,9 @@ export async function planLifecycle(input: {
     for (const server of release.servers) {
       add(server, release.artifactHash, 'Build /index.html', other);
       if (release.icon) add(server, release.icon.hash, 'Icon', other);
+      for (const image of manifestScreenshots(m)) add(server, image.hash, 'Preview image', other);
+      const video = manifestPreviewVideo(m);
+      if (video) add(server, video.hash, 'Preview video', other);
     }
     addURL(tag(m, 'source-archive'), 'Source archive', other);
     for (const d of metadataFor(m)) {
@@ -340,7 +346,7 @@ export async function planLifecycle(input: {
                     await response.body?.cancel();
                     continue;
                   }
-                  const bytes = await boundedBytes(response, MAX_ARTIFACT_BYTES);
+                  const bytes = await boundedBytes(response, MAX_READ_ARTIFACT_BYTES);
                   if ((await sha256(bytes)) !== release.artifactHash) continue;
                   return unique(
                     [
@@ -636,7 +642,8 @@ export async function executeLifecycle(
           continue;
         }
         if (
-          (await sha256(await boundedBytes(response, MAX_ARTIFACT_BYTES))) === release.artifactHash
+          (await sha256(await boundedBytes(response, MAX_READ_ARTIFACT_BYTES))) ===
+          release.artifactHash
         ) {
           present = true;
           break;
@@ -908,7 +915,7 @@ const receiptSchema = z.object({
       .optional(),
     metadata: z.array(eventSchema).max(160),
     sharedMetadata: z.array(text).max(1000).default([]),
-    relays: z.array(text).min(1).max(8),
+    relays: z.array(text).min(1).max(256),
     cutoff: z.number().int().nonnegative(),
     complete: z.boolean(),
     warnings: z.array(text).max(1000),
@@ -937,5 +944,5 @@ const receiptSchema = z.object({
         message: z.string().max(24000).optional(),
       }),
     )
-    .max(2200),
+    .max(2400),
 });

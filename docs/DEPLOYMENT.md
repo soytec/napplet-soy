@@ -3,9 +3,74 @@
 Deployment is operator-run. Routine changes are verified and committed locally;
 do not deploy or upload releases unless the user explicitly requests deployment.
 
-Updated 2026-10-09. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
+Updated 2026-10-14. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-Latest verified website release: **`20261009091435416-91120`**, source
+Latest verified website release: **`20261014103151932-82151`**, source
+`be8f05a96ab09f7a0b2314d70b35eb443b6f549b`, installer pinned to **soyLI 0.28.0**.
+[Release CI 38548936478](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38548936478)
+and [Nix CI 38546524537](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38546524537)
+passed for that source. All four native packages and 11 public assets are verified;
+fresh installation, doctor/update and a real 0.27.0 upgrade pass.
+
+Merged PR #14 adds direct screenshot/clip references on signed manifests and
+retains legacy readers and frozen publication jobs. Compatible readers were
+first deployed in `20261014095809139-41654` while the installer stayed at 0.27.0.
+Only after live verification was 0.28.0 published; this final rollout updates the
+installer to the published version. New publications emit no companion event.
+The optional `soy.presentation/1` extension remains distinct from upstream NIP-5D.
+
+Both deployments passed TypeScript and 644 source tests locally and on the VPS,
+Go race/relay checks, 18 Blossom tests, nine GRASP tests, the production build and
+three Linux backend isolation/authorization/backup checks. Local browser fixtures
+cover direct and legacy media on desktop/mobile; real local services verify fresh
+publication. Live legacy gallery covers, retained social totals and desktop/390px
+sandboxed gameplay pass without browser errors or horizontal overflow. The new
+cached cover and byte-range clip routes also serve an existing legacy publication.
+
+The public installer is byte-identical to the released asset. Source fingerprints
+match, five PM2 services are online with zero restarts, and Caddy/CVM/TURN are active.
+The index reports the active release with a fresh completed scan, the direct/legacy
+presentation profile and the 100 MiB read policy. The other hosted site,
+schlaustronics.com, still returns HTTPS 200.
+Shared proxy hashes are unchanged; persistent state and both the reader-first
+release and `20261013113411602-54987` are retained for rollback. Port 3040,
+shared-Caddy and legacy-CPU settings remain unchanged. External `nostr.oxtr.dev`
+query failures were present before rollout and remain visible in health.
+
+No public test events, invoices or payments were created. Independent-client
+rendering of the optional presentation extension, physical phones, reboot recovery
+and long-term uptime were not verified in this release window.
+
+### Previous verified rollout — 2026-10-13
+
+Website release: **`20261013113411602-54987`**, source
+`97bcd01f662c5a1256779b55ed5cb776e954f79e`, installer pinned to **soyLI 0.27.0**.
+[Release CI 38390155381](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38390155381)
+and [Nix CI 38389684968](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38389684968)
+passed for the tagged source. All four native packages and 11 public release assets
+are verified; fresh installation, doctor/update and a 0.26.1 upgrade pass.
+
+This current-main rollout includes NAP-KEYS keyboard actions, upstream GRASP-01
+proposals, Git metadata/source-link fixes and the verified browser Nostr event
+cache. Presentation/SPEC PR #14 remains outside this release. The normal deployment
+passed TypeScript and 634 source tests locally and on the VPS, Go relay race/process
+checks, 18 Blossom tests, nine GRASP tests, the production build and three Linux
+backend isolation/authorization/backup tests. Port 3040, shared-Caddy and legacy-CPU
+settings remain unchanged.
+
+Live Puddlehop responds to ArrowUp/W and pause in both detail and fullscreen views.
+Fresh desktop/390px sessions verify the gallery, zap dialog and sandboxed game canvas
+without browser errors or horizontal overflow. The public installer is byte-identical
+to the release asset; health/index identify the exact release with no stale or failed
+destinations. Five PM2 services are online with zero restarts; Caddy/CVM/TURN are active.
+Both shared proxy configuration hashes are unchanged, and schlaustronics.com returns
+HTTPS 200. Persistent state is retained; previous release `20261013102615716-41516`
+remains available for rollback. No public test events, invoices or payments were
+created. Physical phones, reboot recovery and long-term uptime were not tested.
+
+### Previous verified rollout — 2026-10-09
+
+Website release: **`20261009091435416-91120`**, source
 `2b5d4f72dbd4b1b9c999babb6f786679de6e5ea0`, installer pinned to **soyLI 0.25.2**.
 [Release CI 37908614802](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/37908614802)
 passed 590 source tests, all four native package jobs and publication of 11 assets.

@@ -6,7 +6,7 @@ import { verifySignature } from './verify';
 export const NAPPLET_KIND = 35129;
 export const ROOT_NAPPLET_KIND = 15129;
 export const SNAPSHOT_KIND = 5129;
-export { MAX_ARTIFACT_BYTES, sha256 } from './artifact';
+export { MAX_ARTIFACT_BYTES, MAX_READ_ARTIFACT_BYTES, sha256 } from './artifact';
 import { sha256 } from './artifact';
 const hex = z.string().regex(/^[a-f0-9]{64}$/);
 export const eventSchema = z.object({

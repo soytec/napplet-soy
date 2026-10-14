@@ -80,19 +80,24 @@ the website flow; a private key alone cannot enumerate undiscoverable historical
 | Part                                                      | Unpublish                                                     | Delete hosted data                                                                     |
 | --------------------------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | Current listing and discovered snapshots                  | Send author-signed NIP-09 requests; check each selected relay | Same                                                                                   |
-| Linked app descriptors                                    | Keep them for republishing                                    | Request deletion of known descriptors that are not reused by another napplet           |
+| Legacy linked app descriptors                             | Keep them for republishing                                    | Request deletion of known descriptors that are not reused by another napplet           |
 | Build, source archives, runtime assets, images and videos | Keep hosted files                                             | Signed Blossom DELETE for each inventoried hash/server                                 |
 | Git repository                                            | Keep it public                                                | NIP-09 request to its GRASP relay; verify announcement and public Git download removal |
 | Same-author reused files/repositories                     | Keep                                                          | Retain to avoid breaking another creation                                              |
 | Local source, keys, other people's comments/zaps/forks    | Keep                                                          | Keep                                                                                   |
 | Backend/CVM game state and scores                         | Provider retention applies                                    | No backend purge is requested; manage this with its provider                           |
 
+Direct `soy.presentation/1` screenshots and clips are inventoried from the signed
+manifest's hashes and declared servers. They use the same Blossom deletion and
+shared-file protection rules; they have no separate descriptor event to delete.
+Older linked descriptors remain part of the compatibility inventory.
+
 **Republish** verifies that the saved build is still available and signs a fresh
 current listing under the same key/identifier. Its naddr and readable route stay
 the same. Previously deleted immutable `/r/...` links remain deleted. Ordinary
-`soyli publish` after unpublishing also creates fresh current/snapshot events,
-even if the source is unchanged. If the build has been deleted, publish from the
-local source project to upload files again instead of recovering the old listing.
+`soyli publish` after unpublishing also creates a fresh current event, plus an
+independent snapshot when explicitly requested, even if the source is unchanged.
+If the build has been deleted, publish from the local source project to upload files again instead of recovering the old listing.
 A newer remote publication invalidates a stale confirmation.
 
 ## What “deleted” can honestly confirm
@@ -145,3 +150,15 @@ journal for previously signed releases. The review inventory labels these
 repositories as retained. A former soyLI-hosted copy at a different address can
 still be included for deletion unless another napplet uses it. This cleanup
 metadata is not required for discovery or playback.
+
+### Creator outbox copies
+
+CLI inventories include every retained job's primary, mirrors and cumulative
+attempted NIP-65 outbox destinations. Failed attempts can have stored part of a
+release and remain in the inventory. Changing the relay list during an unchanged
+retry does not erase older destinations. Up to 256 known relays can be reviewed;
+a larger inventory is refused explicitly, never silently truncated to eight.
+The browser adds the author's current NIP-65 write relays and relays from its
+previous saved inventory. A relay-list lookup failure marks the inventory incomplete.
+This still cannot identify unknown third-party copies or old destinations that
+were never retained locally and no longer appear in the author's relay list.

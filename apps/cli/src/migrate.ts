@@ -15,6 +15,7 @@ import { LifecycleTransport } from '../../../packages/lifecycle/src/transport';
 import { lifecycleEndpoint } from '../../../packages/lifecycle/src';
 import {
   executeMigration,
+  copyMigratedManifest,
   migrationReceiptSchema,
   migrationTemplate,
   migrationToken,
@@ -23,6 +24,8 @@ import {
 } from '../../../packages/migration/src';
 import { DiagnosticError, formatDiagnostic } from '../../../packages/diagnostics/src';
 import { ask } from './input';
+import { PublicationRelays } from '../../../packages/publish/src/relay';
+import { outboxReport } from '../../../packages/publish/src/outbox-report';
 
 export async function migrateCommand(options: {
   reference: string;
@@ -181,17 +184,24 @@ export async function migrateCommand(options: {
         io,
         save: (value) => atomicJson(path, value),
       });
+      await copyMigratedManifest(receipt, {
+        io: (signal) => new PublicationRelays(signal),
+        signal: options.signal,
+        save: (value) => atomicJson(path, value),
+      });
       const output = {
         ...preview,
         status: result.status,
         eventId: receipt.signed?.id,
         mirrorErrors: result.mirrorErrors,
+        outbox: receipt.outbox ?? null,
       };
       if (options.json) console.log(JSON.stringify(output));
       else {
         console.log(
           `Migrated: ${preview.address}\nExact signed revision: ${receipt.signed?.id}\n${preview.identity}`,
         );
+        for (const line of outboxReport(receipt.outbox ?? null)) console.log(line);
         for (const error of result.mirrorErrors)
           console.error(`Optional mirror failed:\n${formatDiagnostic(error)}`);
       }

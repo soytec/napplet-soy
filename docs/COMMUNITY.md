@@ -203,25 +203,51 @@ The creator's Lightning service must advertise `allowsNostr`, a receipt-signing 
 
 The invoice offers a locally generated QR code, `lightning:` wallet link and copy control. QR encoding loads lazily in the browser, without a third-party image endpoint. When WebLN is available, **Pay with browser wallet** explicitly enables the wallet and requests payment; invoice creation never pays automatically. The public total uses kind-9735 receipts verified against the advertised provider, signed request, recipient, target, invoice amount and description; an optional preimage must match the payment hash. Event IDs and payment hashes are deduplicated. A receipt remains the Lightning provider's assertion. Changing providers may make older receipts unverifiable from the current profile.
 
-While the invoice dialog is open, it checks the provider's optional
+Deployed 2026-10-12 in `20261012080150614-26110`: payment tracking belongs to the
+invoice, not the dialog. It continues when the dialog closes while its napplet or
+comment remains mounted, resumes on return to the page and after reload, and
+checks immediately when the browser regains focus or the user chooses **Check payment**.
+The shared tracker checks the provider's optional
 [LUD-21 verification URL](https://github.com/lnurl/luds/blob/luds/21.md) and queries
-the invoice's relays for a matching receipt. Provider confirmation must name the
+the invoice's relays for a matching receipt. It queries the prepared event ID and,
+for addressable napplets, the stable address; validation still requires the exact
+signed request ID and payment hash. Multiple controls for one target share polling. Provider confirmation must name the
 exact invoice, report `settled: true`, and have a matching preimage if supplied.
 A WebLN preimage matching the invoice's payment hash also confirms immediately;
 a wallet response without that proof waits for provider/relay confirmation.
 Receipt confirmation must match both the payment hash and signed request ID.
 On confirmation the dialog shows **Zap sent!**, updates counts and sats across
 gallery copies, detail controls and the relevant comment, then closes after 1.2
-seconds. Polling stops on success, expiry, close, navigation or invoice replacement.
-Expired invoices offer a new-invoice action; unpaid invoices never show success.
+seconds. Polling stops on success or when the last control for the target unmounts;
+pending checks resume when that target is viewed again. Hidden pages pause checks.
+Expired invoices offer a new-invoice action; slower checks can still recognize a
+late provider confirmation for 24 hours after expiry. Unpaid invoices never show
+success. Failed checks produce a confirmation-unavailable message instead of a
+silent wait. Providers without a status URL are identified as receipt-only; the
+wallet may have paid even while the provider has not supplied a detectable proof.
 
-Confirmed local payments bridge relay delivery lag in a bounded, tab-memory cache
-(256 targets, 2,000 payment hashes per target). Relay receipts merge by payment
-hash, so a confirmation and its eventual receipt count once and a stale relay read
-cannot undo the local update. These confirmations are not published as fabricated
-receipts or persisted to disk. Other visitors and fresh reloads still need the
-provider's public receipt. Verification uses direct provider/relay access with
-the existing public URL, size, timeout and redirect policy; no site payment API.
+Confirmed local payments bridge relay delivery lag in the existing bounded memory
+cache (256 targets, 2,000 payment hashes per target). Up to 128 checked local
+confirmations (up to 65,536 JSON characters) are remembered in browser storage for
+30 days, using only target,
+payment hash, amount and confirmation time. Public relay reads are not persisted
+by this cache. Up to 32 pending invoice reminders are retained, with a 524,288
+JSON-character budget, until 24 hours after their expiry. Expired records are
+discarded when storage is loaded or updated. These reminders include the
+invoice, public signed request/target, provider and relay metadata, and optional
+verification URL. A verification URL can expose that invoice's status to someone
+with access to it. No anonymous signing key, wallet key or payment preimage is saved.
+Saved reminders are checked for signatures, target/amount/hash binding, public URLs
+and retention bounds before being used. Blocked or full browser storage does not
+prevent payment; invoice preparation reports when recovery cannot be saved.
+
+Relay receipts merge by payment hash, so a local confirmation and its eventual
+receipt count once and a stale read cannot undo the update. These records are local
+to this browser and are never published as fabricated receipts or uploaded to the
+site. Other visitors still need the provider's public receipt. Verification uses
+direct provider/relay access with the existing public URL, size, timeout and
+redirect policy; there is no new site payment API. Invoices lost before this
+recovery support cannot be reconstructed from the napplet URL alone.
 
 For interoperability with providers such as Minibits, plain-description invoices
 are accepted automatically, including empty descriptions. This is an intentional
@@ -243,7 +269,7 @@ extra confirmation dialog; invoice creation itself does not pay.
 
 Current limits: mainnet amount-bearing BOLT-11 invoices, NIP-07 account signing or ephemeral anonymous signing, recent relay history, and whole-satoshi invoice creation capped at 1,000,000 sats. No wallet custody, NWC pairing, automatic payment or real payment was performed during implementation. Split-recipient `zap` tags are detected and explicitly referred to a split-aware client; this UI does not silently pay the author instead. A missing Lightning profile does not prevent comments, likes, or playback. Local-only development does not create zaps without public WSS relay hints.
 
-Validation: `bun run check`; `bun run build && bun test tests/services/community.test.ts tests/services/remix-cli.test.ts`. The latter uses temporary loopback services, the documented public fixture key, a temporary CLI executable, and a simulated wallet. No public events or Lightning payments are sent by these tests.
+Validation: `bun run check`; `bun run build && bun test tests/services/community.test.ts tests/services/zap-confirmation.test.ts tests/services/remix-cli.test.ts`. The latter uses temporary loopback services, the documented public fixture key, a temporary CLI executable, and a simulated wallet. No public events or Lightning payments are sent by these tests.
 
 Plain-description compatibility is covered by `bun test packages/community packages/client`
 and the production-browser tests `tests/services/community.test.ts` and
@@ -372,7 +398,16 @@ batches split when combining hints would discard a publication's relay choices.
 Verified events update counts and rankings as they arrive, coalesced over 40ms,
 without waiting for slow relays to finish. Cached counts appear immediately on
 returning to the gallery or changing filters/accounts in the same browser session;
-the current viewer's liked state is recomputed. A reload still starts a fresh read.
+the current viewer's liked state is recomputed. A reload still starts a fresh relay read.
+
+Local browser implementation: public events admitted into the Applesauce store are
+also written to a bounded `nostr-idb` database (8,000 events). On reload, up to
+2,000 recent stored events are signature-checked again before entering the store;
+kind-5 deletions use a separate path because Applesauce consumes them. This can
+populate social views while relays refresh. Browser storage failures leave relay
+reads available. The cache is local to this browser and does not establish a
+complete relay view for deletion or other authority-sensitive operations. This
+implementation builds locally and has not been deployed.
 
 Gallery summaries fetch referenced releases/reply parents and author deletions in
 a shared follow-up query. They omit comment-reaction and general profile hydration,

@@ -4,7 +4,7 @@ import {
   eventSchema,
   identityAddress,
   sha256,
-  MAX_ARTIFACT_BYTES,
+  MAX_READ_ARTIFACT_BYTES,
   verifiedEvent,
   type SignedEvent,
 } from '../../protocol/src';
@@ -15,6 +15,12 @@ import { lifecycleEndpoint } from '../../lifecycle/src';
 import type { LifecycleIO, LifecycleSigner } from '../../lifecycle/src/transport';
 import { DiagnosticError, diagnose, formatDiagnostic } from '../../diagnostics/src';
 import { z } from 'zod';
+import {
+  outboxSchema,
+  copyHistorySchema,
+  copyPublication,
+  type CopyIO,
+} from '../../nostr/src/publication-copies';
 
 /** Convert wire metadata only. Optional source/media tags keep their exact values.
  * Snapshot self-addresses cannot be converted into independent snapshot identity. */
@@ -74,16 +80,18 @@ const planSchema = z
     primary: z.string().max(256),
     mirrors: z.array(z.string().max(256)).max(7),
     artifactHash: z.string().regex(/^[a-f0-9]{64}$/),
-    artifactBytes: z.number().int().positive().max(MAX_ARTIFACT_BYTES),
+    artifactBytes: z.number().int().positive().max(MAX_READ_ARTIFACT_BYTES),
   })
   .strict();
 export type MigrationPlan = z.infer<typeof planSchema>;
-export type MigrationReceipt = { plan: MigrationPlan; signed?: SignedEvent; accepted: string[] };
+export type MigrationReceipt = z.infer<typeof migrationReceiptSchema>;
 export const migrationReceiptSchema = z
   .object({
     plan: planSchema,
     signed: eventSchema.optional(),
     accepted: z.array(z.string().max(256)).max(8),
+    outbox: outboxSchema.optional(),
+    outboxHistory: copyHistorySchema.optional(),
   })
   .strict();
 const fail = (code: string, message: string, context = {}) =>
@@ -144,7 +152,7 @@ async function verifyArtifact(
           status: response.status,
           target,
         });
-      const bytes = await readBytes(response, MAX_ARTIFACT_BYTES);
+      const bytes = await readBytes(response, MAX_READ_ARTIFACT_BYTES);
       if ((await sha256(bytes)) !== plan.artifactHash)
         throw fail('MIGRATION_HASH', 'Downloaded HTML does not match the signed artifact hash.', {
           target,
@@ -324,4 +332,32 @@ export async function executeMigration(
     }
   }
   return { status: 'migrated' as const, receipt, mirrorErrors };
+}
+
+/** Manifest-only migrations distribute their existing signature without rebuilding or resigning. */
+export async function copyMigratedManifest(
+  receipt: MigrationReceipt,
+  options: {
+    io: (signal: AbortSignal) => CopyIO;
+    save: (receipt: MigrationReceipt) => Promise<void>;
+    signal?: AbortSignal;
+  },
+) {
+  if (!receipt.signed) return;
+  const state = { mirrors: {}, outbox: receipt.outbox, outboxHistory: receipt.outboxHistory };
+  await copyPublication({
+    pubkey: receipt.signed.pubkey,
+    targets: { relay: receipt.plan.primary, mirrors: receipt.plan.mirrors },
+    network: receipt.plan.network,
+    events: [receipt.signed],
+    state,
+    copyMirrors: false,
+    io: options.io,
+    signal: options.signal,
+    save: async () => {
+      receipt.outbox = state.outbox;
+      receipt.outboxHistory = state.outboxHistory;
+      await options.save(migrationReceiptSchema.parse(receipt));
+    },
+  });
 }

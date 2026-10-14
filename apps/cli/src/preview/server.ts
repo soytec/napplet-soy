@@ -8,7 +8,7 @@ import { readBinding } from '../../../../packages/publish/src/binding';
 import { recordingSchema, type Recording } from '../../../../packages/publish/src/config';
 import { videoBytesResponse } from '../../../../packages/backend/src/preview-videos';
 import { z } from 'zod';
-import { MAX_ARTIFACT_BYTES, sha256 } from '../../../../packages/protocol/src/artifact';
+import { MAX_READ_ARTIFACT_BYTES, sha256 } from '../../../../packages/protocol/src/artifact';
 import { missingDomains } from '../../../../packages/runtime/src/capabilities';
 import type { PreviewAssets } from './assets';
 import { builtRequirements } from '../../../../packages/publish/src/artifact';
@@ -77,10 +77,14 @@ export function startPreviewServer(
     const binding = await readBinding(fileURLToPath(root));
     const configText = JSON.stringify({ ...JSON.parse(portableText), ...(binding?.project ?? {}) });
     const config = configSchema.parse(JSON.parse(configText));
-    const originalBytes = await regularFile(fileURLToPath(root), config.entry, MAX_ARTIFACT_BYTES);
+    const originalBytes = await regularFile(
+      fileURLToPath(root),
+      config.entry,
+      MAX_READ_ARTIFACT_BYTES,
+    );
     const managed = await readAssets(fileURLToPath(root));
     const bytes = await relatedAssetHtml(originalBytes, managed);
-    if (bytes.length > MAX_ARTIFACT_BYTES || configText.length > 16384)
+    if (bytes.length > MAX_READ_ARTIFACT_BYTES || configText.length > 16384)
       throw new Error('Project exceeds preview limits.');
     const artifactHash = await sha256(bytes);
     const backend = listing.backend ? await backendProject(fileURLToPath(root)) : undefined;

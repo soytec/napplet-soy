@@ -78,7 +78,9 @@ given. A NIP-05 owner lookup is limited to eight seconds and 64 KiB, refuses
 redirects and sends no browser credentials.
 
 The repository must belong to the publishing key. soyLI never signs its
-announcement or state and never pushes to it. Push the release commit first with
+announcement or state and never pushes to it. Explicit collaboration `soyli push`
+is a separate action for publishing an existing branch; see [collaboration](COLLABORATION.md).
+Push the release commit first with
 `git push` or `ngit push`. Before signing, and again before announcing a resumed
 release, soyLI requires the commit to be contained in a ref of the repository's
 signed kind-30618 state, and a clone URL from the announcement to serve that ref
@@ -86,7 +88,7 @@ at the signed tip. Otherwise publication stops with `SOURCE_NOT_PUSHED`, naming
 the commit to push. Any branch layout is accepted; there is no `main` requirement.
 
 The release's `source` tag becomes that repository's `nostr://` URL, and an
-optional preview descriptor's `repository` tag becomes its first clone URL.
+older frozen preview descriptor retains its original `repository` clone hint.
 `source-commit` and `source-archive` are unchanged, so the exact source remains
 recoverable from Blossom even if the branch later moves. soyLI does not add
 release tags to your repository; keep released commits reachable there.
@@ -122,6 +124,53 @@ publications. See the dated verification records in [deployment](DEPLOYMENT.md).
 
 Override destinations with `--relay`, `--blossom`, `--grasp`, `--site` and repeated `--mirror`. Alternatively put `relay`, `blossom`, `grasp`, `site` and `mirrors` in `.napplet-space/project.json` under `project.publish`; an empty `mirrors` array disables mirrors. Flags take precedence over project settings and defaults. Persist custom defaults in the project if subsequent ordinary publishes should use them without flags. `--resume` uses the journal's original destinations; conflicting overrides are rejected.
 
+### Your outbox relays (NIP-65)
+
+soyLI 0.26.0 also copies each release to the creator's own
+NIP-65 write relays, so outbox-model clients can find it there. After the primary
+relay succeeds, `soyli publish` reads the newest verified kind 10002 relay
+list for the publishing key from the primary relay, the mirrors and, on the public
+network, the shared discovery relays plus the relay-list indexer
+`wss://purplepag.es` (read only, never a publication target). Relays marked `write`
+or unmarked receive the same signed current manifest and, when present, descriptor
+and explicit snapshot, to up to eight relays not already covered by the primary or mirrors. Listed relays
+must satisfy the same endpoint policy as other destinations: public WSS on the
+public network, literal-loopback WS with `--network local`; others are counted as
+skipped. The normalized URL must fit the persisted 256-character limit, including
+percent encoding; overlong URLs are skipped before any write.
+
+The primary completion receipt is saved and the pending pointer cleared before
+optional delivery. Lookup plus mirror/outbox delivery has one eight-second network
+budget, with at most four destinations copying concurrently. Each destination
+keeps descriptor/snapshot/current order. Expiry cancels subscriptions and queued
+sends; unfinished destinations get retry diagnostics. Local receipt writes and
+website verification are outside that network budget.
+
+These copies are best effort, like mirrors. Lookup or copy failures never undo the
+primary publication. The result records `outbox.source` (`nip65`, `none` or
+`unavailable`), the selected relays, per-relay `copies`, `errors` with diagnostics
+and a `lookupError` when the list could not be read. Each run reads the current
+relay list, so rerunning `soyli publish` with unchanged source retries failed
+copies and reaches newly listed relays with the same signed events. The relay
+list is not part of the frozen destinations and does not affect `--resume`
+validation or the returned `naddr` hints.
+
+Attempted outbox destinations are persisted before network writes and accumulated
+as `outboxHistory`, including partial failures and relays removed from later lists.
+Each release retains up to 128 distinct outbox destinations; new destinations are
+skipped explicitly when that history fills, rather than forgetting earlier copies.
+CLI unpublish/delete includes these destinations across retained release journals,
+as well as every historical primary and mirror. The lifecycle inventory supports
+up to 256 known relays and refuses a larger inventory without silently truncating it.
+The browser also queries the author's current NIP-65 write list and retains
+previously inspected destinations; a failed lookup marks its inventory incomplete.
+Unknown third-party copies and old destinations absent from both a journal and
+the current relay list cannot be recalled automatically.
+
+`soyli migrate` uses the same bounded outbox delivery after primary migration,
+copying its existing signed converted manifest. It does not rebuild or resign the
+napplet. `migrate --resume` retries these copies using its saved receipt.
+
 Public endpoints require HTTPS/WSS without credentials, query strings or fragments; service origins have no path. Literal private IPs and localhost/local names are rejected. Local service endpoints require literal-loopback HTTP/WS. The website link may use localhost. These CLI endpoints are operator/creator configuration, not URLs taken from untrusted gallery metadata; DNS pinning against rebinding is implemented in the gallery downloader, not this publisher.
 
 The user's selected account determines the author of the next publication. A saved project `creator` is a public build hint; no credentials are selected from it. Sharing updates the ignored binding and backend context to the selected author before building. The operation captures that account ID before asynchronous work and never resets the global selection if another terminal changes it.
@@ -140,10 +189,12 @@ safety budget, not a Nostr or creator quota. A nonempty LICENSE is required.
 Tracked files need no explicit
 enumeration, and the complete `napplet.json` remains limited to 16 KiB.
 
-The 25 MiB HTML allowance is separate from the unchanged 10 MiB limits for managed
-assets and host resources. The public website, indexer and runtime must deploy the
-updated artifact limit before they admit and play HTML above the former 10 MiB
-ceiling. Releasing or updating the CLI alone does not update those services.
+The 25 MiB publishing allowance is separate from the 100 MiB budget for reading
+existing published HTML and the unchanged 10 MiB limits for managed assets and host
+resources. Larger artifacts from other publishers can be indexed and played, but
+new soyLI publications still need to fit within 25 MiB. Reading above 25 MiB on the
+public site requires deployment of the updated website, indexer and runtime;
+releasing or updating the CLI alone does not update those services.
 
 Managed Git history is bounded to 10,000 reachable objects, 10,000 historical
 file versions/paths and 40 MiB of blobs. Current and historical Git trees may
@@ -162,9 +213,13 @@ project scripts. Standard build metadata and required NAP domains are checked.
 
 The browser check runs the frozen HTML under our current shared host, CSP, opaque iframe sandbox and shim. It checks startup, the shell handshake, script errors and CSP violations, while blocking external network requests. It does not use an inherited preview server or modified runtime bundle. This is a startup smoke check, not comprehensive gameplay, performance, NAP, or external-service conformance testing. The compiler runs in a fresh Bun process to avoid the pinned runtime's known build/read issue after networking. The check report records the runtime profile and browser version.
 
-The archive comes from Git's tar of the exact frozen commit. Safe aliases are
-materialized as regular files using the exact committed target bytes, including
-binary content and trailing newlines; the Git repository itself keeps its links.
+The archive comes from Git's tar of the exact frozen commit. The publisher disables
+`export-ignore` and `export-subst` in its private frozen clone, so root and nested
+`.gitattributes` cannot omit tracked files or rewrite their bytes. The original
+attributes remain in the source archive and Git history; the author's repository
+is unchanged. Safe aliases are materialized as regular files using the exact
+committed target bytes, including binary content and trailing newlines; the Git
+repository itself keeps its links.
 Each materialized copy counts toward the 1,024-file and 40 MiB expanded-source
 limits. The untrusted archive reader still rejects links. Archives without aliases
 keep their original bytes, preserving existing archive hashes and resume behavior.
@@ -239,7 +294,12 @@ uses standalone manifests even when the HTML has not changed. No history rewrite
 or republishing of other authors' events is needed. Deploy the compatible shell
 and indexer before distributing a CLI that publishes the new shape.
 
-Two optional provenance tags, `source-commit` and `source-archive`, carry the exact Git commit and content-addressed source tar URL. These are Space publishing conventions, not NIP-5D requirements. Clients may ignore them; ordinary `source`, manifest and Blossom discovery still work. There is no mandatory descriptor, branded hashtag or current-to-snapshot pointer. Automatic screenshots and optional video descriptor authoring are supported; metadata from other clients remains optional.
+Two optional provenance tags, `source-commit` and `source-archive`, carry the exact Git commit and content-addressed source tar URL. These are Space publishing conventions, not NIP-5D requirements. Clients may ignore them; ordinary `source`, manifest and Blossom discovery still work. There is no mandatory descriptor, branded hashtag or current-to-snapshot pointer. Fresh jobs upload the screenshot and optional clip, then put their hashes and MIME types directly on the current manifest and any explicitly requested snapshot using the optional downstream `soy.presentation/1` profile. They emit no kind-32267 descriptor or `app` reference. See [the presentation contract](PREVIEWS.md#direct-manifest-presentation--2026-10-06-source).
+
+Interrupted older jobs retain their frozen descriptor/signatures on `publish --resume`.
+The next ordinary publication upgrades a completed older job to direct references,
+even with unchanged code; the old signed events and snapshots remain intact. Updating
+the CLI alone does not modify existing public events.
 
 ## Verification
 
@@ -252,7 +312,7 @@ bun run test:publish:native
 
 The deterministic tests cover interrupted uploads, lost relay acknowledgements, unchanged retries, metadata-only updates, modified working/frozen source, forged saved signatures, competing remote versions, concurrent processes, identity/target isolation, failed mirrors and repair of missing data. Native service tests use the actual Khatru/GRASP/Blossom implementations, the browser check, an independent Nostr wire reader, tar extraction and independent Git clone/fetch. An opt-in test drives the real CLI across processes with temporary native Keychain credentials.
 
-Persistent website ingestion, confirmed playable links, authenticated names, the public installer, preview descriptors and remix are implemented. Additional build profiles, explicit journal adoption/conflict recovery, broader native keystore acceptance, and publication/discovery acceptance in an external public client remain separate work. See [the interoperability contract](PROTOCOL.md) and the dated [deployment verification](DEPLOYMENT.md).
+Persistent website ingestion, confirmed playable links, authenticated names, the public installer, preview associations and remix are implemented. Additional build profiles, explicit journal adoption/conflict recovery, broader native keystore acceptance, and publication/discovery acceptance in an external public client remain separate work. See [the interoperability contract](PROTOCOL.md) and the dated [deployment verification](DEPLOYMENT.md).
 
 ## Visible project destinations and previews
 
@@ -296,8 +356,9 @@ entry, license, or other metadata. Precedence is CLI target flags, selected
 `publish.files` can add release inputs but does not remove tracked Git history. Top-level `relays` and `servers`
 are runtime read/resource hints; they are never upload destinations.
 
-`relay` receives signed manifests and preview descriptors. `blossom` receives
-HTML, source archives, PNG previews and optional raster icons. `grasp` must be a compatible NIP-34/GRASP
+`relay` receives signed manifests and source events. Older frozen jobs also send
+their original preview descriptor. `blossom` receives HTML, source archives, PNG
+previews, optional WebM clips and raster icons. `grasp` must be a compatible NIP-34/GRASP
 Git service; it is unused while `repository` or an owned `nostr://` remote selects
 [your own repository](#publishing-from-your-own-nip-34-repository). `site` determines share links and indexing checks. `mirrors` are
 best-effort extra copies after primary acknowledgement, not substitute primaries;

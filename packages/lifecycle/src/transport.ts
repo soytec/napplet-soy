@@ -22,7 +22,7 @@ export class LifecycleTransport implements LifecycleIO {
       signal: AbortSignal.any([AbortSignal.timeout(12000), ...(this.signal ? [this.signal] : [])]),
     });
   constructor(private signal?: AbortSignal) {}
-  async read(relay: string, filter: Filter): Promise<SignedEvent[]> {
+  async read(relay: string, filter: Filter, timeoutMs = 7000): Promise<SignedEvent[]> {
     this.signal?.throwIfAborted();
     return new Promise((resolve, reject) => {
       const events = new Map<string, SignedEvent>();
@@ -47,7 +47,10 @@ export class LifecycleTransport implements LifecycleIO {
         else resolve([...events.values()]);
       };
       const abort = () => finish(new Error('Operation cancelled.'));
-      const timer = setTimeout(() => finish(new Error('Relay query timed out before EOSE.')), 7000);
+      const timer = setTimeout(
+        () => finish(new Error('Relay query timed out before EOSE.')),
+        Math.max(250, Math.min(7000, timeoutMs)),
+      );
       this.signal?.addEventListener('abort', abort, { once: true });
       subscription = this.pool
         .relay(relay)

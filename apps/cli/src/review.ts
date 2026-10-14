@@ -9,7 +9,7 @@ import { defaultTargets } from '../../../packages/publish/src/config';
 import { readBinding } from '../../../packages/publish/src/binding';
 import { committedSource } from '../../../packages/publish/src/git-source';
 import { sourceGit } from '../../../packages/grasp/src/client';
-import { MAX_ARTIFACT_BYTES, sha256, type SignedEvent } from '../../../packages/protocol/src';
+import { MAX_READ_ARTIFACT_BYTES, sha256, type SignedEvent } from '../../../packages/protocol/src';
 import { validateManifest } from '../../../packages/protocol/src/manifest';
 import { remixBytes } from '../../../packages/remix/src';
 import {
@@ -174,7 +174,7 @@ export async function review(
       try {
         const value = await bytes(
           `${server.replace(/\/$/, '')}/${release.artifactHash}`,
-          MAX_ARTIFACT_BYTES,
+          MAX_READ_ARTIFACT_BYTES,
         );
         if ((await sha256(value)) === release.artifactHash) {
           artifact = value;
@@ -353,7 +353,7 @@ export async function review(
   }
 }
 const reviewHtml = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Review · napplet soyLI</title><style>
-:root{font-family:system-ui;color:#2d3228;background:#f7f5ec}*{box-sizing:border-box}body{margin:0}header{padding:24px 4vw;display:flex;align-items:center;justify-content:space-between}h1{font-size:32px;letter-spacing:-1px;margin:10px 0}small,.muted{color:#727868}main{display:grid;grid-template-columns:280px minmax(0,1fr);gap:28px;padding:0 4vw 40px}button,textarea,select{font:inherit;border:1px solid #c9cbbb;border-radius:8px;padding:10px 14px;background:transparent;color:inherit}button{cursor:pointer}button:hover,button.active{background:#e3ead9}button:disabled{opacity:.5;cursor:wait}nav{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}aside button{display:block;text-align:left;width:100%;margin:8px 0}aside small{display:block;margin-top:6px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#293126;color:#e1e7d8;border-radius:10px;padding:22px;max-height:650px;overflow:auto;font-size:13px}iframe{border:1px solid #c9cbbb;width:100%;height:65vh;border-radius:12px;background:#eeede4}textarea{width:100%;min-height:90px}#status{color:#566d4b}#meta{overflow-wrap:anywhere}article{margin:14px 0;padding:12px;background:#efeede;border-radius:8px}@media(max-width:720px){main{grid-template-columns:1fr}aside{display:flex;overflow:auto;gap:8px}aside button{min-width:220px}iframe{height:55vh}}
+:root{font-family:system-ui;color:#2d3228;background:#f7f5ec}*{box-sizing:border-box}body{margin:0}header{padding:24px 4vw;display:flex;align-items:center;justify-content:space-between;gap:16px}header>div{min-width:0}header button{flex-shrink:0}section{min-width:0}select{max-width:100%}h1{font-size:32px;letter-spacing:-1px;margin:10px 0}small,.muted{color:#727868}main{display:grid;grid-template-columns:280px minmax(0,1fr);gap:28px;padding:0 4vw 40px}button,textarea,select{font:inherit;border:1px solid #c9cbbb;border-radius:8px;padding:10px 14px;background:transparent;color:inherit}button{cursor:pointer}button:hover,button.active{background:#e3ead9}button:disabled{opacity:.5;cursor:wait}nav{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}aside button{display:block;text-align:left;width:100%;margin:8px 0}aside small{display:block;margin-top:6px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#293126;color:#e1e7d8;border-radius:10px;padding:22px;max-height:650px;overflow:auto;font-size:13px}iframe{border:1px solid #c9cbbb;width:100%;height:65vh;border-radius:12px;background:#eeede4}textarea{width:100%;min-height:90px}#status{color:#566d4b}#meta{overflow-wrap:anywhere}article{margin:14px 0;padding:12px;background:#efeede;border-radius:8px}@media(max-width:720px){main{grid-template-columns:minmax(0,1fr)}aside{min-width:0;display:flex;overflow:auto;gap:8px}aside button{min-width:220px}iframe{height:55vh}}
 </style></head><body><header><div><small>NAPPLET SOYLI / COLLABORATE</small><h1>A better version starts here.</h1><small>Public source. Real Git. Play before you merge.</small></div><button id="refresh">Refresh</button></header><main><aside id="list"></aside><section><h2 id="title">Choose a proposal</h2><div id="meta" class="muted"></div><select id="revisions" aria-label="Source revision"></select><nav><button data-tab="proposed">Play proposed</button><button data-tab="original">Play original</button><button data-tab="diff">Changes</button><button data-tab="discussion">Discussion</button></nav><div id="content"></div><p id="status" role="status"></p><nav><button id="merge">Merge locally</button><button id="close">Close proposal</button><button id="reopen">Reopen</button></nav><small>A local merge keeps contributor history. Push Git and release the napplet separately.</small></section></main><script>
 const token=location.hash.slice(1);history.replaceState(null,'',location.pathname);let state,selected,revision;
 const $=id=>document.getElementById(id), tag=(e,n)=>e.tags.find(t=>t[0]===n)?.[1];

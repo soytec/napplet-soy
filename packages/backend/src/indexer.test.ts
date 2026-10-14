@@ -536,3 +536,34 @@ test('website confirmation accepts a named-only release while still validating a
   url.searchParams.set('snapshot', 'malformed');
   expect((await publicationResponse(new Request(url))).status).toBe(400);
 });
+
+test('a previously unavailable 32 MiB standalone napplet is rechecked and included in the default gallery', async () => {
+  const w = await setup(),
+    r = await release();
+  const bytes = new TextEncoder().encode(
+    '<!doctype html><p>Large external app</p>'.padEnd(32 * 1024 * 1024, ' '),
+  );
+  const hash = await sha256(bytes);
+  const manifest = finalizeEvent(
+    {
+      kind: 35129,
+      created_at: r.current.created_at,
+      content: 'Published independently',
+      tags: [
+        ['d', 'large-external'],
+        ['x', hash],
+        ['title', 'Large external app'],
+      ],
+    },
+    r.secret,
+  );
+  w.store.admit(manifest);
+  const entry = await publicNapplet(manifest);
+  w.store.project(manifest.id, entry, Date.now() + 3600000, Date.now() + 3600000);
+  w.store.setState('profile', 'previous-25-MiB-admission');
+  await hydrate(w, bytes);
+  const gallery = await browseGallery({ q: 'Large external app', tag: '', sort: 'new' });
+  expect(gallery.napplets).toHaveLength(1);
+  expect(gallery.napplets[0]).toMatchObject({ availability: 'ready', bytes: bytes.length });
+  expect(await (await indexedArtifact(hash))?.bytes()).toEqual(bytes);
+});

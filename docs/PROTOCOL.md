@@ -1,5 +1,16 @@
 # Napplet interoperability and publishing contract
 
+2026-10-06 source update: fresh soyLI publications attach optional screenshot/video
+hashes and MIME types directly to current manifests and explicitly requested snapshots under the documented
+downstream `soy.presentation/1` convention. They emit no new Zapstore kind-32267
+descriptor. Existing descriptor readers and frozen publication jobs remain compatible.
+This is a Soy extension pending upstream agreement, not an amendment to the selected
+NIP-5D pin. Missing or invalid media never prevents listing or playback. See
+[presentation tags and limits](PREVIEWS.md#direct-manifest-presentation--2026-10-06-source).
+Released as soyLI **0.28.0** on 2026-10-14, after the compatible website readers
+were deployed and verified. See [rollout evidence](CLI-RELEASES.md). Upstream
+agreement and independent-client rendering of this extension remain unverified.
+
 2026-10-05 manifest rollout: soyLI 0.24.0 publications follow [dskvr/nips PR 7](https://github.com/dskvr/nips/pull/7) at `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d51`. The deployed reader retains the previous format. See [migration semantics and rollout](NIP5D-MIGRATION.md) and [release evidence](CLI-RELEASES.md).
 
 2026-09-23 public application-data source update: the shared host grants a
@@ -109,7 +120,7 @@ The new protocol tuple `(dTag, artifactHash)` does not replace the full public i
 - Exactly one executable artifact: `/index.html`, UTF-8, containing the application's code, CSS, and required playable assets.
 - No CDN scripts, external fonts, dynamic imports fetched over the network, direct fetch/WebSocket calls, or service-worker dependencies in the initial profile.
 - Build-time dependencies are allowed. They are bundled into the result rather than resolved on the viewer's device.
-- Playable HTML is limited to 25 MiB, its source archive to 50 MiB and signed events to 64 KiB. These are local admission limits, not NIP-5D quotas. The website, indexer and runtime must deploy the updated artifact limit before admitting HTML above the former 10 MiB ceiling; a CLI release alone is insufficient. Managed resources retain their separate 10 MiB limit. See [previews](PREVIEWS.md) for presentation limits.
+- soyLI publishes playable HTML up to 25 MiB. Published-artifact readers, including the website indexer and player, accept up to 100 MiB from every publisher. Source archives remain limited to 50 MiB and signed events to 64 KiB. These are local budgets, not NIP-5D quotas. Reading HTML above 25 MiB requires deployment of the updated website, indexer and runtime; a CLI release alone is insufficient. Managed resources retain their separate 10 MiB limit. See [previews](PREVIEWS.md) for presentation limits.
 - The local preview and public player use the same runtime library and production bundle policy. A normal unsandboxed Vite page does not prove the napplet will run on the website.
 - Current host capabilities and operation limits are recorded in [PUBLIC-RUNTIME.md](PUBLIC-RUNTIME.md). Required domains are checked from the signed manifest for every napplet, including fixtures. Direct browser networking remains blocked; supported resource and relay operations go through the host.
 
@@ -134,11 +145,30 @@ The display/search projection trims a leading `#` and surrounding whitespace, no
 
 Use the selected manifest fields for identity, raw artifact `x`, `R`/`O` domains, Blossom `server` hints, title, plain-text `content`, and `source`. Optional `z` archetypes and queryless `i` intent identities plus parameter names support discovery, not runtime grants or automatic intent execution. The gallery supports these metadata filters; standard tag queries remain available when a relay lacks optional NIP-91 intersection support. A `source` reference can identify a NIP-34 repository through `nostr://` or a public HTTPS repository/archive. Our publisher defaults to retrievable open source. Source availability affects inspection/remixing, not whether this client can discover and play an otherwise supported napplet.
 
-A standard optional `icon` carries a PNG/JPEG/WebP hash and MIME type. Fetch it only from declared Blossom origins, verify hash and decoded format, and render verified bytes; failures fall back without affecting playback. See [icon limits](PREVIEWS.md). The selected PR defines no screenshot tag: existing linked descriptors continue to supply screenshots and preview clips as optional presentation extensions. Prefer these existing descriptor conventions over inventing new wire tags. [NIP-5A's upstream app descriptors](https://github.com/nostr-protocol/nips/blob/master/5A.md#upstream-app-descriptors) allow an optional `app` reference to an addressable descriptor event. Linked previews support NIP-89 application pictures and Zapstore kind-32267 screenshots/icons, with signed fixtures and a live descriptor lookup checked. Kind-32267 descriptors may also carry NIP-92 video attachments; the initial bounded silent-WebM profile is documented in PREVIEWS.md. Other descriptor formats require a separate adapter and interoperability evidence. There is no Space-specific screenshot field required for playback.
+A standard optional `icon` carries a PNG/JPEG/WebP hash and MIME type. Fetch it only
+from declared Blossom origins, verify hash and decoded format, and render verified
+bytes; failures fall back without affecting playback. The selected PR defines no
+screenshot/video tags. Fresh soyLI publications instead use the documented optional
+downstream `soy.presentation/1` profile: a profile marker, `screenshot` hash/MIME
+tags and an optional `preview` hash/MIME tag, on the current manifest and any requested snapshot. The same
+reader applies to every author; neither the marker nor media is needed to play.
+This convention is pending upstream agreement and independent-client acceptance.
+See [exact fields, precedence and limits](PREVIEWS.md).
+
+Existing [NIP-5A app references](https://github.com/nostr-protocol/nips/blob/master/5A.md#upstream-app-descriptors)
+remain readable as optional legacy extensions. They resolve NIP-89 application
+pictures and Zapstore kind-32267 screenshots/icons, including bounded NIP-92 video
+attachments. Fresh soyLI jobs emit no kind-32267 descriptor or `app` reference;
+already frozen jobs resume their original signed format. Other descriptor formats
+need a separate adapter and interoperability evidence.
 
 Category, cover, aspect ratio, license details, exact source commit, build provenance, and remix references may enrich the gallery. Keep site aliases and curation separate from signed protocol identity. Verify any signed descriptor and its association before trusting its claims. Missing, unknown, invalid, or unavailable optional descriptors fall back to the ordinary manifest and a generated poster; they do not hide a valid napplet or block playback. An optional descriptor may never override the signed artifact hash or required capabilities.
 
-Preview implementation today: the fixtures have bundled SVG illustrations; relay imports resolve supported linked descriptors into bounded cached raster images. Gallery/player covers and OG images use those images, with generated cards for missing or unusable metadata. The latest 93-entry relay cache has no app links, so those cards still use the fallback. A generic card does not prove the author supplied no screenshot through another format. Metadata crawling never executes napplet code. The same descriptor parser and image indexer are available to the future publisher; see [PREVIEWS.md](PREVIEWS.md).
+Preview implementation: direct manifest references and supported linked descriptors
+resolve into bounded, verified raster/video caches. Gallery/player covers, sharing,
+asset inventories and OG images use these associations, with generated cards for
+unusable media. Browser-only discoveries verify direct media before rendering Blob
+URLs. Metadata crawling never executes napplet code. See [PREVIEWS.md](PREVIEWS.md).
 
 Removing all optional Space metadata must leave the same napplet address, playable bytes, and NAP behavior. No client should need the Space website API or a `napplet-space` hashtag to discover our publications.
 
@@ -182,7 +212,7 @@ to inspect larger archives; optional source inspection never gates playback.
 The hash-verifiable archive remains portable for recovery, offline inspection and
 independent mirroring alongside the source repository.
 
-In its hosted repository the publisher retains Git release refs so published commits remain reachable after branches move. A creator can instead publish against their own NIP-34 repository, which soyLI references but never writes ([details](PUBLISHING.md#publishing-from-your-own-nip-34-repository)). There the creator keeps released commits reachable; the release commit must be in a ref of the repository's signed state and served by one of its clone URLs before publication. The `source` value keeps its ordinary `nostr://` shape, so this changes no standard manifest field, admission rule or NIP-5D pin. It includes optional `source-commit` and `source-archive` provenance tags alongside the standard `source` repository URL. Linked repositories also carry optional `soy-source-repository` metadata (`address`, `linked`), an author-signed cleanup policy that retains that repository when deleting a napplet even if their identifiers match. A local publication journal provides the same retention protection for older signed releases. It is not a discovery or playback requirement. These convenience tags are Space conventions, not protocol requirements; clients can ignore them and discover/play the same manifest. Large original media can be represented in a content-addressed source asset lockfile and restored during remix; every required source asset must be retained and hash-checked too. V1 can keep normal small assets in Git and introduce that lockfile only when needed.
+In its hosted repository the publisher retains Git release refs so published commits remain reachable after branches move. A creator can instead publish against their own NIP-34 repository, which the `publish` command verifies read-only ([details](PUBLISHING.md#publishing-from-your-own-nip-34-repository)); explicit collaboration `soyli push` is a separate branch-publication action. There the creator keeps released commits reachable; the release commit must be in a ref of the repository's signed state and served by one of its clone URLs before publication. The `source` value keeps its ordinary `nostr://` shape, so this changes no standard manifest field, admission rule or NIP-5D pin. It includes optional `source-commit` and `source-archive` provenance tags alongside the standard `source` repository URL. Linked repositories also carry optional `soy-source-repository` metadata (`address`, `linked`), an author-signed cleanup policy that retains that repository when deleting a napplet even if their identifiers match. A local publication journal provides the same retention protection for older signed releases. It is not a discovery or playback requirement. These convenience tags are Space conventions, not protocol requirements; clients can ignore them and discover/play the same manifest. Large original media can be represented in a content-addressed source asset lockfile and restored during remix; every required source asset must be retained and hash-checked too. V1 can keep normal small assets in Git and introduce that lockfile only when needed.
 
 A creator signature and matching source archive prove what the creator published and claimed. They do not prove the HTML was built from that source. Initially label the association as creator-declared. Only show a stronger reproducible-build claim after an independent isolated rebuild reproduces the artifact hash. That verification is a later worker capability, not a prerequisite for every quick first publish.
 
@@ -272,6 +302,17 @@ independent napplet or propose the same changes upstream; neither happens merely
 on clone. Proposal refs use GRASP-01 `refs/nostr/<event-id>` without updating a
 maintainer branch. The existing GRASP 3.0.2 pin is retained.
 
+2026-10-12 source removes contributor repository creation from submission. Signed
+roots/updates advertise the existing upstream clone and precede immutable ref
+delivery. Ref verification, exact commit fetch and relay read-back gate success;
+hosting failure never falls back to a fork. Legacy signed jobs retain their original
+clone locations. Acceptance publishes an existing target branch with saved state
+and applied events while retaining other refs/HEAD. The bounded authority profile
+supports the owner and direct reciprocal maintainers; role-based and indirect
+recursive authority use ngit. Independent ngit PR qualification uses 2.6.1 at
+`55f3e3a838dffd03f0fdd996103b8dc8c2cddcd6`. NIP-34 and NIP-5D pins are unchanged;
+GRASP-06 is not enabled. See [behavior and limits](COLLABORATION.md).
+
 The optional `soy-preview` tag binds a hash-addressed JSON descriptor, signed
 snapshot and source commit to the exact PR revision. It adds no requirement to
 NIP-34 discovery or NIP-5D playback; attachments are not gallery publications.
@@ -309,3 +350,10 @@ unpublished proof scoped to provider/module. Provider signatures attest builds;
 they are not proof of honest execution. Public admission defaults off; explicit creator admission and verified Linux isolation are required. See
 [DYNAMIC-BACKENDS.md](DYNAMIC-BACKENDS.md) for implemented behavior and limits.
 A possible upstream CEP is explicitly deferred; upstream protocol pins are unchanged.
+
+## NAP-KEYS host support — 2026-10-13 source
+
+The keyboard fix uses [NAP-KEYS PR 9 at 8869a4c](https://github.com/napplet/naps/blob/8869a4cf77b023f4b049f47c546910a0280dc1a6/naps/NAP-KEYS.md)
+and the existing shim 0.30.0. No event kind, manifest extension, author restriction
+or NIP-5D pin changes. All publishers receive the same frame-scoped action API.
+See [runtime behavior, limits and shim normalization caveat](PUBLIC-RUNTIME.md#keyboard-actions--2026-10-13-source).

@@ -2,12 +2,13 @@ import { linkedMedia } from '../../protocol/src/linked-media';
 import { cachedVideoSchema } from '../../protocol/src/preview-video';
 import { z } from 'zod';
 import { nip19 } from 'nostr-tools';
-import { eventSchema, encodeAddress, MAX_ARTIFACT_BYTES } from '../../protocol/src';
+import { eventSchema, encodeAddress, MAX_READ_ARTIFACT_BYTES } from '../../protocol/src';
 import { validateManifest } from '../../protocol/src/manifest';
 import { missingDomains } from '../../runtime/src/capabilities';
 import { cachedPreviewSchema } from '../../protocol/src/preview';
 import { manifestTopics } from '../../protocol/src/topics';
-import { resolvedIconUrl } from '../../client/src/manifest-icon';
+import { resolvedIconUrl, resolvedScreenshotUrl } from '../../client/src/manifest-icon';
+import { manifestScreenshotSources, manifestVideoSources } from '../../protocol/src/presentation';
 export { default as DEFAULT_PUBLIC_RELAYS } from '../../nostr/discovery-relays.json';
 
 export const PUBLIC_CACHE_TTL = 15 * 60 * 1000;
@@ -41,7 +42,7 @@ export const publicNappletSchema = z.object({
     .nullable()
     .optional(),
   naddr: z.string().max(4096).nullable(),
-  bytes: z.number().int().min(0).max(MAX_ARTIFACT_BYTES).nullable(),
+  bytes: z.number().int().min(0).max(MAX_READ_ARTIFACT_BYTES).nullable(),
   domains: z.array(z.string()).max(256),
   relays: z.array(z.string().max(256)).max(8).default([]),
   sourceUrl: z.string().max(4096).nullable(),
@@ -104,16 +105,37 @@ export async function publicNapplet(
 }
 export const hasPublicPreview = (entry: PublicNapplet) =>
   !!entry.preview ||
+  !!resolvedScreenshotUrl(entry.revisionId) ||
   !!resolvedIconUrl(entry.revisionId) ||
   linkedMedia(entry.manifest, entry.metadata ?? []).images.length > 0;
 export const publicPoster = (entry: PublicNapplet) =>
   entry.preview
     ? entry.preview.descriptor.id === entry.manifest.id
-      ? (resolvedIconUrl(entry.revisionId) ?? `/api/previews/${entry.revisionId}`)
+      ? `/api/previews/${entry.revisionId}`
       : entry.preview.url
-    : (linkedMedia(entry.manifest, entry.metadata ?? []).images[0] ??
+    : (resolvedScreenshotUrl(entry.revisionId) ??
+      linkedMedia(entry.manifest, entry.metadata ?? []).images.find(
+        (url) => !manifestScreenshotSources(entry.manifest).some((c) => c.url === url),
+      ) ??
       resolvedIconUrl(entry.revisionId) ??
       `/api/og/${entry.revisionId}?v=${OG_VERSION}`);
+/** Indexed direct previews use verified cache bytes; browser-only discoveries verify before playing. */
+export function publicPreviewVideo(entry: PublicNapplet) {
+  if (entry.video)
+    return entry.video.descriptor.id === entry.manifest.id
+      ? { url: `/api/previews/${entry.revisionId}/video`, hash: entry.video.hash }
+      : entry.video;
+  const candidates = manifestVideoSources(entry.manifest).filter((c) =>
+    c.url.startsWith('https://'),
+  );
+  if (candidates.length)
+    return {
+      url: candidates[0].url,
+      hash: candidates[0].hash,
+      sources: candidates.map((c) => c.url),
+    };
+  return linkedMedia(entry.manifest, entry.metadata ?? []).videos[0];
+}
 export const publicLink = (entry: PublicNapplet) =>
   entry.naddr
     ? { to: '/n/$naddr' as const, params: { naddr: entry.naddr } }

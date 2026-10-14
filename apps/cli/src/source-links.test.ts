@@ -195,3 +195,54 @@ for (const path of ['napplet.json', 'index.html'])
       await f.close();
     }
   });
+
+for (const variant of ['space', 'submodule', 'secret-path'])
+  test(`real CLI identifies a historical ${variant} entry and redacts credentials`, async () => {
+    const f = await fixture();
+    try {
+      const initial = await f.commit();
+      const secret = 'nsec1' + 'q'.repeat(58);
+      const path =
+        variant === 'submodule'
+          ? 'library'
+          : variant === 'space'
+            ? 'public notes.md'
+            : `${secret} notes.md`;
+      if (variant === 'submodule') {
+        await sourceGit(f.project, [
+          'update-index',
+          '--add',
+          '--cacheinfo',
+          `160000,${initial},${path}`,
+        ]);
+        await sourceGit(f.project, ['commit', '-m', 'Historical unsupported entry']);
+      } else {
+        await Bun.write(join(f.project, path), 'Ordinary public documentation');
+        await f.commit();
+      }
+      const containing = await sourceGit(f.project, ['rev-parse', 'HEAD']);
+      await sourceGit(f.project, ['rm', '--cached', '--', path]);
+      if (variant !== 'submodule') await rm(join(f.project, path));
+      await sourceGit(f.project, ['commit', '-m', 'Remove entry from current source']);
+      const head = await sourceGit(f.project, ['rev-parse', 'HEAD']);
+      const result = await f.dry();
+      if (variant === 'submodule') {
+        expect(result.code, result.out + result.err).toBe(0);
+        expect(JSON.parse(result.out).sourceHistory.status).toBe('checked');
+        expect(await sourceGit(f.project, ['rev-parse', 'HEAD'])).toBe(head);
+        return;
+      }
+      expect(result.code, result.out + result.err).toBe(1);
+      const error = JSON.parse(result.out).error;
+      expect(error.code).toBe('SOURCE_PATH');
+      expect(error.message).toContain(variant === 'submodule' ? 'submodule entries' : 'whitespace');
+      expect(error.details.join('\n')).toContain(containing);
+      expect(error.recovery).toContain('not a credential detection');
+      expect(result.out + result.err).not.toContain(secret);
+      if (variant !== 'secret-path') expect(error.message).toContain(path);
+      expect(await sourceGit(f.project, ['rev-parse', 'HEAD'])).toBe(head);
+      expect(await sourceGit(f.project, ['status', '--porcelain'])).toBe('');
+    } finally {
+      await f.close();
+    }
+  }, 15000);

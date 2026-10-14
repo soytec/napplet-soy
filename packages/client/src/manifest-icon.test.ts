@@ -2,7 +2,13 @@ import { expect, test } from 'bun:test';
 import sharp from 'sharp';
 import { finalizeEvent } from 'nostr-tools';
 import { sha256 } from '../../protocol/src';
-import { resolveManifestIcon, resolvedIconUrl } from './manifest-icon';
+import {
+  resolveManifestIcon,
+  resolvedIconUrl,
+  resolveManifestScreenshots,
+  resolvedScreenshotUrl,
+} from './manifest-icon';
+import { MANIFEST_PRESENTATION_PROFILE } from '../../protocol/src/presentation';
 
 test('browser icon resolution bounds pixels before decode and caches only verified decoded blob URLs', async () => {
   const bytes = await sharp({
@@ -139,6 +145,60 @@ test('one manifest deadline covers every origin and releases a decoder that fini
     globalThis.fetch = originalFetch;
     AbortSignal.timeout = originalTimeout;
     if (originalDecoder) Object.defineProperty(globalThis, 'createImageBitmap', originalDecoder);
+    else delete (globalThis as { createImageBitmap?: unknown }).createImageBitmap;
+  }
+});
+
+test('direct screenshots use the shared bounded browser decoder and never expose unverified remote URLs', async () => {
+  const bytes = await sharp({
+    create: { width: 10, height: 6, channels: 4, background: '#cc6699' },
+  })
+    .png()
+    .toBuffer();
+  const event = finalizeEvent(
+    {
+      kind: 35129,
+      content: 'Direct screenshot',
+      created_at: 3,
+      tags: [
+        ['d', 'screenshot-test'],
+        ['x', 'a'.repeat(64)],
+        ['server', 'https://one.example'],
+        ['server', 'https://two.example'],
+        ['presentation', MANIFEST_PRESENTATION_PROFILE],
+        ['screenshot', await sha256(bytes), 'image/png'],
+      ],
+    },
+    new Uint8Array(32).fill(9),
+  );
+  const oldFetch = globalThis.fetch,
+    oldDecoder = Object.getOwnPropertyDescriptor(globalThis, 'createImageBitmap');
+  const urls: string[] = [];
+  let decoded = 0;
+  Object.defineProperty(globalThis, 'createImageBitmap', {
+    configurable: true,
+    value: async () => {
+      decoded++;
+      return { width: 10, height: 6, close() {} };
+    },
+  });
+  globalThis.fetch = Object.assign(
+    async (input: unknown) => {
+      urls.push(String(input));
+      return new Response(urls.length === 1 ? new Uint8Array([1]) : new Uint8Array(bytes));
+    },
+    { preconnect: oldFetch.preconnect },
+  );
+  try {
+    expect(resolvedScreenshotUrl(event.id)).toBeNull();
+    await resolveManifestScreenshots(event);
+    expect(urls).toHaveLength(2);
+    expect(decoded).toBe(1);
+    expect(resolvedScreenshotUrl(event.id)).toStartWith('blob:');
+    expect(resolvedIconUrl(event.id)).toBeNull();
+  } finally {
+    globalThis.fetch = oldFetch;
+    if (oldDecoder) Object.defineProperty(globalThis, 'createImageBitmap', oldDecoder);
     else delete (globalThis as { createImageBitmap?: unknown }).createImageBitmap;
   }
 });

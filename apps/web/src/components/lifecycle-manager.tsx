@@ -1,3 +1,4 @@
+import { resolveOutbox } from '../../../../packages/nostr/src/publication-copies';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Check, Download, EyeOff, LoaderCircle, RotateCcw, Settings2, Trash2 } from 'lucide-react';
@@ -70,13 +71,27 @@ export function LifecycleManager({
       const previous = savedLifecycles(manifest.pubkey).find(
         (r) => r.plan.key === nappletKey(manifest),
       );
+      const knownRelays = [
+        ...new Set([...relays, ...network().relays, ...(previous?.plan.relays ?? [])]),
+      ];
+      const lookup = await resolveOutbox(
+        io.read.bind(io),
+        manifest.pubkey,
+        { relay: knownRelays[0], mirrors: knownRelays.slice(1) },
+        local ? 'local' : 'public',
+      );
+      const history = await retainedLifecycleHistory(manifest);
+      if (lookup.error) {
+        history.complete = false;
+        history.warnings.push(lookup.error.message);
+      }
       const p = await planLifecycle({
         operation,
         manifest,
-        relays: [...new Set([...relays, ...network().relays])].slice(0, 8),
+        relays: [...knownRelays, ...lookup.relays],
         metadata,
         saved: previous?.plan.manifests,
-        history: await retainedLifecycleHistory(manifest),
+        history,
         snapshotPairs: previous?.plan.snapshotPairs?.map((pair) => ({
           current: previous.plan.manifests.find((event) => event.id === pair.current)!,
           snapshot: previous.plan.manifests.find((event) => event.id === pair.snapshot)!,

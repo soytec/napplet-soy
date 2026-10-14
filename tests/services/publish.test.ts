@@ -136,15 +136,16 @@ test('publisher runs its sandbox check, survives interruption, retains Git relea
       kinds: [32267],
       authors: [creator.pubkey],
     });
-    expect(descriptors).toHaveLength(1);
-    expect(descriptors[0].id).toBe(first.preview!.descriptor!.id);
+    expect(descriptors).toHaveLength(0);
+    expect(first.preview!.descriptor).toBeUndefined();
     const previewBytes = await (
       await fetch(`${services.targets.blossom}/${first.preview!.hash}`)
     ).bytes();
     expect(await sha256(previewBytes)).toBe(first.preview!.hash);
-    expect(descriptors[0].tags).toContainEqual([
-      'image',
-      `${services.targets.blossom}/${first.preview!.hash}`,
+    expect(events.find((e) => e.kind === 35129)!.tags).toContainEqual([
+      'screenshot',
+      first.preview!.hash,
+      'image/png',
     ]);
     const release = await validateRelease(
       events.find((e) => e.kind === 35129),
@@ -469,7 +470,14 @@ test('collaboration: two creators publish, propose, review the exact Git tip, me
     const options = {
       directory: remix.directory,
       network: 'local' as const,
-      accounts: contributor,
+      accounts: {
+        current: () => contributor.current(),
+        signer: async (input: Parameters<Accounts['signer']>[0]) => {
+          expect(input?.kinds).not.toContain(30617);
+          expect(input?.kinds).not.toContain(30618);
+          return contributor.signer(input);
+        },
+      },
       check,
       description: 'Try a second idea',
     };
@@ -488,11 +496,13 @@ test('collaboration: two creators publish, propose, review the exact Git tip, me
     expect(
       preview.manifest.tags.some((t) => ['path', 'requires', 'description', 'd'].includes(t[0])),
     ).toBe(false);
-    // An independent Git client retrieves the proposal's exact c tag and contributor ancestry.
+    // An upstream clone retains its default branch; fetch the PR's exact c commit.
     const observer = join(services.directory, 'observer');
     await sourceGit(services.directory, ['clone', found.clones[0], observer]);
-    expect(await sourceGit(observer, ['rev-parse', 'HEAD'])).toBe(found.head!);
-    expect(await sourceGit(observer, ['log', '-1', '--format=%an'])).toBe(bob.pubkey);
+    expect(await sourceGit(observer, ['rev-parse', 'HEAD'])).toBe(sourceTip);
+    await sourceGit(observer, ['fetch', found.clones[0], found.head!]);
+    expect(await sourceGit(observer, ['rev-parse', 'FETCH_HEAD'])).toBe(found.head!);
+    expect(await sourceGit(observer, ['log', '-1', '--format=%an', found.head!])).toBe(bob.pubkey);
     expect((await propose({ ...options, resume: true })).proposal).toBe(proposed.proposal);
     await Bun.write(join(remix.directory, 'README.md'), '# Both ideas\n');
     await checkpoint(remix.directory, 'Explain the idea', bob.pubkey);
@@ -566,7 +576,7 @@ test('collaboration: two creators publish, propose, review the exact Git tip, me
           if (phase === 'source') throw new Error('Simulated interruption after Git push');
         },
       }),
-    ).rejects.toThrow('Simulated interruption');
+    ).rejects.toMatchObject({ cause: { message: 'Simulated interruption after Git push' } });
     const recovered = await propose({
       ...secondOptions,
       resume: true,

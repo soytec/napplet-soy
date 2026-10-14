@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { matchFilter, type Filter } from 'nostr-tools';
 import { PublicationRelays } from '../../publish/src/relay';
-import { MAX_ARTIFACT_BYTES, sha256 } from '../../protocol/src';
+import { MAX_READ_ARTIFACT_BYTES, sha256 } from '../../protocol/src';
 import { validateManifest } from '../../protocol/src/manifest';
 import { PREVIEW_PROFILE } from '../../protocol/src/preview';
 import { RUNTIME_PROFILE, missingDomains } from '../../runtime/src/capabilities';
@@ -92,13 +92,13 @@ export async function indexDownload(
     try {
       if (!/^[a-f0-9]{64}$/.test(hash)) throw new Error('Invalid hash');
       const response = await fetch(`${localOrigin}/${hash}`, {
-        signal: AbortSignal.any([signal, AbortSignal.timeout(4000)]),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
         redirect: 'error',
       });
       if (
         !response.ok ||
         !response.body ||
-        Number(response.headers.get('content-length')) > MAX_ARTIFACT_BYTES
+        Number(response.headers.get('content-length')) > MAX_READ_ARTIFACT_BYTES
       )
         throw new Error('Blob unavailable');
       const chunks: Uint8Array[] = [];
@@ -109,7 +109,7 @@ export async function indexDownload(
           const { done, value } = await reader.read();
           if (done) break;
           size += value.length;
-          if (size > MAX_ARTIFACT_BYTES) throw new Error('Blob too large');
+          if (size > MAX_READ_ARTIFACT_BYTES) throw new Error('Blob too large');
           chunks.push(value);
         }
       } finally {
@@ -218,7 +218,7 @@ export class IndexWorker {
   }
   private async hydrateUnlocked(signal: AbortSignal, options: HydrateOptions = {}) {
     const now = options.now ?? Date.now();
-    const profile = `${RUNTIME_PROFILE}:${PREVIEW_PROFILE}`;
+    const profile = `${RUNTIME_PROFILE}:${PREVIEW_PROFILE}:html-${MAX_READ_ARTIFACT_BYTES}`;
     const changed = this.store.state<string>('profile') !== profile;
     if (changed) this.store.invalidate();
     const directory = join(this.config.directory, 'artifacts');
@@ -259,12 +259,12 @@ export class IndexWorker {
         try {
           const file = Bun.file(join(directory, `${entry.artifactHash}.html`));
           let data: Uint8Array | undefined;
-          if ((await file.exists()) && file.size <= MAX_ARTIFACT_BYTES) {
+          if ((await file.exists()) && file.size <= MAX_READ_ARTIFACT_BYTES) {
             const bytes = new Uint8Array(await file.arrayBuffer());
             if ((await sha256(bytes)) === entry.artifactHash) data = bytes;
           }
           if (!data) {
-            if (usedBytes + MAX_ARTIFACT_BYTES > 1024 ** 3) {
+            if (usedBytes + MAX_READ_ARTIFACT_BYTES > 1024 ** 3) {
               capacity = true;
               throw new Error('Artifact cache capacity reached');
             }
@@ -275,9 +275,12 @@ export class IndexWorker {
             )(
               manifest.servers,
               entry.artifactHash,
-              AbortSignal.any([signal, AbortSignal.timeout(12000)]),
+              AbortSignal.any([signal, AbortSignal.timeout(60000)]),
             );
-            if (data.length > MAX_ARTIFACT_BYTES || (await sha256(data)) !== entry.artifactHash)
+            if (
+              data.length > MAX_READ_ARTIFACT_BYTES ||
+              (await sha256(data)) !== entry.artifactHash
+            )
               throw new Error('Hash mismatch');
             new TextDecoder('utf-8', { fatal: true }).decode(data);
             const temporary = `${file.name}.${crypto.randomUUID()}.tmp`;
@@ -438,6 +441,7 @@ export class IndexWorker {
               job.key,
               await this.discover(
                 JSON.parse(job.target),
+                // Finish before the queue's 60-second abandoned-job lease.
                 AbortSignal.any([signal, AbortSignal.timeout(45000)]),
               ),
             );
@@ -474,7 +478,7 @@ export class IndexWorker {
     try {
       while (!signal.aborted) {
         const errors = await this.collect(relays.read.bind(relays));
-        errors.push(...(await this.hydrate(AbortSignal.any([signal, AbortSignal.timeout(15000)]))));
+        errors.push(...(await this.hydrate(AbortSignal.any([signal, AbortSignal.timeout(60000)]))));
         this.store.setState('health', {
           checkedAt: Date.now(),
           release: this.config.release,

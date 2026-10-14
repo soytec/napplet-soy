@@ -353,12 +353,16 @@ verifies it and never writes to that repository. See
 
 #### Historical source checks
 
+`SOURCE_PATH` identifies a source packaging restriction, not a detected credential. History diagnostics name the rejected entry (with credential redaction), its containing commit and the specific restriction: submodule/type, path length, traversal, or whitespace/backslash/control characters. Historical submodule commit references are allowed: they do not embed the referenced repository or cause soyLI to fetch it. Submodules in the release tree remain unsupported because the source archive cannot materialize them. Remove the current submodule reference, or replace it with public regular source files, and save an ordinary commit. No history rewrite is needed for historical submodule references.
+
 soyLI **0.23.2** checks reachable Git history during `publish --dry-run`, as
 well as before publication/proposal preparation and again when freezing source.
 Dry-run opens no signer, runs no project scripts and publishes nothing. Its JSON
 `sourceHistory` reports the checked commit and any accepted legacy public contexts.
 For a project without a commit it reports `uncommitted` and leaves the history check
 pending; a clean checkpoint is still required for actual publication.
+
+Ordinary `.gitmodules` and `.gitattributes` files are allowed in selected source, the release tree, reachable history and portable remix archives. Their contents still undergo the normal credential scan during source selection and history inspection. An empty or public Git metadata file does not require history cleanup. Source archives preserve all committed files and their exact bytes: Git's `export-ignore` and `export-subst` rules are disabled only in the publisher's private frozen clone. The original attributes and repository are unchanged. Historical Git submodule references are allowed; release-tree submodules remain unsupported. soyLI does not fetch or embed submodule repositories.
 
 Older backend guidance sometimes caused `.napplet-space/soy-backend.json` to be
 committed. This exact root-relative path may remain in **ancestry only**, provided
@@ -387,12 +391,7 @@ before using Git history-filtering tools in a separate copy. Recheck the result
 with dry-run. soyLI never silently rewrites history or force-pushes it; existing
 public copies cannot be recalled by a local rewrite.
 
-Safe relative source aliases such as `CLAUDE.md -> AGENTS.md` can remain in both
-current and historical Git trees. Each must resolve to a public regular file inside
-that same tree; working files must also stay within the selected source. Chains
-and relative parent paths are supported when they stay inside the project.
-Absolute, escaping, dangling, cyclic, directory, private and unselected targets
-still fail. Target contents pass the same credential checks as ordinary source.
+Safe relative source-file symlinks (also called aliases), such as `CLAUDE.md -> AGENTS.md` or `src/alias.ts -> shared.ts`, can remain in both current and historical Git trees. Source symlinks may also point to selected public `.gitmodules` and `.gitattributes` files. Git itself rejects tracking `.gitmodules` as a symlink. Each link must resolve to a public regular file inside that same tree; working files must also stay within the selected source. Chains and relative parent paths are supported when they stay inside the project. Absolute, escaping, dangling, cyclic, directory, private and unselected targets still fail. Target contents pass the same credential checks as ordinary source.
 
 `soyli checkpoint` preserves the link. Publishing and Git-based remixes preserve
 Git history and symlinks; the downloadable source archive stores each alias as a

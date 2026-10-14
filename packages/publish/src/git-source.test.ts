@@ -244,7 +244,7 @@ test('a reused historical alias is resolved against every containing tree', asyn
   }
 });
 
-test('historical file alias compatibility does not admit Git submodules', async () => {
+test('historical Git submodule references are allowed but release submodules are rejected', async () => {
   const f = await linkedHistory({ 'CLAUDE.md': 'AGENTS.md' });
   try {
     await sourceGit(f.root, ['checkout', '--detach', f.original]);
@@ -255,14 +255,59 @@ test('historical file alias compatibility does not admit Git submodules', async 
       `160000,${f.original},module`,
     ]);
     await sourceGit(f.root, ['commit', '-m', 'Historical submodule']);
+    const submoduleCommit = await sourceGit(f.root, ['rev-parse', 'HEAD']);
+    await expect(inspectHistory(f.root, submoduleCommit)).rejects.toMatchObject({
+      code: 'SOURCE_PATH',
+      message: expect.stringContaining('submodule entries'),
+    });
     await sourceGit(f.root, ['rm', '-r', '--cached', '.']);
     await rm(join(f.root, 'CLAUDE.md'));
     await sourceGit(f.root, ['add', 'AGENTS.md']);
     await sourceGit(f.root, ['commit', '-m', 'Regular release source']);
-    await expect(
-      inspectHistory(f.root, await sourceGit(f.root, ['rev-parse', 'HEAD'])),
-    ).rejects.toMatchObject({ code: 'SOURCE_PATH' });
+    const head = await sourceGit(f.root, ['rev-parse', 'HEAD']);
+    expect(await inspectHistory(f.root, head)).toMatchObject({ commit: head });
+    expect(await sourceGit(f.root, ['rev-parse', 'HEAD'])).toBe(head);
   } finally {
     await f.close();
+  }
+});
+
+test('ordinary Git metadata remains publishable in current trees and deleted history', async () => {
+  for (const files of [
+    { '.gitmodules': '', '.gitattributes': '* text=auto\n' },
+    {
+      '.gitmodules':
+        '[submodule "library"]\n\tpath = library\n\turl = https://example.com/library.git\n',
+      '.gitattributes': '*.png binary\n',
+    },
+  ]) {
+    const f = await history(files);
+    try {
+      for (const [path, text] of Object.entries(files))
+        expect(() => checkSource(path, new TextEncoder().encode(text))).not.toThrow();
+      expect(await inspectHistory(f.root, f.original)).toMatchObject({ commit: f.original });
+      expect(await inspectHistory(f.root, f.head)).toMatchObject({ commit: f.head });
+      expect(await sourceGit(f.root, ['rev-list', '--count', 'HEAD'])).toBe('2');
+      expect(await sourceGit(f.root, ['status', '--porcelain'])).toBe('');
+    } finally {
+      await f.close();
+    }
+  }
+});
+
+test('Git metadata still rejects detected credentials in current and deleted history', async () => {
+  for (const path of ['.gitmodules', '.gitattributes']) {
+    const text = '-----BEGIN OPENSSH PRIVATE KEY-----';
+    const f = await history({ [path]: text });
+    try {
+      expect(() => checkSource(path, new TextEncoder().encode(text))).toThrow('likely credential');
+      for (const commit of [f.original, f.head])
+        await expect(inspectHistory(f.root, commit)).rejects.toMatchObject({
+          code: 'SOURCE_SECRET',
+          message: expect.stringContaining(path),
+        });
+    } finally {
+      await f.close();
+    }
   }
 });

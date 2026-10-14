@@ -9,8 +9,18 @@ import { remixSchema } from '../../protocol/src/remix';
 import type { Network } from '../../identity/src/signer';
 import { PublishError, targetsSchema, intentSchema } from './config';
 import { MAX_SOURCE_FILES, MAX_PUBLICATION_JOURNAL_BYTES } from './limits';
+import {
+  MANIFEST_PRESENTATION_PROFILE,
+  manifestScreenshots,
+  manifestPreviewVideo,
+} from '../../protocol/src/presentation';
 
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
+import {
+  copyErrorSchema as copyError,
+  outboxSchema,
+  copyHistorySchema,
+} from '../../nostr/src/publication-copies';
 const commit = z.string().regex(/^[a-f0-9]{40}$/);
 const planSchema = z
   .object({
@@ -69,6 +79,8 @@ const planSchema = z
 export const jobSchema = z
   .object({
     version: z.literal(1),
+    // Absent on previously frozen jobs: resume their original linked descriptor.
+    presentationProfile: z.literal(MANIFEST_PRESENTATION_PROFILE).optional(),
     id: hash,
     fingerprint: hash,
     // Absent in older journals: preserve their automatically paired publication.
@@ -134,29 +146,11 @@ export const jobSchema = z
       })
       .strict(),
     mirrors: z.record(z.string(), z.boolean()),
-    mirrorErrors: z
-      .record(
-        z.string(),
-        z
-          .object({
-            eventId: hash,
-            eventKind: z.number().int().nonnegative(),
-            attemptedAt: z.number().int().nonnegative(),
-            diagnostic: z
-              .object({
-                code: z.string().max(80),
-                message: z.string().max(2000),
-                operation: z.string().max(160),
-                recovery: z.string().max(2000),
-                details: z.array(z.string().max(2000)).max(8).optional(),
-                stage: z.string().max(40).optional(),
-                retryable: z.boolean(),
-              })
-              .strict(),
-          })
-          .strict(),
-      )
-      .optional(),
+    mirrorErrors: z.record(z.string(), copyError).optional(),
+    // Recomputed on each publish run from the creator's current NIP-65 relay list.
+    outbox: outboxSchema.optional(),
+    // Cumulative attempted destinations, including partial failures and retired write relays.
+    outboxHistory: copyHistorySchema.optional(),
     status: z.enum(['prepared', 'announced_pending_index']),
     website: z
       .object({
@@ -189,9 +183,22 @@ export const jobSchema = z
         !!job.current &&
         (job.snapshotMode === 'none' || !!job.snapshot) &&
         (!job.preview ||
-          (!!job.preview.descriptor &&
-            job.receipts.preview === true &&
-            job.receipts.descriptor === true)) &&
+          (job.receipts.preview === true &&
+            (job.presentationProfile === MANIFEST_PRESENTATION_PROFILE
+              ? !job.preview.descriptor &&
+                [job.current, ...(job.snapshotMode === 'none' ? [] : [job.snapshot])].every(
+                  (event) =>
+                    !!event &&
+                    manifestScreenshots(event).some(
+                      (c) => c.hash === job.preview!.hash && c.mime === 'image/png',
+                    ),
+                )
+              : !!job.preview.descriptor && job.receipts.descriptor === true))) &&
+        (!job.video ||
+          job.presentationProfile !== MANIFEST_PRESENTATION_PROFILE ||
+          [job.current, ...(job.snapshotMode === 'none' ? [] : [job.snapshot])].every(
+            (event) => !!event && manifestPreviewVideo(event)?.hash === job.video!.hash,
+          )) &&
         Object.entries(job.receipts).every(([kind, accepted]) =>
           kind === 'snapshot' && job.snapshotMode === 'none' ? !accepted : accepted,
         )),

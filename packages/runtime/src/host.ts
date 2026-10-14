@@ -12,6 +12,7 @@ import { NappletAppData, appDataPolicy } from './app-data-session';
 import type { HostSign } from './action-contracts';
 import { PlaybackNostr } from '../../nostr/src/playback';
 import { WorkQueue } from './work-queue';
+import { NappletKeys } from './keys-session';
 import { NappletConfig } from './config-session';
 import { NappletMedia } from './media-session';
 import { NappletGamepad } from './gamepad-session';
@@ -54,6 +55,8 @@ export type HostOptions = {
   backendIdentity?: string;
   backendAliases?: BackendProvider[];
   theme?: ThemeSource;
+  /** Narrow shell shortcut; only invoked for a focused, interactive frame. */
+  escape?: () => void;
 };
 const envelope = z
   .object({
@@ -408,6 +411,14 @@ export function attachNappletHost(options: HostOptions) {
   });
   options.configuration?.(config);
   const gamepad = new NappletGamepad({ frame: options.frame, send });
+  const keys = new NappletKeys({
+    send,
+    focused: () =>
+      document.hasFocus() &&
+      document.activeElement === options.frame &&
+      !options.frame.closest('[inert]'),
+    escape: options.escape,
+  });
   let configCalls = 0,
     configWindow = Date.now();
   let mediaCalls = 0,
@@ -429,6 +440,11 @@ export function attachNappletHost(options: HostOptions) {
         services: [],
       });
       config.ready();
+      keys.ready();
+      return;
+    }
+    if (initialized && message.type.startsWith('keys.') && HOST_REQUESTS.has(message.type)) {
+      keys.handle(message);
       return;
     }
     if (
@@ -583,6 +599,7 @@ export function attachNappletHost(options: HostOptions) {
       account.close('Player closed');
       gamepad.close();
       config.close();
+      keys.close();
       options.configuration?.(null);
       options.media?.(null);
       options.files([]);

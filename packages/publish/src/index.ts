@@ -28,6 +28,7 @@ import {
   type PublishPlan,
 } from './project';
 import { PublicationRelays } from './relay';
+import { copyPublication } from '../../nostr/src/publication-copies';
 import { ownedBlobs, verifiedBlob } from './blobs';
 import { confirmWebsite } from './website';
 import { executableBytes } from './artifact';
@@ -40,6 +41,8 @@ import {
   verifyReleaseReachable,
   type SelectedRepository,
 } from './repository';
+
+import { MANIFEST_PRESENTATION_PROFILE } from '../../protocol/src/presentation';
 
 export { PublishError } from './config';
 type RelayOperations = Pick<PublicationRelays, 'latest' | 'ensure' | 'close'> &
@@ -133,6 +136,7 @@ function result(job: PublishJob, unchanged = false) {
       : null,
     mirrors: job.mirrors,
     mirrorErrors: job.mirrorErrors ?? {},
+    outbox: job.outbox ?? null,
     receipts: job.receipts,
     error: job.error ?? null,
   };
@@ -276,6 +280,7 @@ export async function publishProject(options: PublishOptions) {
         'sandbox startup and preview capture',
         'remote current version',
         'Git/Blossom/relay availability',
+        'your NIP-65 outbox relays (best-effort copies)',
         ...(selected ? ['release commit pushed to your repository'] : []),
       ],
     };
@@ -385,6 +390,7 @@ export async function publishProject(options: PublishOptions) {
           if (
             !job &&
             previous?.fingerprint === inspected.fingerprint &&
+            previous.presentationProfile === MANIFEST_PRESENTATION_PROFILE &&
             !retired &&
             !refreshedInShell &&
             (previous.repository?.address ?? null) === (selected?.address ?? null) &&
@@ -558,6 +564,7 @@ export async function publishProject(options: PublishOptions) {
               );
             job = {
               version: 1,
+              presentationProfile: MANIFEST_PRESENTATION_PROFILE,
               id,
               fingerprint: inspected.fingerprint,
               snapshotMode: options.snapshot ? 'explicit' : 'none',
@@ -592,7 +599,7 @@ export async function publishProject(options: PublishOptions) {
               status: 'prepared',
               mirrors: {},
               receipts: {
-                ...(preview ? { preview: false, descriptor: false } : {}),
+                ...(preview ? { preview: false } : {}),
                 ...(video ? { video: false } : {}),
                 ...(plan.icon ? { icon: false } : {}),
                 source: false,
@@ -703,6 +710,7 @@ export async function publishProject(options: PublishOptions) {
         // A prepared legacy journal keeps its original wire shape, even if signing was
         // interrupted. Fresh jobs always use the standalone NIP-5D manifest.
         const standalone = job.plan.manifestFormat === 'standalone';
+        const directPresentation = job.presentationProfile === MANIFEST_PRESENTATION_PROFILE;
         const tags = [
           ...(standalone
             ? [['x', job.plan.artifactHash]]
@@ -715,13 +723,20 @@ export async function publishProject(options: PublishOptions) {
                 ],
               ]),
           ['title', job.plan.title],
-          ...(job.preview
+          ...(job.preview && !directPresentation
             ? [
                 [
                   'app',
                   `32267:${account.pubkey}:${job.plan.identifier}-${job.id.slice(0, 16)}`,
                   job.plan.targets.relay,
                 ],
+              ]
+            : []),
+          ...(directPresentation && job.preview
+            ? [
+                ['presentation', MANIFEST_PRESENTATION_PROFILE],
+                ['screenshot', job.preview.hash, 'image/png'],
+                ...(job.video ? [['preview', job.video.hash, 'video/webm']] : []),
               ]
             : []),
           ...(job.plan.remix
@@ -777,7 +792,7 @@ export async function publishProject(options: PublishOptions) {
             );
           return event;
         };
-        if (job.preview) {
+        if (job.preview && !directPresentation) {
           job.preview.descriptor = await sign(
             {
               kind: 32267,
@@ -981,39 +996,35 @@ export async function publishProject(options: PublishOptions) {
         job.receipts.current = true;
         await save();
         await guard();
-        for (const mirror of job.plan.targets.mirrors) {
-          progress('mirror');
-          let event = job.preview?.descriptor ?? job.snapshot ?? job.current;
-          try {
-            for (const next of [job.preview?.descriptor, job.snapshot, job.current]) {
-              if (!next) continue;
-              event = next;
-              await relays.ensure(mirror, event);
-            }
-            job.mirrors[mirror] = true;
-            if (job.mirrorErrors) delete job.mirrorErrors[mirror];
-          } catch (cause) {
-            job.mirrors[mirror] = false;
-            const diagnostic = diagnose(cause, 'publish optional mirror');
-            job.mirrorErrors ??= {};
-            job.mirrorErrors[mirror] = {
-              eventId: event.id,
-              eventKind: event.kind,
-              attemptedAt: Date.now(),
-              diagnostic: {
-                ...diagnostic,
-                retryable: diagnostic.retryable ?? true,
-                recovery:
-                  'The primary publication is unaffected. With unchanged source, rerun soyli publish to repair copies of the same signed release. Edit future mirrors in soyli dev (Where it goes).',
-              },
-            };
-          }
-          await save();
-        }
+        // The primary release is complete even if optional copies stall or are interrupted.
         job.status = 'announced_pending_index';
         delete job.error;
         await save();
         await journal.select(null, job.id);
+        await copyPublication({
+          pubkey: account.pubkey,
+          targets: job.plan.targets,
+          network: options.network,
+          events: [job.preview?.descriptor, job.snapshot, job.current].filter(
+            (e): e is SignedEvent => !!e,
+          ),
+          state: job,
+          save,
+          signal: options.signal,
+          progress: (next) => {
+            stage = next;
+            options.progress?.(next);
+          },
+          io: (signal) =>
+            deps.relays
+              ? {
+                  read: relays.read?.bind(relays) ?? (async () => []),
+                  ensure: relays.ensure.bind(relays),
+                  close() {},
+                }
+              : new PublicationRelays(signal),
+        });
+        if (options.signal?.aborted) return result(job, completed);
         progress('website');
         job.website = await (deps.website ?? confirmWebsite)(job, { signal: options.signal });
         await save();

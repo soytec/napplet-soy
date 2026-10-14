@@ -10,6 +10,7 @@ import {
   type CachedVideo,
 } from '../../protocol/src/preview-video';
 import { fetchPublicBytes, publicResourceUrl } from './blossom';
+import { manifestVideoSources } from '../../protocol/src/presentation';
 
 type Entry = { manifest: SignedEvent; video?: CachedVideo | null };
 export async function cachedVideoBytes(directory: string, video: CachedVideo) {
@@ -90,10 +91,18 @@ export async function indexPreviewVideos(
     Array.from({ length: Math.min(2, queue.length) }, async () => {
       for (let entry = queue.shift(); entry && !signal.aborted; entry = queue.shift()) {
         entry.video = null;
-        const candidates = appReferences(entry.manifest).flatMap((ref) => {
-          const descriptor = latestMetadata(ref, metadata);
-          return descriptor ? descriptorVideos(descriptor).map((v) => ({ ...v, descriptor })) : [];
-        });
+        const candidates = [
+          ...manifestVideoSources(entry.manifest).map((v) => ({
+            ...v,
+            descriptor: entry.manifest,
+          })),
+          ...appReferences(entry.manifest).flatMap((ref) => {
+            const descriptor = latestMetadata(ref, metadata);
+            return descriptor
+              ? descriptorVideos(descriptor).map((v) => ({ ...v, descriptor }))
+              : [];
+          }),
+        ];
         for (const { url, hash, descriptor } of candidates) {
           if (signal.aborted) break;
           try {

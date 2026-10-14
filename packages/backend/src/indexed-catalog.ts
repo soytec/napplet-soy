@@ -1,6 +1,11 @@
 import { blocked, manifestBlocked } from '../../moderation/src/policy';
 import { join, resolve } from 'node:path';
-import { decodeAddress, identityAddress, MAX_ARTIFACT_BYTES, sha256 } from '../../protocol/src';
+import {
+  decodeAddress,
+  identityAddress,
+  MAX_READ_ARTIFACT_BYTES,
+  sha256,
+} from '../../protocol/src';
 import { IndexStore, indexedProjection } from './index-store';
 import type { Lookup } from './catalog';
 
@@ -131,7 +136,7 @@ export async function indexedArtifact(hash: string) {
   const entry = entries.find((n) => n?.artifactHash === hash && n.availability === 'ready');
   if (!entry) return null;
   const file = Bun.file(join(store.directory, 'artifacts', `${hash}.html`));
-  if (!(await file.exists()) || file.size !== entry.bytes || file.size > MAX_ARTIFACT_BYTES)
+  if (!(await file.exists()) || file.size !== entry.bytes || file.size > MAX_READ_ARTIFACT_BYTES)
     return null;
   // Artifact URLs are immutable: never serve corrupted bytes under a valid digest.
   return (await sha256(new Uint8Array(await file.arrayBuffer()))) === hash ? file : null;

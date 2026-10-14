@@ -150,3 +150,71 @@ test('theme notifications belong to the frame lifetime, wait for handshake, and 
     else Reflect.deleteProperty(globalThis, 'localStorage');
   }
 });
+
+test('keyboard actions are handshake/source bound, survive account switches, and stop with the frame', () => {
+  const globals = ['window', 'localStorage'] as const;
+  const descriptors = globals.map((key) => Object.getOwnPropertyDescriptor(globalThis, key));
+  const sent: Record<string, unknown>[] = [];
+  const source = { postMessage: (message: Record<string, unknown>) => sent.push(message) };
+  let listener: (event: MessageEvent) => void = () => {};
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      addEventListener(type: string, fn: typeof listener) {
+        if (type === 'message') listener = fn;
+      },
+      removeEventListener() {},
+    },
+  });
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {} });
+  const host = attachNappletHost({
+    frame: { contentWindow: source } as unknown as HTMLIFrameElement,
+    identity: 'keyboard-test',
+    manifestId: 'a'.repeat(64),
+    relays: [],
+    pubkey: null,
+    prompt() {},
+    files() {},
+  });
+  const data = {
+    type: 'keys.registerAction',
+    id: 'r1',
+    action: { id: 'hop', label: 'Hop', defaultKey: 'ArrowUp' },
+  };
+  const deliver = (data: object, from: unknown = source, origin = 'null') =>
+    listener({ data, source: from, origin } as MessageEvent);
+  try {
+    deliver(data);
+    expect(sent).toEqual([]);
+    deliver({ type: 'shell.ready' });
+    expect(sent[0]).toMatchObject({
+      type: 'shell.init',
+      capabilities: { domains: expect.arrayContaining(['keys']) },
+    });
+    const initial = sent.length;
+    deliver(data, {});
+    deliver(data, source, 'https://evil.example');
+    expect(sent).toHaveLength(initial);
+    deliver(data);
+    expect(sent.at(-1)).toMatchObject({
+      type: 'keys.registerAction.result',
+      id: 'r1',
+      binding: 'ArrowUp',
+    });
+    host.updateIdentity('b'.repeat(64));
+    deliver(data);
+    expect(sent.at(-1)).toMatchObject({ error: 'duplicate action ID' });
+    deliver({ type: 'keys.unregisterAction', actionId: 'hop' });
+    expect(sent.at(-1)).toEqual({ type: 'keys.bindings', bindings: [] });
+    host.close();
+    const count = sent.length;
+    deliver(data);
+    expect(sent).toHaveLength(count);
+  } finally {
+    host.close();
+    globals.forEach((key, i) => {
+      if (descriptors[i]) Object.defineProperty(globalThis, key, descriptors[i]!);
+      else Reflect.deleteProperty(globalThis, key);
+    });
+  }
+});

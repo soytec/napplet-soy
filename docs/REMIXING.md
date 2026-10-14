@@ -129,9 +129,11 @@ The archive remains a portable source snapshot for recovery, offline inspection
 and independent mirroring; its signed hash identifies the same bytes wherever
 they are stored. It complements the repository's commit history.
 
-Playable HTML has a separate 25 MiB limit. Public website, indexer and runtime
-deployments must adopt that limit before admitting artifacts above the former
-10 MiB ceiling; a CLI release alone does not enable public playback of them.
+Reading published playable HTML for remix, proposal review and playback has a
+separate 100 MiB limit. soyLI still requires new publications to fit within 25 MiB;
+a larger downloaded original may need optimization before republishing. Public
+website, indexer and runtime deployments must adopt the read limit before admitting
+artifacts above 25 MiB; a CLI release alone does not enable public playback of them.
 
 Only the selected file’s text is sent to the page. Text over 200 KiB and binary files
 have a download state; highlighting stops at 64 KiB. Unknown file extensions use

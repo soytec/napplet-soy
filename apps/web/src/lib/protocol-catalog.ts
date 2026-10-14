@@ -7,7 +7,7 @@ import {
   decodeAddress,
   verifiedEvent,
   encodeAddress,
-  MAX_ARTIFACT_BYTES,
+  MAX_READ_ARTIFACT_BYTES,
   type SignedEvent,
   type GallerySearch,
 } from '../../../../packages/protocol/src';
@@ -20,7 +20,11 @@ import {
   discoveryTarget,
   targetedDiscoveryFilters,
 } from '../../../../packages/protocol/src/discovery';
-import { appReferences, latestMetadata } from '../../../../packages/protocol/src/preview';
+import {
+  appReferences,
+  latestMetadata,
+  validatedPreview,
+} from '../../../../packages/protocol/src/preview';
 import { publicNapplet, type PublicNapplet } from '../../../../packages/backend/src/public-model';
 import {
   discoveryFacets,
@@ -28,7 +32,10 @@ import {
   topicFacets,
   type DiscoverySearch,
 } from '../../../../packages/protocol/src/topics';
-import { resolveManifestIcon } from '../../../../packages/client/src/manifest-icon';
+import {
+  resolveManifestIcon,
+  resolveManifestScreenshots,
+} from '../../../../packages/client/src/manifest-icon';
 import { indexedPinnedManifest } from '../../../../packages/client/src/pinned-manifest';
 import {
   snapshotPresentationAddress,
@@ -222,7 +229,13 @@ export async function hydrateNapplet(event: SignedEvent, hints: string[] = []) {
     n.preview = previous.preview;
     n.video = previous.video;
   }
-  const iconTask = resolveManifestIcon(event, network().blossom);
+  const iconTask = Promise.all([
+    resolveManifestIcon(event, network().blossom),
+    // Indexed direct covers already use the server's verified raster cache.
+    n.preview?.descriptor.id === event.id && validatedPreview(event, n.preview)
+      ? Promise.resolve(null)
+      : resolveManifestScreenshots(event, network().blossom),
+  ]);
   const metadata: SignedEvent[] = [];
   let metadataResolved = false;
   await Promise.all(
@@ -257,7 +270,7 @@ export async function hydrateNapplet(event: SignedEvent, hints: string[] = []) {
   );
   if (metadataResolved) {
     if (n.preview?.descriptor.id !== event.id) n.preview = null;
-    n.video = null;
+    if (n.video?.descriptor.id !== event.id) n.video = null;
   }
   n.metadata = metadata;
   await iconTask;
@@ -285,7 +298,7 @@ export async function hydrateNapplet(event: SignedEvent, hints: string[] = []) {
           },
         );
         const size = Number(response.headers.get('content-length'));
-        if (response.ok && (!size || size <= MAX_ARTIFACT_BYTES)) {
+        if (response.ok && (!size || size <= MAX_READ_ARTIFACT_BYTES)) {
           n.availability = 'ready';
           n.bytes = size || previous?.bytes || null;
           break;
@@ -602,9 +615,10 @@ export const directSource = createSourceBrowser({
     return blossomBytes(
       hash,
       [...(n ? (await validateManifest(n)).servers : []), ...network().blossom],
-      AbortSignal.timeout(15000),
-      undefined,
+      AbortSignal.timeout(60000),
+      MAX_READ_ARTIFACT_BYTES,
       network().blossom,
+      30000,
     );
   },
   download: (url, signal) => downloadBytes(url.href, signal, 50 * 1024 ** 2, network().blossom),

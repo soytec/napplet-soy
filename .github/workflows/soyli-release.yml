@@ -84,6 +84,11 @@ jobs:
           # Packaged soyLI and source Playwright otherwise use different caches.
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/soyli-browsers
         run: |
+          # The distribution tests use only system tools. On macOS, the first
+          # /usr/bin/git invocation initializes Apple's developer-tool shim and
+          # can exceed soyLI's five-second prerequisite probe. Initialize it here
+          # and surface real toolchain failures before running the CLI tests.
+          PATH=/usr/bin:/bin git --version
           export SPACE_TEST_CLI="$PWD/.local/cli/$VERSION/soyli-$PLATFORM/soyli"
           "$SPACE_TEST_CLI" browser install
           bun test tests/services/cli-distribution.test.ts tests/services/cli-update.test.ts tests/services/app-data-cli.test.ts apps/cli/src/update.test.ts apps/cli/src/preview-lifecycle.test.ts apps/cli/src/errors.test.ts apps/cli/src/source-limits.test.ts apps/cli/src/managed-data-assets.test.ts apps/cli/src/migrate.test.ts

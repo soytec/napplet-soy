@@ -10,6 +10,19 @@ preview host ships in CLI 0.20.0; matching website deployment is separate.
 
 Implemented 2026-09-12. Open a public card and choose **Play napplet**. Cards distinguish verified, compatible artifacts from missing capabilities and unavailable downloads. Compatibility means this host implements the requested domains; an individual operation can still be refused by policy or fail upstream.
 
+## Playable artifact read budget
+
+The update deployed on 2026-10-12 accepts published HTML up to **100 MiB**, independent
+of soyLI’s **25 MiB** build/publishing limit. The same read budget applies to the
+website indexer, browser player and local preview. All publishers follow the same
+admission rules, including legacy manifests. The complete artifact must pass raw
+SHA-256 and UTF-8 verification before it executes. Downloads are bounded while
+streaming, with up to 30 seconds per mirror and 60 seconds overall, and can be
+cancelled when leaving the player. Managed resources retain their separate 10 MiB
+limit. The index rechecks entries rejected under the previous artifact budget.
+The website/indexer deployment is `20261012080150614-26110`; local preview ships
+in soyLI 0.26.1. See [release verification](CLI-RELEASES.md).
+
 ## Standards and integration
 
 Fixtures and relay-imported napplets use the same manifest validator, capability admission, artifact verification, host identity, and resource service. The browser subscription covers named, root, and snapshot kinds without a Space hashtag. Fixture metadata contains no custom snapshot pointer. The creator publisher uses this same admission path; the bundled test key must never be used on public relays.
@@ -28,6 +41,7 @@ References: [NAP registry and web projection](https://github.com/napplet/naps), 
 | ---------- | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `shell`    | Handshake and synchronous capability discovery                                                                       | One session per frame; no named services                                                                                                                                   |
 | `storage`  | String get/set/remove/keys, shared and instance scopes                                                               | Shared data persists in this browser per author/address/build/account; instance data lasts for one play session; 256 keys / approximately 1 Mi characters per scope        |
+| `keys`     | Named actions, default bindings, unregister and focused Escape forwarding                                            | Frame-scoped limits; reserved/conflicting hints unbound; see keyboard section below                                                                                        |
 | `identity` | Connected key, user NIP-65 relay preferences, profile, follows, public mute list                                     | Guest key is the empty string; extra list projections return explicit errors; no private lists or signer access                                                            |
 | `theme`    | Resolved shell colors; live `theme.changed` notifications                                                            | Light/Dark/Auto preference; napplets opt in to applying colors; no frame reload. See [appearance](APPEARANCE.md)                                                           |
 | `relay`    | Filtered query and live subscribe/close                                                                              | Guarded public WSS reads; signatures checked, duplicates removed, filters reapplied; scoped public app-data publishing with viewer consent; other writes/encryption denied |
@@ -47,7 +61,7 @@ including live streams and play/pause/stop/volume. It is deployed and available 
 unsupported ownership/source modes, limits and evidence. The runtime profile changes
 to `space-playback-2` so the index retries formerly unsupported media creations.
 
-Required unsupported domains still gate launch: for example `inc`, `intent`, `keys`, and `connect`. Composability, napplet signing grants, extended identity projections and arbitrary backend execution remain separate additions. Older artifacts that omit required domains may still depend on unavailable APIs.
+Required unsupported domains still gate launch: for example `inc`, `intent`, and `connect`. Composability, napplet signing grants, extended identity projections and arbitrary backend execution remain separate additions. Older artifacts that omit required domains may still depend on unavailable APIs.
 
 The 2026-09-17 local source update adds NAP-CVM and NAP-WEBRTC under
 `space-playback-3`. Direct encrypted CVM requests/discovery/registry calls and
@@ -131,8 +145,9 @@ rejection keeps the CSS-expanded player usable.
 Browser/system fullscreen exit returns to CSS expansion. **Back to details**, the
 second exit control, or Escape while host controls have focus returns to the detail
 view. A single native-exit Escape cannot also collapse the expanded player. Settings
-and save dialogs get their own Escape first; keystrokes inside the opaque iframe
-belong to the napplet, so the corner control remains available. Background
+and save dialogs get their own Escape first. NAP-KEYS forwards bare Escape from a
+focused napplet to the same exit handler; ordinary gameplay keys remain local.
+The corner control remains available. Background
 branches become inert while expanded; focus and scrolling restore on exit.
 
 Entering from details pushes a history entry; Back/Forward changes only presentation.
@@ -238,3 +253,41 @@ bounded request guarantee. No upstream bindings or napplet changes are required.
 `bun test tests/services/relay-deadline.test.ts` exercises the actual pinned SDK and
 shared preview through HTTP: normal reads, stalled fallback/discovery, empty reads
 and `getEvent`. The repository suite also checks later-arriving events and cleanup.
+
+## Keyboard actions — 2026-10-13 source
+
+The website and soyLI preview implement NAP-KEYS action registration through the
+pinned shim 0.30.0, using [NAP-KEYS PR 9 at 8869a4c](https://github.com/napplet/naps/blob/8869a4cf77b023f4b049f47c546910a0280dc1a6/naps/NAP-KEYS.md).
+`window.napplet.keys` and `shell.supports('keys')` advertise support; manifests
+requiring `keys` can launch. The index runtime profile changes to recheck previous
+capability rejections. Creators can register named actions with `defaultKey` and
+subscribe with `onAction`; registered gameplay keys execute locally in the iframe.
+Ordinary DOM keyboard listeners continue to work.
+
+The host returns a correlated result, pushes the complete binding list on handshake
+and changes, and removes bindings on unregister or frame disposal. Bindings survive
+account changes within that frame. Duplicate IDs fail explicitly; conflicting or
+reserved defaults remain unbound. Limits: 128 actions/frame, 128-character IDs,
+160-character labels, 128-character hints, 256 registration/unregistration messages
+per minute. Forwarded keys have a separate 120/second budget; gameplay actions do
+not consume host request quotas.
+
+The pinned shim excludes text inputs, textareas, selects, contenteditable and IME
+composition. Tab, Escape and browser shortcuts cannot be assigned. Default hints
+normalize modifier order and ASCII letter case for the shim. Combined Meta+Shift
+hints currently remain unbound: the draft specifies Alt+Ctrl+Shift+Meta whereas
+shim 0.30.0 emits Alt+Ctrl+Meta+Shift. User rebinding and an action-list UI are not
+implemented. These are host policy limits, not new messages or protocol extensions.
+
+Forwarded bare Escape invokes the website's existing exit handler only when the
+verified frame has focus, the document is focused and the frame is not inert. Modal
+and native-fullscreen guards remain in effect. Other forwarded keys have no shell
+command here. Raw keystrokes are neither logged, redispatched as DOM events nor
+sent to another napplet. The opaque sandbox and network permissions are unchanged.
+
+Regression: `bun test packages/runtime/src/keys-session.test.ts
+packages/runtime/src/host.test.ts tests/services/keys-preview.test.ts` (website
+browser coverage requires `bun run build`). The real-host test failed before the
+fix and passes with arrow/WASD movement, text editing, unregister/reload, required
+capability admission and Escape exit with retained game state. Deployment evidence
+is tracked separately from implementation.
