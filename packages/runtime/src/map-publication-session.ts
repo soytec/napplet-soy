@@ -1,3 +1,4 @@
+import { OutboxPublisher, type OutboxPublicationPlan } from './outbox-session';
 import { z } from 'zod';
 import { matchFilters } from 'nostr-tools';
 import { ProtocolClient } from '../../client/src/nostr';
@@ -30,6 +31,7 @@ export class NappletMapPublication {
       signal: AbortSignal;
       consent: ActionConsent;
       io?: ActionIO;
+      plan?: OutboxPublicationPlan;
     },
   ) {}
   close() {
@@ -85,24 +87,47 @@ export class NappletMapPublication {
     const now = Math.floor(Date.now() / 1000);
     if (template.created_at > now + 60 || template.created_at < now - 86400)
       throw new Error('map-invalid-time: check your clock and prepare the change again.');
+    if (message.type === 'outbox.publish') {
+      const requested = message.options as Record<string, unknown> | undefined;
+      if (
+        !this.options.plan &&
+        (requested?.toOutbox !== false ||
+          (Array.isArray(requested.toInboxes) && requested.toInboxes.length))
+      )
+        throw new Error(
+          'policy-denied: specialized writes require configured Network destinations. Use toOutbox:false with explicit configured relays and no recipient inboxes; own-outbox or inbox routing cannot bypass schema and conflict checks.',
+        );
+    }
     const settings = z
       .object({
         relays: z.array(z.string().max(256)).min(1).max(8).optional(),
         toOutbox: z.boolean().optional(),
-        toInboxes: z.array(z.string()).max(0).optional(),
+        toInboxes: z
+          .array(z.string().regex(/^[a-f0-9]{64}$/))
+          .max(64)
+          .optional(),
       })
       .strict()
       .parse(message.options ?? {});
+    if (settings.toInboxes?.length && (message.type !== 'outbox.publish' || !this.options.plan))
+      throw new Error(
+        'policy-denied: recipient inbox routing requires the OUTBOX publication planner.',
+      );
     const configured = [
       ...new Set(this.options.relays.map((r) => readRelayUrl(r, this.options.relays, true))),
     ];
-    const requested = settings.relays?.map((r) => readRelayUrl(r, configured, true));
+    const planned =
+      message.type === 'outbox.publish' && this.options.plan
+        ? await this.options.plan(this.options.pubkey!, message.options ?? {}, signal)
+        : undefined;
+    signal.throwIfAborted();
+    const requested = (planned ?? settings.relays)?.map((r) => readRelayUrl(r, configured, true));
     if (requested?.some((r) => !configured.includes(r)))
       throw new Error(
         'map-relay-not-configured: add this relay in host Network settings before publishing there.',
       );
     const relays =
-      settings.toOutbox === false
+      planned !== undefined || settings.toOutbox === false
         ? (requested ?? [])
         : [...new Set([...configured, ...(requested ?? [])])];
     if (!relays.length)
@@ -115,11 +140,29 @@ export class NappletMapPublication {
       locks.add(lock);
       const client = new ProtocolClient(() => relays);
       this.clients.add(client);
+      const publisher = new OutboxPublisher();
       const io =
         this.options.io ??
         ({
           query: (filters, s, complete) => client.query(filters, [], s, undefined, complete),
-          publish: (event, s) => client.publish(event, [], s),
+          publish: async (event, s) => {
+            const results = await Promise.allSettled(
+              relays.map((relay) => publisher.publish(relay, event, s)),
+            );
+            const failures = results.flatMap((result, index) =>
+              result.status === 'rejected'
+                ? [
+                    `${relays[index]}: ${redactDiagnostic(result.reason instanceof Error ? result.reason.message : 'Relay transport failed.', 300)}`,
+                  ]
+                : [],
+            );
+            return {
+              accepted: relays.filter((_, index) => results[index].status === 'fulfilled'),
+              error: failures.length
+                ? `Required relay delivery failed: ${failures.join('; ')}`
+                : undefined,
+            };
+          },
         } satisfies ActionIO);
       const key = JSON.stringify(template);
       try {
@@ -207,6 +250,31 @@ export class NappletMapPublication {
           );
         }
         signal.throwIfAborted();
+        if (accepted && typeof accepted === 'object' && 'accepted' in accepted) {
+          const result = accepted as { accepted: string[]; error?: string };
+          return {
+            ok: !result.error && relays.every((relay) => result.accepted.includes(relay)),
+            event: pending,
+            eventId: pending.id,
+            relays: Object.fromEntries(
+              relays.map((relay) => [relay, result.accepted.includes(relay)]),
+            ),
+            ...(result.error
+              ? {
+                  error: `map-publish-failed: publish-incomplete: ${result.error} Retry the same prepared change.`,
+                }
+              : {}),
+          };
+        }
+        if (Array.isArray(accepted) && relays.some((relay) => !accepted.includes(relay)))
+          return {
+            ok: false,
+            event: pending,
+            eventId: pending.id,
+            relays: Object.fromEntries(relays.map((relay) => [relay, accepted.includes(relay)])),
+            error:
+              'map-publish-failed: publish-incomplete: a required relay did not acknowledge. Retry the same prepared change.',
+          };
         // Keep a bounded retry entry so a repeat click does not conflict with its own success.
         return {
           ok: true,
@@ -222,6 +290,7 @@ export class NappletMapPublication {
         };
       } finally {
         locks.delete(lock);
+        publisher.close();
         client.close();
         this.clients.delete(client);
       }

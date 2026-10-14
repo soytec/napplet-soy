@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { type Filter } from 'nostr-tools';
 import { verifiedEvent, type SignedEvent } from '../../protocol/src';
 import { ProtocolClient } from '../../client/src/nostr';
+import { DiagnosticError, redactDiagnostic } from '../../diagnostics/src';
 import {
   LIST_SUPPORT,
   listMutationSchema,
@@ -35,9 +36,17 @@ export async function signExact(
   let event: SignedEvent;
   try {
     event = verifiedEvent(await sign(pubkey, structuredClone(template)));
-  } catch {
+  } catch (cause) {
     signal.throwIfAborted();
-    throw new Error('signer-failed');
+    throw new DiagnosticError(
+      'NAP_SIGNER_FAILED',
+      `signer-failed: ${redactDiagnostic(cause instanceof Error ? cause.message : 'Signing did not complete.', 400)} Unlock the signer, check its event-kind permissions and retry.`,
+      {
+        operation: 'Sign approved Nostr event',
+        cause,
+        recovery: 'Unlock the selected signer and check its permissions before retrying.',
+      },
+    );
   }
   signal.throwIfAborted();
   if (
