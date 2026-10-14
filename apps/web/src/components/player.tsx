@@ -24,6 +24,10 @@ import {
   type PublicNapplet,
 } from '../../../../packages/backend/src/public-model';
 import shim from '@napplet/shim/prelude.global?raw';
+import {
+  createFrameSession,
+  type FrameSession,
+} from '../../../../packages/runtime/src/frame-session';
 import { nappletPrelude } from '../../../../packages/runtime/src/prelude';
 import { attachNappletHost, type HostPrompt } from '../../../../packages/runtime/src/host';
 import type { ExportFile } from '../../../../packages/runtime/src/filesystem';
@@ -102,7 +106,8 @@ export function Player({
   const [playing, setPlaying] = useState(autoPlay || immersive),
     [doc, setDoc] = useState(''),
     [release, setRelease] = useState<
-      (Awaited<ReturnType<typeof preparePlayback>> & { relays: string[] }) | null
+      | (Awaited<ReturnType<typeof preparePlayback>> & { relays: string[]; session: FrameSession })
+      | null
     >(null),
     [error, setError] = useState(''),
     [revision, setRevision] = useState(0);
@@ -168,6 +173,7 @@ export function Player({
       host.current = undefined;
       if (!node || !release) return;
       host.current = attachNappletHost({
+        session: release.session,
         intent: reviewScope
           ? undefined
           : { workspace: webIntentWorkspace(), catalogId: playerIntentCatalogId(release.manifest) },
@@ -205,7 +211,8 @@ export function Player({
     setError('');
     setDoc('');
     setRelease(null);
-    void preparePlayback(manifest, napplet.artifactHash)
+    const session = createFrameSession(!reviewScope);
+    void preparePlayback(manifest, napplet.artifactHash, session.domains)
       .then(async (release) => {
         if (!reviewScope) await installPlayerIntent(release.manifest, napplet.title);
         let config: ReturnType<typeof declaredConfig> = {};
@@ -214,7 +221,7 @@ export function Player({
           controller.signal,
           (verifiedHtml) => {
             config = declaredConfig(verifiedHtml);
-            return nappletPrelude(shim, config);
+            return nappletPrelude(shim, config, session);
           },
           [...release.servers, ...network().blossom],
           network().blossom,
@@ -223,6 +230,7 @@ export function Player({
           declaration.current = config;
           setRelease({
             ...release,
+            session,
             relays: [...new Set([...network().relays, ...(napplet.relays ?? [])])].slice(0, 8),
           });
           setDoc(html);

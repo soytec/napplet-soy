@@ -1,3 +1,4 @@
+import { createFrameSession } from '../../../../packages/runtime/src/frame-session';
 import { previewIntents } from './intent-client';
 import { AppearanceControl } from '../../../../packages/runtime/src/appearance-control';
 import { shellTheme } from '../../../../packages/runtime/src/appearance';
@@ -192,7 +193,8 @@ async function refresh() {
     frame = undefined;
     loaded = info.id;
     status.textContent = 'Verifying preview…';
-    const missing = missingDomains(info.requires);
+    const session = createFrameSession(true);
+    const missing = missingDomains(info.requires, session.domains);
     if (missing.length) throw new Error(`Unsupported required capabilities: ${missing.join(', ')}`);
     let declaration: ReturnType<typeof declaredConfig> = {};
     const doc = await loadArtifact(
@@ -200,7 +202,7 @@ async function refresh() {
       lifetime.signal,
       (verifiedHtml) => {
         declaration = declaredConfig(verifiedHtml);
-        return nappletPrelude(shim, declaration);
+        return nappletPrelude(shim, declaration, session);
       },
       { localUrl: `/artifacts/${info.artifactHash}` },
     );
@@ -210,9 +212,10 @@ async function refresh() {
     frame.allow = 'fullscreen';
     frame.referrerPolicy = 'no-referrer';
     frame.srcdoc = doc;
-    // Attach before the child's bootstrap can post shell.ready.
+    // Attach before the verified document's private bootstrap can establish its session.
     stage.replaceChildren(frame);
     host = attachNappletHost({
+      session,
       intent: { workspace: intents.workspace, catalogId: info.intentCatalogId },
       theme: shellTheme,
       backend: info.backend,

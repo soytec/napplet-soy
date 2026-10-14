@@ -1,3 +1,4 @@
+import { createFrameSession } from '../../../../packages/runtime/src/frame-session';
 import shim from '@napplet/shim/prelude.global?raw';
 import { IntentWorkspace, intentContracts } from '../../../../packages/runtime/src/intent-session';
 import {
@@ -61,7 +62,8 @@ export function previewIntents(options: {
       targets.delete(entry.id);
       const hash = entry.manifest.tags.find((t) => t[0] === 'x' && t.length === 2)?.[1];
       if (!hash) throw new Error('Target has no standalone artifact.');
-      const release = await preparePlayback(entry.manifest, hash);
+      const session = createFrameSession(true);
+      const release = await preparePlayback(entry.manifest, hash, session.domains);
       const base = options.hostOptions();
       let declaration: ReturnType<typeof declaredConfig> = {};
       const html = await loadArtifact(
@@ -69,7 +71,7 @@ export function previewIntents(options: {
         launchSignal,
         (verified) => {
           declaration = declaredConfig(verified);
-          return nappletPrelude(shim, declaration);
+          return nappletPrelude(shim, declaration, session);
         },
         [...release.servers, ...(base.servers ?? [])],
         base.localServers,
@@ -103,6 +105,7 @@ export function previewIntents(options: {
       document.body.append(panel);
       const host = attachNappletHost({
         ...base,
+        session,
         frame,
         identity: release.hostIdentity,
         manifestId: entry.manifest.id,

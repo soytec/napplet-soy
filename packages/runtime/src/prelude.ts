@@ -1,4 +1,5 @@
-import { RUNTIME_DOMAINS } from './capabilities';
+import { surfaceDomains } from './capabilities';
+import { frameSessionPrelude, type FrameSession } from './frame-session';
 import { validateConfigSchema } from './config-schema';
 
 /** NAP-SHELL supplements the pinned upstream domain shim, which does not yet provide it. */
@@ -28,8 +29,12 @@ export const SHELL_PRELUDE = `
   window.parent.postMessage({type: 'shell.ready'}, '*');
 })();`;
 
-/** The same pinned upstream shim and mandatory shell bootstrap in every host. */
-export function nappletPrelude(shim: string, declaration?: { schema?: unknown }) {
+/** Pinned upstream shim, surface domains and trusted host lifecycle before creator code. */
+export function nappletPrelude(
+  shim: string,
+  declaration?: { schema?: unknown },
+  session?: FrameSession,
+) {
   let schema = null;
   try {
     if (declaration?.schema !== undefined) schema = validateConfigSchema(declaration.schema);
@@ -53,5 +58,5 @@ export function nappletPrelude(shim: string, declaration?: { schema?: unknown })
       },
     });
   })();`;
-  return `${shim}\nglobalThis.NappletShimPrelude.install(${JSON.stringify({ domains: RUNTIME_DOMAINS.filter((d) => d !== 'shell') })});\n${config}\n${SHELL_PRELUDE}`;
+  return `${shim}\nglobalThis.NappletShimPrelude.install(${JSON.stringify({ domains: (session?.domains ?? surfaceDomains()).filter((d) => d !== 'shell') })});\n${config}\n${session ? frameSessionPrelude(session) : ''}\n${SHELL_PRELUDE}`;
 }

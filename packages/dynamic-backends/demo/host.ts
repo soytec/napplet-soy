@@ -1,3 +1,5 @@
+import { createFrameSession } from '../../runtime/src/frame-session';
+import { missingDomains } from '../../runtime/src/capabilities';
 import shim from '@napplet/shim/prelude.global?raw';
 import { PrivateKeySigner } from 'applesauce-signers/signers/private-key-signer';
 import { generateSecretKey } from 'nostr-tools';
@@ -29,10 +31,13 @@ async function start() {
   const response = await fetch('/revision', { cache: 'no-store' });
   if (!response.ok) throw new Error('Cannot load the local preview configuration.');
   const info = (await response.json()) as PreviewRevision;
+  const session = createFrameSession();
+  const missing = missingDomains(info.requires, session.domains);
+  if (missing.length) throw new Error(`Unsupported required capabilities: ${missing.join(', ')}`);
   const documentHtml = await loadArtifact(
     info.artifactHash,
     controller.signal,
-    () => nappletPrelude(shim),
+    () => nappletPrelude(shim, undefined, session),
     { localUrl: '/artifacts/' + info.artifactHash },
   );
   const frame = document.createElement('iframe');
@@ -42,6 +47,7 @@ async function start() {
   frame.srcdoc = documentHtml;
   document.querySelector('#stage')!.replaceChildren(frame);
   const host = attachNappletHost({
+    session,
     frame,
     identity: info.hostIdentity,
     backendIdentity: info.backendIdentity,

@@ -10,6 +10,7 @@ import { NappletActions } from './action-session';
 import { NappletUploads } from './upload-session';
 import { NappletAppData, appDataPolicy } from './app-data-session';
 import type { IntentWorkspace } from './intent-session';
+import type { FrameSession } from './frame-session';
 import type { HostSign } from './action-contracts';
 import { PlaybackNostr } from '../../nostr/src/playback';
 import { WorkQueue } from './work-queue';
@@ -33,6 +34,8 @@ export type HostPrompt = {
   dismiss: () => void;
 };
 export type HostOptions = {
+  /** Same trusted session used to inject this verified document. */
+  session?: FrameSession;
   /** Trusted shell catalog/lifecycle broker; the frame cannot supply these values. */
   intent?: { workspace: IntentWorkspace; catalogId: string };
   frame: HTMLIFrameElement;
@@ -69,10 +72,13 @@ const envelope = z
 
 /** A single frame session. Caller supplies verified identity; messages cannot change it. */
 export function attachNappletHost(options: HostOptions) {
+  if (!!options.intent !== !!options.session?.domains.includes('intent'))
+    throw new Error('Intent injection and endpoint support must agree.');
   const source = options.frame.contentWindow;
   const dataPolicy = appDataPolicy(options.identity, options.actionRelays ?? options.relays);
   let alive = true,
     initialized = false,
+    documentReady = !options.session,
     calls = 0,
     windowStart = Date.now();
   // Frame budgets and concurrency survive account changes.
@@ -286,10 +292,10 @@ export function attachNappletHost(options: HostOptions) {
       if (domain === 'fs')
         return files.handle(message, (name) => choose('save', name), chooseFiles, lifetime.signal);
       if (domain === 'identity') return nostr.identity(action);
-      if (domain === 'intent')
-        return intentEndpoint
-          ? intentEndpoint.handle(message)
-          : { result: { ok: false, error: 'No intent workspace is available in this surface.' } };
+      if (domain === 'intent') {
+        if (!intentEndpoint) throw new Error('No intent workspace is available in this surface.');
+        return intentEndpoint.handle(message);
+      }
       if (type === 'outbox.publish' || type === 'relay.publish') return appData.handle(message);
       if (domain === 'relay' || domain === 'outbox') return nostr.handle(message);
       if (domain === 'upload') return uploads.handle(message);
@@ -423,6 +429,20 @@ export function attachNappletHost(options: HostOptions) {
     rtcWindow = Date.now();
   const listener = (event: MessageEvent) => {
     if (!alive || event.source !== source || event.origin !== 'null') return;
+    if (options.session && event.data?.session === options.session.id) {
+      if (event.data.type === 'soy.frame.retired') {
+        close();
+        return;
+      }
+      if (event.data.type === 'soy.frame.ready') {
+        if (!documentReady) {
+          documentReady = true;
+          intentEndpoint?.ready();
+        }
+        return;
+      }
+    }
+    if (!documentReady) return;
     const parsed = envelope.safeParse(event.data);
     if (!parsed.success) return;
     const message = parsed.data;
@@ -432,13 +452,13 @@ export function attachNappletHost(options: HostOptions) {
       send({
         type: 'shell.init',
         capabilities: {
-          domains: RUNTIME_DOMAINS.filter((domain) => domain !== 'intent' || !!intentEndpoint),
+          domains:
+            options.session?.domains ?? RUNTIME_DOMAINS.filter((domain) => domain !== 'intent'),
           appData: dataPolicy,
         },
         services: [],
       });
       config.ready();
-      intentEndpoint?.ready();
       return;
     }
     if (
@@ -483,7 +503,12 @@ export function attachNappletHost(options: HostOptions) {
       }
       return;
     }
-    if (!initialized || !message.id || !HOST_REQUESTS.has(message.type)) return;
+    if (
+      (!initialized && !(intentEndpoint && message.type.startsWith('intent.'))) ||
+      !message.id ||
+      !HOST_REQUESTS.has(message.type)
+    )
+      return;
     const scope = account;
     // NAP-IDENTITY requires this basic snapshot to succeed without an error
     // field, even when asynchronous services have exhausted their quota.
@@ -579,6 +604,26 @@ export function attachNappletHost(options: HostOptions) {
   const unsubscribeTheme = options.theme?.subscribe(() => {
     if (initialized) send({ type: 'theme.changed', theme: options.theme!.get() });
   });
+  let loaded = false;
+  const onLoad = () => {
+    if (loaded) close();
+    else loaded = true;
+  };
+  function close() {
+    if (!alive) return;
+    alive = false;
+    intentEndpoint?.close();
+    unsubscribePermission();
+    unsubscribeTheme?.();
+    window.removeEventListener('message', listener);
+    options.frame.removeEventListener?.('load', onLoad);
+    account.close('Player closed');
+    config.close();
+    options.configuration?.(null);
+    options.media?.(null);
+    options.files([]);
+  }
+  options.frame.addEventListener?.('load', onLoad);
   window.addEventListener('message', listener);
   return {
     diagnostics: () => (alive ? account.diagnostics() : Promise.resolve([])),
@@ -590,18 +635,6 @@ export function attachNappletHost(options: HostOptions) {
       if (initialized) send({ type: 'identity.changed', pubkey: pubkey ?? '' });
       config.updateIdentity(pubkey);
     },
-    close() {
-      if (!alive) return;
-      alive = false;
-      intentEndpoint?.close();
-      unsubscribePermission();
-      unsubscribeTheme?.();
-      window.removeEventListener('message', listener);
-      account.close('Player closed');
-      config.close();
-      options.configuration?.(null);
-      options.media?.(null);
-      options.files([]);
-    },
+    close,
   };
 }

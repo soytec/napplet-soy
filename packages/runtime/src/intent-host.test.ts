@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test';
 import { attachNappletHost } from './host';
+import { createFrameSession } from './frame-session';
 import { IntentWorkspace } from './intent-session';
 
-test('bound host replies with official invoke result and cold delivery follows target shell init', async () => {
+test('bound host handles intents without SHELL and cold delivery waits for its verified document', async () => {
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window'),
     originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
   const listeners = new Set<(event: MessageEvent) => void>();
@@ -28,9 +29,16 @@ test('bound host replies with official invoke result and cold delivery follows t
     sentTarget: Record<string, unknown>[] = [];
   const source = { postMessage: (message: Record<string, unknown>) => sentSource.push(message) },
     target = { postMessage: (message: Record<string, unknown>) => sentTarget.push(message) };
-  const make = (endpoint: typeof source, id: string) =>
-    attachNappletHost({
-      frame: { contentWindow: endpoint } as unknown as HTMLIFrameElement,
+  const sessions = new Map<string, ReturnType<typeof createFrameSession>>();
+  const frames = new Map<string, EventTarget>();
+  const make = (endpoint: typeof source, id: string) => {
+    const session = createFrameSession(true);
+    sessions.set(id, session);
+    const frame = Object.assign(new EventTarget(), { contentWindow: endpoint });
+    frames.set(id, frame);
+    return attachNappletHost({
+      session,
+      frame: frame as unknown as HTMLIFrameElement,
       identity: id,
       manifestId: 'a'.repeat(64),
       relays: [],
@@ -39,6 +47,7 @@ test('bound host replies with official invoke result and cold delivery follows t
       files: () => {},
       intent: { workspace, catalogId: id },
     });
+  };
   const deliver = (endpoint: typeof source, data: Record<string, unknown>) => {
     for (const listener of listeners)
       listener({ source: endpoint, origin: 'null', data } as unknown as MessageEvent);
@@ -47,7 +56,7 @@ test('bound host replies with official invoke result and cold delivery follows t
     targetHost: ReturnType<typeof attachNappletHost> | undefined;
   try {
     sourceHost = make(source, 'attested-source');
-    deliver(source, { type: 'shell.ready' });
+    deliver(source, { type: 'soy.frame.ready', session: sessions.get('attested-source')!.id });
     deliver(source, {
       type: 'intent.invoke',
       id: 'call',
@@ -74,8 +83,15 @@ test('bound host replies with official invoke result and cold delivery follows t
     sourceHost.close();
     targetHost = make(target, 'editor');
     expect(sentTarget).toEqual([]);
+    deliver(source, { type: 'soy.frame.ready', session: sessions.get('editor')!.id });
+    deliver(target, { type: 'soy.frame.ready', session: 'wrong-document' });
     deliver(target, { type: 'shell.ready' });
-    expect(sentTarget.map((m) => m.type)).toEqual(['shell.init', 'intent.deliver']);
+    expect(sentTarget).toEqual([]);
+    deliver(target, { type: 'soy.frame.ready', session: sessions.get('editor')!.id });
+    expect(sentTarget.map((m) => m.type)).toEqual(['intent.deliver']);
+    const delivered = sentTarget.length;
+    deliver(target, { type: 'soy.frame.ready', session: sessions.get('editor')!.id });
+    expect(sentTarget).toHaveLength(delivered);
     expect(sentTarget.at(-1)).toEqual({
       type: 'intent.deliver',
       delivery: {
@@ -86,6 +102,23 @@ test('bound host replies with official invoke result and cold delivery follows t
         payload: { address: 'one' },
       },
     });
+    deliver(target, { type: 'soy.frame.retired', session: sessions.get('editor')!.id });
+    deliver(target, { type: 'intent.handlers', id: 'retired-document' });
+    await Bun.sleep(0);
+    expect(sentTarget).toHaveLength(delivered);
+    sourceHost = make(source, 'attested-source');
+    deliver(source, { type: 'soy.frame.ready', session: sessions.get('attested-source')!.id });
+    frames.get('attested-source')!.dispatchEvent(new Event('load'));
+    deliver(source, { type: 'intent.handlers', id: 'before-replacement' });
+    await Bun.sleep(0);
+    expect(sentSource.at(-1)?.id).toBe('before-replacement');
+    const beforeReplacement = sentSource.length;
+    frames.get('attested-source')!.dispatchEvent(new Event('load'));
+    deliver(source, { type: 'soy.frame.ready', session: sessions.get('attested-source')!.id });
+    deliver(source, { type: 'intent.handlers', id: 'after-replacement' });
+    await Bun.sleep(0);
+    expect(sentSource).toHaveLength(beforeReplacement);
+    expect(listeners.size).toBe(0);
   } finally {
     sourceHost?.close();
     targetHost?.close();

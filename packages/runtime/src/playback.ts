@@ -3,11 +3,15 @@ import { aggregateHash, identityAddress } from '../../protocol/src';
 import { missingDomains } from './capabilities';
 
 /** The same signed manifest determines playback permissions for every catalog source. */
-export async function preparePlayback(input: unknown, expectedArtifactHash: string) {
+export async function preparePlayback(
+  input: unknown,
+  expectedArtifactHash: string,
+  domains?: readonly string[],
+) {
   const release = await validateManifest(input);
   if (release.artifactHash !== expectedArtifactHash)
     throw new Error('Release metadata does not match its artifact.');
-  const missing = missingDomains(release.domains);
+  const missing = missingDomains(release.domains, domains);
   if (missing.length)
     throw new Error(`This napplet requires unsupported capabilities: ${missing.join(', ')}.`);
   const { manifest } = release;

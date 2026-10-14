@@ -1,5 +1,18 @@
 # Napplet playback profile
 
+## NAP-INTENT IN-02 — 2026-10-13 source
+
+Surface admission, shim namespace injection and optional SHELL capability reporting
+now share one trusted domain set. INTENT appears only where an endpoint exists;
+proposal-review playback rejects required INTENT before execution. Host-owned,
+document-bound readiness/retirement is independent of the SHELL handshake and
+adds no NAP API operation or acknowledgement. The runtime profile is
+`space-playback-7`; shim 0.31.0, nap/core 0.33.0 and the selected NIP-5D pin are
+unchanged. Shared-host Chromium fixtures verify no-SHELL cold delivery and
+navigation retirement. Catalog/recommendation work and full two-surface browser
+conformance remain pending. See [implemented behavior and limits](INTENTS.md).
+Source implementation/local verification is not release or deployment.
+
 ## NAP-INTENT extraction — 2026-10-13 source
 
 The independent INTENT branch includes the shared broker, web/preview target
@@ -42,7 +55,7 @@ Named/root manifests retain their existing author/address/build storage and sett
 
 The browser injects the published **@napplet/shim 0.31.0** prelude, with transitive **@napplet/nap 0.33.0** and **@napplet/core 0.33.0** pinned in the lockfile. These are protocol bindings, not another catalog: discovery remains Applesauce queries against Nostr relays. The shim is loaded with the player route, not by executing an external script inside a napplet.
 
-Space adds the [NAP-SHELL handshake](https://github.com/napplet/naps/blob/master/naps/NAP-SHELL.md), absent from that shim release. `shell.ready` establishes one frame session; `shell.init` replies once; `shell.ready()`, `onReady()`, `supports()` and `services` expose its environment. Unknown message types are silently ignored before quota accounting; recognized operations can still return policy errors. The host verifies `MessageEvent.source` and the opaque origin, and binds identity to the verified manifest before accepting requests. Messages cannot choose a different author, build, account, or storage namespace.
+Space adds the [NAP-SHELL handshake](https://github.com/napplet/naps/blob/master/naps/NAP-SHELL.md), absent from that shim release. `shell.ready` initializes the optional SHELL environment within the verified document session; `shell.init` replies once; `shell.ready()`, `onReady()`, `supports()` and `services` expose its environment. Unknown message types are silently ignored before quota accounting; recognized operations can still return policy errors. The host verifies `MessageEvent.source` and the opaque origin, and binds identity to the verified manifest before accepting requests. Messages cannot choose a different author, build, account, or storage namespace.
 
 References: [NAP registry and web projection](https://github.com/napplet/naps), [upstream implementation](https://github.com/napplet/web/tree/1df6dc87e5eee7257af41efb6247d47ec019e3d8/packages), and [NIP-5D proposal](https://github.com/nostr-protocol/nips/pull/2303). Several domains remain draft contracts. This is an implemented playback profile, not a claim of complete registry conformance.
 

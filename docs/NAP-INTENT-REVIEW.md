@@ -93,3 +93,11 @@ See INTENTS.md for implemented behavior and current limits. Passing the existing
 I-03 is resolved in the runtime dispatch catalog: each eligible `i` tag is retained with its complete ordered parameter list; candidate actions/conventions alone deduplicate. New tests exercise repeated tags, duplicate and opaque parameter names, empty names, unrelated roles and reserved catalog selection IDs. The broker now validates and retains bounded `handlerHint` fields while excluding them from target delivery; recommendation selection remains IN-03 work.
 
 The installed shim audit and expanded API tests are recorded in [the clause inventory](NAP-INTENT-CONFORMANCE.md). Typecheck passed; runtime/protocol suites passed 118 tests/864 assertions; preview bundling passed. I-01, I-02 and I-04 remain open. Full browser conformance, Nix/package validation, release and deployment remain separate outstanding gates.
+
+## Finding resolution — IN-02, 2026-10-13
+
+I-01 and I-02 are resolved in local source: a per-document surface domain set controls admission, namespace injection and optional SHELL reporting; supported INTENT endpoints use a private trusted document readiness signal rather than SHELL. All production prelude/host callers now share the same session. Required INTENT on review/demo surfaces is rejected before execution; a mismatched injection/endpoint configuration fails immediately.
+
+Navigation retires the host and endpoint via before-unload/page-hide signals and a repeated-load fallback. Chromium no-SHELL fixtures cover signed/verified source and target documents, cold buffering, source closure before receiver registration, unsupported surfaces, wrong/foreign readiness signals and retirement. The browser experiment established that pagehide alone was insufficient for this srcdoc navigation path; the capture-phase beforeunload listener provides the retirement signal and is installed before creator listeners.
+
+The complete two-surface chooser/discovery/lifecycle evidence remains IN-05. I-04, recommendation resolution and workspace/choice lifecycle work remain open. No full-support, release or deployment claim follows from this slice.

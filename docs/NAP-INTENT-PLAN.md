@@ -114,7 +114,7 @@ Acceptance: all mandatory clause rows have passing evidence, I-01–I-04 are res
 ## Completion checklist
 
 - [x] IN-01: audited contract/binding tuple and faithful catalog/normalized requests.
-- [ ] IN-02: truthful namespace availability and INTENT independent of SHELL.
+- [x] IN-02: truthful namespace availability and INTENT independent of SHELL.
 - [ ] IN-03: coherent verified launch catalog, recommendations and legacy targets.
 - [ ] IN-04: cancellation, independent accepted responsibility and complete shutdown.
 - [ ] IN-05: all API operations and failure paths verified in web and preview browsers.
@@ -127,3 +127,9 @@ A working handoff or green broker unit suite alone does not complete this plan. 
 Implemented and locally verified: each eligible manifest `i` contract preserves its parameter list; candidate actions/conventions deduplicate; reserved catalog identifiers reject; bounded handler hints are validated and retained for future selection without delivery leakage. Real signed named/root/snapshot sources install without advertisements. The installed production shim now has tests for all six API entrypoints and convention-fragment validation.
 
 `bun run typecheck` passed. Runtime/protocol suites passed 118 tests with 864 assertions; preview asset bundling passed. [The clause inventory](NAP-INTENT-CONFORMANCE.md) records compatibility qualifications and the verification destination for remaining requirements. IN-02–IN-06 remain outstanding; no full-support, released or deployed status is claimed. The unrelated OUTBOX draft was untouched. Nix/package validation remains required before any push of the shared-package changes.
+
+## Execution evidence — IN-02, 2026-10-13
+
+Implemented in source: one per-document surface policy for admission/injection, document readiness independent of SHELL, source/origin/session authentication and retirement on navigation. Normal web/preview source and target players share the session; review/demo surfaces omit INTENT. Runtime profile is `space-playback-7`, with unchanged upstream pins.
+
+Typecheck passed; runtime/protocol suites passed 120 tests/880 assertions. Two real Chromium shared-host fixtures passed with 15 assertions, including no-SHELL invocation/cold retention and foreign/unready rejection. Four CLI preview process-lifecycle tests passed with 12 assertions. Web production build and preview asset bundling passed. The fixture uses verified signed manifests/artifacts and the published shim without adjacent app checkouts. Complete production-web/preview UI/discovery conformance remains IN-05; Nix/distributed CLI package checks remain IN-06 and mandatory before push. The OUTBOX draft remains untouched; nothing is released or deployed.

@@ -18,7 +18,11 @@ export const RUNTIME_DOMAINS = [
   'cvm',
   'webrtc',
 ] as const;
-export const RUNTIME_PROFILE = 'space-playback-6';
+export const RUNTIME_PROFILE = 'space-playback-7';
+
+/** Namespace injection and admission must agree with this surface's endpoint support. */
+export const surfaceDomains = (intent = false) =>
+  RUNTIME_DOMAINS.filter((domain) => domain !== 'intent' || intent);
 
 // Only request types understood by this host. Notifications, responses and future
 // operations must be ignored, including unknown operations in supported domains.
@@ -83,5 +87,7 @@ export const HOST_REQUESTS = new Set(
     ],
   }).flatMap(([domain, actions]) => actions.map((action) => `${domain}.${action}`)),
 );
-export const missingDomains = (required: readonly string[]) =>
-  required.filter((domain) => !(RUNTIME_DOMAINS as readonly string[]).includes(domain));
+export const missingDomains = (
+  required: readonly string[],
+  available: readonly string[] = RUNTIME_DOMAINS,
+) => required.filter((domain) => !available.includes(domain));
