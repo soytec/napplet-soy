@@ -1,9 +1,20 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The current published version is **0.28.0**.
+The current published version is **0.29.0**.
 
-**0.29.0 — prepared for release: OUTBOX, intent handlers and native maps.**
+**0.29.0 — OUTBOX, intent handlers and native maps:**
+
+Published **2026-10-14 (Europe/Vienna)** from source
+`6d0d6cc2794b31a221ff7f009a82ec0946087e9a`.
+[GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.29.0),
+[native release CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38622887368)
+and [Nix CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38619572566)
+passed for the exact tagged source. All four native packages and 11 public assets,
+checksums, installer bytes and manifest/source match. An isolated fresh installation
+reports current through doctor/update; a real 0.28.0 → 0.29.0 update preserves
+account/project markers.
+
 Merged PR #20 includes the three INTENT corrections from PR #21: retain deliveries
 when reopening the same handler, retire stale contracts after signed catalog
 updates, and transport bounded structured-clone payloads through the actual host.
@@ -16,16 +27,19 @@ See [OUTBOX limits](OUTBOX.md) and [intent/map contracts](MAP-INTENTS.md).
 The combined source passes 731 tests, TypeScript, the production build and four
 browser integration suites (107 assertions). [Native candidate CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38617877093)
 and [Nix candidate CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38617877084)
-passed for `da6b4a2`, the exact source tree merged by `4a5023d`. Release-candidate
-qualification and public rollout remain separate gates. Deploy the compatible
-shell with its existing installer first; publish 0.29.0 only after live verification,
-then deploy the matching installer.
+passed for `da6b4a2`, the exact source tree merged by `4a5023d`. Compatible shell
+readers were deployed and verified in `20261014185651621-64082` before CLI
+publication, while the installer remained at 0.28.0. Final website deployment
+`20261014193031446-12904` serves the byte-identical 0.29.0 installer; public services,
+source fingerprints and a fresh index scan pass. See the
+[deployment record](DEPLOYMENT.md) for verification and remaining limits.
 
 The NIP-5D authority and direct-manifest presentation behavior from 0.28.0 remain
 unchanged, including legacy readers. The separately proposed relay-discovery
 policy change is not included. Existing installations should run `soyli update`,
-restart previews and run `soyli skills update` when the release is available;
-application source is not rewritten.
+restart previews and run `soyli skills update` in existing projects;
+application source is not rewritten. Existing NIP-46 viewer sessions may need
+renewed signer permission for map events (kind 35858).
 
 
 **0.28.0 — direct-manifest presentation:**

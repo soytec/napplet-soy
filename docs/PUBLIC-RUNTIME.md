@@ -7,15 +7,16 @@ destinations form one deduplicated fanout; incomplete required routing fails bef
 signing. Partial relay rejection returns the signed event and per-relay results.
 Map/app-data writes retain their specialized protections and configured destinations;
 generic deletion remains denied. Older publishing/lifetime descriptions below are
-superseded by [current OUTBOX behavior and limits](OUTBOX.md). This is source work,
-not a release or deployment. See [implementation evidence](NAP-OUTBOX-PLAN.md).
+superseded by [current OUTBOX behavior and limits](OUTBOX.md). Shipped in soyLI
+0.29.0 after compatible shell deployment; see [release evidence](CLI-RELEASES.md)
+and [implementation evidence](NAP-OUTBOX-PLAN.md).
 
 2026-10-13 source update: web and preview now implement NAP-INTENT handler
 discovery/chooser/defaults and retained cold-target delivery, using shim 0.31.0
 and core/nap 0.33.0. OUTBOX/RELAY additionally admit viewer-consented native
 kind-35858 map metadata and verified current-owner kind-5 deletion. Metadata
-admission does not validate linked map bytes. This update is locally verified,
-not released or publicly deployed. See [map writes and intent limits](MAP-INTENTS.md).
+admission does not validate linked map bytes. These capabilities ship in soyLI
+0.29.0 and the public shell. See [map writes and intent limits](MAP-INTENTS.md).
 
 2026-09-23 source update: `relay.publish` and `outbox.publish` now accept the
 bounded public kind-30078 application-data convention with viewer consent. Other

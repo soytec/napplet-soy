@@ -1,6 +1,6 @@
 # NAP concepts and expansion review
 
-## OUTBOX integration — 2026-10-13 source
+## OUTBOX integration — released 0.29.0
 
 The subsequent implementation completes the foundation below with a shared verified
 store, actual Applesauce network loaders, reactive live routing, per-event consent,
@@ -11,7 +11,9 @@ exact signing and strict per-relay publication outcomes. PR 32 remains pinned at
 relay 6.2.1 and signers 6.2.2. The NIP-5D authority is unchanged. Generic writes
 never bypass map/app-data namespace, ownership, revision or deletion checks.
 [Policy/limits](OUTBOX.md) and [verification evidence](NAP-OUTBOX-PLAN.md) distinguish
-this source implementation from independent-client conformance and public deployment.
+implementation tests from independent-client conformance. The compatible shell
+was deployed and verified before soyLI 0.29.0 publication; see
+[release evidence](CLI-RELEASES.md) and [deployment record](DEPLOYMENT.md).
 
 ## OUTBOX relay planning foundation — 2026-10-13 source
 

@@ -1,5 +1,9 @@
 # Black Site host integration handover
 
+**Rollout update:** PR #20 is merged; soyLI 0.29.0 and the compatible shell are
+released. See [release evidence](CLI-RELEASES.md) and [deployment record](DEPLOYMENT.md).
+The dated implementation notes below retain their original review-time context.
+
 For the agent maintaining napplet-soy. The Black Site editor required two host capabilities missing from the starting checkout: publishing the game's native map records through NAP-OUTBOX, and opening a map editor through NAP-INTENT. This branch implements both. They are proposed host features that need this project's architectural and policy review before merging or releasing.
 
 The editor could call the official SDK, but could not implement either missing host capability inside its sandbox. The map-specific publication policy is one implementation choice, not a requirement of NAP-OUTBOX. The receiving project may replace that policy with its preferred general publication architecture.

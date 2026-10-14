@@ -1,6 +1,6 @@
 # Napplet interoperability and publishing contract
 
-## OUTBOX integration — 2026-10-13 source
+## OUTBOX integration — released 0.29.0
 
 The shared host implements [NAP-OUTBOX at 8865f73d](https://github.com/napplet/naps/blob/8865f73d52a4864afee145f28d26520476273927/naps/NAP-OUTBOX.md)
 with account-scoped Applesauce stores/loaders, reactive NIP-65 routing and
@@ -12,9 +12,11 @@ handler. The selected NIP-5D authority remains `4d0fb2e`; shim 0.31.0 and core/n
 0.33.0 remain pinned. Applesauce loaders 6.2.0 is now explicit. No new domain,
 wire field, source/provenance requirement or iframe signing key is introduced.
 See [current policy and bounds](OUTBOX.md) and [verification](NAP-OUTBOX-PLAN.md).
-Source implementation is distinct from release/deployment; neither is performed here.
+Released in soyLI **0.29.0**, after deployment and live verification of the
+compatible shell. See [release evidence](CLI-RELEASES.md) and
+[deployment record](DEPLOYMENT.md). Independent-client conformance remains separate.
 
-## Native map and INTENT source integration — 2026-10-13
+## Native map and INTENT integration — released 0.29.0
 
 Source now uses published shim 0.31.0 and core/nap 0.33.0 for the canonical
 NAP-INTENT contract at `e5308ac`. The shared web/preview host implements exact
@@ -32,9 +34,11 @@ No publisher provenance gate or arbitrary signing surface is added.
 
 Actual source-host map create/update/reload/remix/play/delete and the game's
 EDIT-to-cold-editor INTENT path passed local browser integration. Native session
-tests passed 10/101 assertions; related runtime tests passed 83. Implemented and
-locally verified is distinct from release or public deployment; neither occurred
-for this update. See [policy, contract and limits](MAP-INTENTS.md).
+tests passed 10/101 assertions; related runtime tests passed 83. PR #21 added
+regressions for handler replacement, refreshed catalog contracts and structured
+payloads before the 0.29.0 rollout. The public Black Site version used for live
+verification did not expose its editor handoff, so that flow retains local browser
+evidence. See [policy, contract and limits](MAP-INTENTS.md).
 
 ## Direct manifest presentation — released 0.28.0
 

@@ -1,5 +1,9 @@
 # NAP-OUTBOX implementation plan
 
+**Rollout update:** PR #20 is merged; soyLI 0.29.0 and the compatible shell are
+released. See [release evidence](CLI-RELEASES.md) and [deployment record](DEPLOYMENT.md).
+The dated implementation notes below retain their original review-time context.
+
 Initial draft: 2026-10-13. The implementation checkpoints below record subsequent
 source work; no release or deployment is claimed. This standalone feature plan
 does not replace historical PLAN.md. No local AGENDA.md or .planning phase setup

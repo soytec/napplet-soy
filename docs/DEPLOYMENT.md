@@ -3,9 +3,53 @@
 Deployment is operator-run. Routine changes are verified and committed locally;
 do not deploy or upload releases unless the user explicitly requests deployment.
 
-Updated 2026-10-14. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
+Updated 2026-10-15. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-Latest verified website release: **`20261014103151932-82151`**, source
+Latest verified website release: **`20261014193031446-12904`**, source
+`6d0d6cc2794b31a221ff7f009a82ec0946087e9a`, installer pinned to **soyLI 0.29.0**.
+[Release CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38622887368)
+and [Nix package/VM CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38619572566)
+passed for the exact tag. All four native packages and 11 public assets are verified;
+fresh installation, doctor/update and a real 0.28.0 upgrade pass with account/project
+markers preserved.
+
+Merged PR #20 includes the three PR #21 INTENT fixes, account-scoped Applesauce
+OUTBOX routing and consented publication, and native map metadata writes. The
+separate relay-discovery policy proposal remains open. NIP-5D authority, direct
+manifest presentation and legacy readers remain unchanged. Compatible readers
+were deployed first in `20261014185651621-64082`, with installer 0.28.0, before
+CLI publication. The final installer deployment completed on **2026-10-15
+(Europe/Vienna)** after an interrupted upload was resumed and its checksum verified;
+no partial archive was activated.
+
+Both deployments passed TypeScript and 731 source tests locally and on the VPS,
+Go race/relay checks, 18 Blossom tests, nine GRASP tests, the production build and
+three Linux backend isolation/authorization/backup checks. Four local browser
+integration suites pass 107 assertions through the actual shim and host. Live
+Black Site desktop startup and Sickman Survival gameplay at 390px pass; author
+profiles and existing likes/comments/zap totals remain visible. The final gallery
+also passes desktop/mobile smoke checks with no horizontal overflow or console
+errors. Black Site itself asks for a wider window on mobile and its public version
+did not expose the editor handoff; local browser regressions cover that flow.
+
+The public installer is byte-identical to the released asset. Deployed source
+fingerprints match; all five PM2 services are online with zero restarts and
+Caddy/CVM/TURN are active. The index reports the final release with a fresh scan.
+Root/docs, Blossom, relay and Git endpoints pass public checks, as does the other
+hosted site, schlaustronics.com. Shared proxy hashes are unchanged; the backup timer
+is active and both `20261014185651621-64082` and `20261014103151932-82151` remain
+available for rollback. Persistent state, port 3040, shared-Caddy and legacy-CPU
+settings are retained.
+
+External `nostr.oxtr.dev` query failures predate the rollout and remain visible.
+Earlier live checks also observed an optional external media 404 handled by fallback
+and a relay connection warning. No public test events, invoices or payments were
+created. Independent-client conformance, physical phones, reboot recovery and
+long-term uptime were not verified in this release window.
+
+### Previous verified rollout — 2026-10-14
+
+Website release: **`20261014103151932-82151`**, source
 `be8f05a96ab09f7a0b2314d70b35eb443b6f549b`, installer pinned to **soyLI 0.28.0**.
 [Release CI 38548936478](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38548936478)
 and [Nix CI 38546524537](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38546524537)

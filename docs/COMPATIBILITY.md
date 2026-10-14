@@ -1,6 +1,6 @@
 # Compatibility evidence and remaining audit
 
-## OUTBOX integration — 2026-10-13 source
+## OUTBOX integration — released 0.29.0
 
 The shared web/preview host now implements verified Applesauce stores and network
 loaders, reactive NIP-65 streams and consented general publication with strict
@@ -12,7 +12,9 @@ are superseded by [current policy](OUTBOX.md) and [test evidence](NAP-OUTBOX-PLA
 The sibling conformance runner's OUTBOX reference responses validate envelopes and
 empty fixtures, not routing/fanout correctness; passing them alone is insufficient.
 Our actual-shim/multi-relay tests exercise those behaviors. Independent-client
-acceptance, release and deployment are not claimed.
+acceptance remains unverified. soyLI 0.29.0 and the compatible shell are released;
+see [release evidence](CLI-RELEASES.md) and [deployment record](DEPLOYMENT.md).
+
 ## Forkless Git collaboration source qualification
 
 2026-10-12 source hosts proposal commits through upstream GRASP-01 refs without

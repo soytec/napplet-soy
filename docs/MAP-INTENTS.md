@@ -6,11 +6,13 @@ protections remain mandatory. OUTBOX own-outbox, recipient-inbox and explicit ro
 options are honored only when the complete resolved target set is configured in
 host Network settings; otherwise publication fails before signing. Required relay
 rejection retains the signed event, per-relay outcomes and feature-specific safe
-failure cause. See [current OUTBOX behavior](OUTBOX.md). No release or deployment
-is claimed for this source update.
+failure cause. See [current OUTBOX behavior](OUTBOX.md).
 
-Implemented and locally verified in the 2026-10-13 source tree. These changes
-have not been released as a soyLI binary or deployed to the public website.
+Released in **soyLI 0.29.0**, with compatible shell deployment verified before
+CLI publication. See [release evidence](CLI-RELEASES.md) and
+[deployment record](DEPLOYMENT.md). The editor handoff is covered by local real
+browser tests; the public Black Site version checked during rollout did not expose
+that action.
 The shared web/preview runtime uses `@napplet/shim` 0.31.0 with core/nap 0.33.0
 bindings and the canonical NAP-INTENT contract at [`e5308ac`](https://github.com/napplet/naps/blob/e5308ac/naps/NAP-INTENT.md). Existing NIP-5D
 manifest authority and identifiers remain unchanged.
