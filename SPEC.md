@@ -706,7 +706,10 @@ A future CEP for backend schemas remains a separate decision.
 
 Implemented now: direct/legacy readers, fresh direct publishing, preserved frozen
 retries and stable publication identity. Reader deployment must precede the CLI
-release. No deployment is included in this PR. Remaining rollout acceptance:
+release. The 2026-10-14 rollout followed that order: compatible readers were
+deployed and verified before soyLI 0.28.0 was published. See
+[release evidence](docs/CLI-RELEASES.md). The broader compatibility and migration
+questions remain open:
 
 - Can both standalone and legacy manifests still be listed and played without
   optional source/media being reachable?
@@ -725,7 +728,7 @@ release. No deployment is included in this PR. Remaining rollout acceptance:
 
 | ID | Status | Rationale or remaining evidence |
 | --- | --- | --- |
-| D1 | Decided 2026-10-13: author-controlled metadata on the manifest; no companion event | One owner and identity, direct discovery, existing replacement semantics and fewer dependencies. Initial downstream contract implemented in §4.3; broader policy and rollout remain open below. Not deployed by this PR. |
+| D1 | Decided 2026-10-13: author-controlled metadata on the manifest; no companion event | One owner and identity, direct discovery, existing replacement semantics and fewer dependencies. Initial downstream contract implemented in §4.3 and released in soyLI 0.28.0 after reader deployment; broader policy and compatibility remain open below. |
 | D2 | Open | Current-versus-historical presentation policy, retention and media selection rules. |
 | D3 | Open | Canonical source field and exact-revision/attestation contract. |
 | D5 | Open | Extension inventory reviewed with relevant upstream maintainers. |
@@ -737,8 +740,9 @@ impact and tests. Updating this table is not itself deployment evidence.
 ## 9. Verification and implementation map
 
 The implementation includes signed direct and legacy fixtures plus publisher,
-cache, browser and lifecycle regressions. Independent-client rendering and
-production rollout remain separate acceptance work. Verification must cover: new
+cache, browser and lifecycle regressions. The 2026-10-14 production rollout is
+recorded in [release evidence](docs/CLI-RELEASES.md); independent-client rendering
+remains separate acceptance work. Verification must cover: new
 and legacy playback without companions; metadata lookup failure; changed/replaced legacy companions; metadata-only manifest updates that
 preserve artifact/source bindings and cannot restore a stale executable;
 source/preview hash and author mismatches; standard proposals with no preview;

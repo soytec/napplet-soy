@@ -7,7 +7,9 @@ descriptor. Existing descriptor readers and frozen publication jobs remain compa
 This is a Soy extension pending upstream agreement, not an amendment to the selected
 NIP-5D pin. Missing or invalid media never prevents listing or playback. See
 [presentation tags and limits](PREVIEWS.md#direct-manifest-presentation--2026-10-06-source).
-CLI release and website deployment are separate from this source update.
+Released as soyLI **0.28.0** on 2026-10-14, after the compatible website readers
+were deployed and verified. See [rollout evidence](CLI-RELEASES.md). Upstream
+agreement and independent-client rendering of this extension remain unverified.
 
 2026-10-05 manifest rollout: soyLI 0.24.0 publications follow [dskvr/nips PR 7](https://github.com/dskvr/nips/pull/7) at `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d51`. The deployed reader retains the previous format. See [migration semantics and rollout](NIP5D-MIGRATION.md) and [release evidence](CLI-RELEASES.md).
 

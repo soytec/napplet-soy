@@ -2,7 +2,8 @@
 
 ## Direct manifest presentation — 2026-10-06 source
 
-Reconciled with main on 2026-10-13; this branch is not yet released or deployed.
+Reconciled with main on 2026-10-13; released as soyLI **0.28.0** on 2026-10-14,
+after compatible napplet.soy readers were deployed and verified.
 [SPEC D1](../SPEC.md#d1--metadata-belongs-on-the-napplet-manifest) records the
 no-companion decision. The profile below is an implemented Soy convention, not
 a settlement of the remaining upstream/media/source/rollout questions.
@@ -58,10 +59,11 @@ rewrite historical events or automatically republish anything. Deploy compatible
 readers before releasing the updated publisher. Independent-client rendering and
 upstream agreement remain pending; source verification is separate from deployment.
 
-Verification for the reconciled branch is recorded with PR #14. The earlier
-2026-10-06 checks are historical evidence, not a substitute for testing current
-main. Upstream agreement, independent-client rendering and deployment remain
-separate acceptance steps.
+The merged PR #14 passed signed publisher/lifecycle regressions, real local
+relay/Blossom/GRASP publication and desktop/mobile legacy/direct-media checks.
+Live legacy playback, cached cover and byte-range clip routes passed before the
+CLI release. See [release and deployment evidence](CLI-RELEASES.md). Upstream
+agreement and independent-client rendering remain separate acceptance steps.
 
 ## Standalone manifest icons — 2026-10-04 source
 

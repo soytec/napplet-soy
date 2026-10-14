@@ -1,9 +1,35 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The current published version is **0.27.0**.
+The current published version is **0.28.0**.
 
-**0.28.0 — direct-manifest presentation (release candidate):**
+**0.28.0 — direct-manifest presentation:**
+
+Published **2026-10-14 (Europe/Vienna)** from source
+`be8f05a96ab09f7a0b2314d70b35eb443b6f549b`.
+[GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.28.0),
+[native CI 38548936478](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38548936478)
+and [Nix CI 38546524537](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38546524537)
+passed for the exact source. All 11 public assets, checksums, installer bytes and
+manifest/source match. An isolated fresh installation reports current through
+doctor/update; a real 0.27.0 → 0.28.0 update preserves account/project markers.
+
+Compatible readers were deployed first in `20261014095809139-41654`, with the
+website installer still pinned to 0.27.0 until CLI publication. TypeScript and
+644 source tests pass locally, in CI and on the VPS, alongside Go race/relay,
+18 Blossom, nine GRASP and three Linux backend checks. Desktop/mobile browser
+fixtures cover legacy and direct presentation; real local services verify fresh
+publication. Live verification confirms legacy gallery covers, sandboxed gameplay
+at desktop/390px widths, retained social totals and cached cover/video range routes.
+Independent-client rendering of the optional extension remains unverified.
+
+The final website release `20261014103151932-82151` serves the byte-identical
+0.28.0 installer. Source fingerprints and shared proxy hashes match; all five PM2
+services are online with zero restarts and Caddy/CVM/TURN are active. The index
+reports the active release and a fresh scan; the other site returns HTTPS 200.
+Persistent state and the reader-first release remain available for rollback. External
+`nostr.oxtr.dev` query failures predate this rollout. No public test publications,
+invoices or payments were created. See [deployment record](DEPLOYMENT.md).
 
 Includes merged [PR #14](https://github.com/zeSchlausKwab/napplet-soy/pull/14).
 Fresh publications put screenshot and optional clip hashes/MIME types on the

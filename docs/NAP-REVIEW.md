@@ -31,6 +31,8 @@ provide bytes. All authors use the same reader and verification, with no provena
 gate. Missing or malformed optional fields leave playback intact. Legacy descriptors
 and frozen publications retain compatibility. No NIP/NAP pin or shim change is
 claimed; upstream agreement and independent-client rendering remain unverified.
+Released as soyLI 0.28.0 on 2026-10-14 after compatible reader deployment and live
+legacy playback/media verification. See [release evidence](CLI-RELEASES.md).
 
 ## NIP-22 comment audit — 2026-10-05
 
