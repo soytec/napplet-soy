@@ -1,5 +1,14 @@
 # Compatibility evidence and remaining audit
 
+## NAP-INTENT IN-01 — local source, 2026-10-13
+
+Shim 0.31.0 and nap/core 0.33.0 were audited against PR 106 at
+`fc121fc264615482143eda86125863d2e1f741a2` and its web projection. Production-bundle
+tests cover URI/hint normalization, open, discovery and subscription behavior.
+Catalog parameter preservation and bounded host hint validation are implemented.
+See the [clause inventory and remaining evidence](NAP-INTENT-CONFORMANCE.md).
+This does not certify full-host conformance or change the selected NIP-5D authority.
+
 ## NIP-5D PR 7 migration — 2026-10-04
 
 soyLI 0.24.0 publications target `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d51`; old `24711d9` manifests remain readable/playable by the deployed dual reader. See [the migration matrix and rollout](NIP5D-MIGRATION.md) and [release evidence](CLI-RELEASES.md). The manifest publisher/parser changes while NAP runtime and upstream package pins stay unchanged. Existing upstream Paja acceptance is evidence for the legacy format only, not a claim that that client supports PR 7.

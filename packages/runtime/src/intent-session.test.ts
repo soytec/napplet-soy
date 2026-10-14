@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { finalizeEvent, generateSecretKey } from 'nostr-tools';
 import { IntentWorkspace, intentCatalogId, intentContracts } from './intent-session';
 const contract = 'napplet:black-site-map/edit';
 const entry = (id: string) => ({
@@ -355,4 +356,157 @@ test('a target send failure reports terminal delivery failure rather than losing
     .ready();
   expect(failed).toBe(1);
   expect(workspace.dropPending('editor')).toBe(0);
+});
+
+test('manifest contracts retain each i tag and opaque parameters while candidate identities deduplicate', () => {
+  const tags = [
+    ['i', 'napplet:profile/open', 'x', 'x', '', 'kind:1', 'a/b', 'two words'],
+    ['i', 'napplet:profile/open', 'pubkey'],
+    ['i', 'napplet:other/edit', 'id'],
+    ['z', 'other'],
+    ['z', 'profile'],
+    ['i', 'napplet:missing/open'],
+    ['i', 'napplet:profile/open?x=1'],
+    ['i', 'napplet:profile/open#hint'],
+    ['archetype', 'legacy', 'open'],
+  ];
+  const contracts = intentContracts(tags);
+  expect(contracts).toEqual([
+    { convention: 'napplet:profile/open', params: ['x', 'x', '', 'kind:1', 'a/b', 'two words'] },
+    { convention: 'napplet:profile/open', params: ['pubkey'] },
+    { convention: 'napplet:other/edit', params: ['id'] },
+  ]);
+  const workspace = new IntentWorkspace({ choose: async () => null, launch: async () => {} });
+  workspace.register({ id: 'opaque', contracts });
+  expect(workspace.available('profile').candidates[0]).toMatchObject({
+    actions: ['open'],
+    conventions: ['napplet:profile/open'],
+    contracts: contracts.slice(0, 2),
+  });
+  expect(workspace.available('legacy').available).toBe(false);
+  for (const id of ['default', 'choose', ''])
+    expect(() => workspace.register({ id, contracts })).toThrow('invalid catalog identifier');
+});
+
+test('handler hints are bounded and preserved for selection without leaking into delivery', async () => {
+  let selectedRequest: unknown;
+  let choices = 0;
+  const workspace = new IntentWorkspace({
+    choose: async (_availability, request) => {
+      choices++;
+      selectedRequest = request;
+      return 'editor';
+    },
+    launch: async () => {},
+  });
+  workspace.register({ id: 'source', contracts: [] });
+  workspace.register(entry('editor'));
+  const source = workspace.attach('source', () => {});
+  const hint = {
+    address: `35129:${'a'.repeat(64)}:Case:Sensitive/opaque`,
+    relays: ['wss://relay.example'],
+    sender: 'forged',
+  };
+  const message = (handlerHint: unknown) => ({
+    ...invoke('choose'),
+    request: { ...invoke('choose').request, handlerHint },
+  });
+  expect((await source.handle(message(hint))).result).toMatchObject({
+    ok: true,
+    handler: 'editor',
+  });
+  expect(selectedRequest).toMatchObject({
+    handlerHint: { address: hint.address, relays: hint.relays },
+  });
+  expect((selectedRequest as { handlerHint: object }).handlerHint).not.toHaveProperty('sender');
+  const sent: Record<string, unknown>[] = [];
+  workspace.attach('editor', (value) => sent.push(value)).ready();
+  expect(sent.at(-1)?.delivery).not.toHaveProperty('handlerHint');
+  for (const invalid of [
+    null,
+    [],
+    {},
+    { address: `15129:${'a'.repeat(64)}:root` },
+    { address: `35129:${'A'.repeat(64)}:d` },
+    { address: `35129:${'a'.repeat(64)}:` },
+    { address: hint.address, relays: 'wss://relay.example' },
+    { address: hint.address, relays: [3] },
+    { address: hint.address, relays: Array(9).fill('wss://relay.example') },
+    { address: hint.address, relays: ['x'.repeat(2049)] },
+    { address: `35129:${'a'.repeat(64)}:${'d'.repeat(1024)}` },
+  ])
+    expect((await source.handle(message(invalid))).result).toEqual({
+      ok: false,
+      error: 'invalid handler hint',
+    });
+  expect(choices).toBe(1);
+  expect(workspace.available('black-site-map').hasDefault).toBe(false);
+});
+
+test('root and named catalog identities preserve kind, publisher and case-sensitive opaque d', () => {
+  const base = {
+    kind: 35129,
+    pubkey: 'a'.repeat(64),
+    id: 'c'.repeat(64),
+    tags: [['d', 'Case:Sensitive']],
+  };
+  expect(intentCatalogId(base)).not.toBe(
+    intentCatalogId({ ...base, tags: [['d', 'case:sensitive']] }),
+  );
+  const root = { ...base, kind: 15129, tags: [] };
+  expect(intentCatalogId(root)).toBe(intentCatalogId({ ...root, id: 'd'.repeat(64) }));
+  expect(intentCatalogId(root)).not.toBe(intentCatalogId({ ...root, pubkey: 'b'.repeat(64) }));
+  expect(intentCatalogId(root)).not.toBe(intentCatalogId({ ...base, tags: [['d', '']] }));
+});
+
+test('verified named, root and standalone snapshot manifests install without source advertisements', async () => {
+  const workspace = new IntentWorkspace({ choose: async () => null, launch: async () => {} });
+  const key = generateSecretKey();
+  for (const kind of [35129, 15129, 5129]) {
+    const event = finalizeEvent(
+      {
+        kind,
+        created_at: 1,
+        content: 'Signed source without handler advertisements.',
+        tags: [['x', 'd'.repeat(64)], ...(kind === 35129 ? [['d', 'Case:Sensitive']] : [])],
+      },
+      key,
+    );
+    const installed = await workspace.install(event);
+    expect(installed.id).toBe(intentCatalogId(event));
+    expect(installed.contracts).toEqual([]);
+    const endpoint = workspace.attach(installed.id, () => {});
+    endpoint.ready();
+    expect(await endpoint.handle({ type: 'intent.handlers' })).toEqual({ handlers: [] });
+    endpoint.close();
+  }
+});
+
+test('invalid normalized fields fail before discovery or selection', async () => {
+  let discoveries = 0;
+  const workspace = new IntentWorkspace({
+    discover: async () => {
+      discoveries++;
+    },
+    choose: async () => null,
+    launch: async () => {},
+  });
+  workspace.register({ id: 'source', contracts: [] });
+  const endpoint = workspace.attach('source', () => {});
+  for (const request of [
+    null,
+    [],
+    {},
+    { ...invoke().request, archetype: 'other' },
+    { ...invoke().request, action: 'open' },
+    { ...invoke().request, convention: contract + '#naddr' },
+    { ...invoke().request, convention: contract + '?id=x' },
+    { ...invoke().request, handler: 3 },
+    { ...invoke().request, behavior: { focus: 'yes' } },
+    { ...invoke().request, behavior: [] },
+  ])
+    expect((await endpoint.handle({ type: 'intent.invoke', request })).result).toMatchObject({
+      ok: false,
+    });
+  expect(discoveries).toBe(0);
 });

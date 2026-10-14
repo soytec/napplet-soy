@@ -17,15 +17,19 @@ export type IntentAvailability = {
   candidates: IntentCandidate[];
   hasDefault: boolean;
 };
+export type IntentHandlerHint = { address: string; relays?: string[] };
 export type IntentRequest = {
   archetype: string;
   action: string;
   convention: string;
   payload?: unknown;
   handler?: string;
+  handlerHint?: IntentHandlerHint;
   behavior?: { focus?: boolean; reuse?: boolean };
 };
-export type IntentDelivery = Omit<IntentRequest, 'handler' | 'behavior'> & { sender: string };
+export type IntentDelivery = Omit<IntentRequest, 'handler' | 'handlerHint' | 'behavior'> & {
+  sender: string;
+};
 export type IntentResult = {
   ok: boolean;
   archetype?: string;
@@ -54,27 +58,18 @@ export function intentCatalogId(event: Pick<SignedEvent, 'kind' | 'pubkey' | 'id
 }
 export function intentContracts(tags: string[][]) {
   const roles = new Set(tags.filter((t) => t[0] === 'z' && t.length === 2).map((t) => t[1]));
-  const contracts = new Map<string, IntentContract>();
+  const contracts: IntentContract[] = [];
   for (const tag of tags) {
     const match = tag[0] === 'i' && convention.exec(tag[1] ?? '');
-    if (
-      !match ||
-      !roles.has(match[1]) ||
-      tag.slice(2).some((p) => !p || /[\s?&#=\/\u0000-\u001f\u007f]/.test(p))
-    )
-      continue;
+    if (!match || !roles.has(match[1])) continue;
     try {
       decodeURIComponent(tag[1]);
     } catch {
       continue;
     }
-    const existing = contracts.get(tag[1]);
-    contracts.set(tag[1], {
-      convention: tag[1],
-      params: [...new Set([...(existing?.params ?? []), ...tag.slice(2)])],
-    });
+    contracts.push({ convention: tag[1], params: tag.slice(2) });
   }
-  return [...contracts.values()];
+  return contracts;
 }
 const MAX_INTENT_PAYLOAD_BYTES = 1024 * 1024;
 const MAX_PENDING_INTENT_BYTES = 8 * 1024 * 1024;
@@ -130,6 +125,26 @@ function payloadBytes(value: unknown) {
   }
   return bytes;
 }
+/** Hints remain untrusted discovery inputs; URL/network policy applies when resolving them. */
+function handlerHint(input: unknown): IntentHandlerHint {
+  if (!input || typeof input !== 'object' || Array.isArray(input))
+    throw new Error('invalid handler hint');
+  const value = input as Record<string, unknown>;
+  if (
+    typeof value.address !== 'string' ||
+    value.address.length > 1024 ||
+    !/^35129:[0-9a-f]{64}:[\s\S]+$/.test(value.address) ||
+    (value.relays !== undefined &&
+      (!Array.isArray(value.relays) ||
+        value.relays.length > 8 ||
+        value.relays.some((relay) => typeof relay !== 'string' || relay.length > 2048)))
+  )
+    throw new Error('invalid handler hint');
+  return {
+    address: value.address,
+    ...(value.relays !== undefined ? { relays: [...(value.relays as string[])] } : {}),
+  };
+}
 function request(input: unknown): IntentRequest {
   if (!input || typeof input !== 'object' || Array.isArray(input))
     throw new Error('invalid convention');
@@ -164,6 +179,7 @@ function request(input: unknown): IntentRequest {
       ))
   )
     throw new Error('invalid behavior');
+  const hint = value.handlerHint !== undefined ? handlerHint(value.handlerHint) : undefined;
   payloadBytes(value.payload);
   // Copy only official fields. A caller-provided sender is never propagated.
   try {
@@ -173,6 +189,7 @@ function request(input: unknown): IntentRequest {
       convention: value.convention,
       ...(Object.hasOwn(value, 'payload') ? { payload: value.payload } : {}),
       ...(value.handler !== undefined ? { handler: value.handler } : {}),
+      ...(hint ? { handlerHint: hint } : {}),
       ...(value.behavior ? { behavior: value.behavior } : {}),
     });
   } catch {
@@ -229,6 +246,8 @@ export class IntentWorkspace {
   }
   /** Trusted local preview only; public catalogs must use install(). */
   register(entry: IntentEntry) {
+    if (!entry.id || entry.id === 'default' || entry.id === 'choose')
+      throw new Error('invalid catalog identifier');
     this.catalog.set(entry.id, structuredClone(entry));
     this.changed();
   }
@@ -290,7 +309,7 @@ export class IntentWorkspace {
         title: entry.title,
         contracts: structuredClone(contracts),
         actions: [...new Set(contracts.map((c) => convention.exec(c.convention)![2]))],
-        conventions: contracts.map((c) => c.convention),
+        conventions: [...new Set(contracts.map((c) => c.convention))],
         isDefault: this.defaults.get(archetype) === entry.id,
       });
     }

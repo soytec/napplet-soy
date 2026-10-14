@@ -87,3 +87,9 @@ See INTENTS.md for implemented behavior and current limits. Passing the existing
 - `bun run cli:build`: stopped at the existing pinned-Bun guard; installed Bun is 1.4.3, release builds require 1.3.11. No distributed CLI build is claimed.
 - Full `check:nix` was not rerun for this extraction. The dependency hash is copied from the original feature branch, not independently certified here. The required realization/forced rebuild/flake/VM gate remains mandatory before pushing relevant changes.
 - No new joined game/editor or public-web browser run was performed. The mixed map integration test remains on the original branch and its historical results are not counted as verification of this extraction.
+
+## Finding resolution — IN-01, 2026-10-13
+
+I-03 is resolved in the runtime dispatch catalog: each eligible `i` tag is retained with its complete ordered parameter list; candidate actions/conventions alone deduplicate. New tests exercise repeated tags, duplicate and opaque parameter names, empty names, unrelated roles and reserved catalog selection IDs. The broker now validates and retains bounded `handlerHint` fields while excluding them from target delivery; recommendation selection remains IN-03 work.
+
+The installed shim audit and expanded API tests are recorded in [the clause inventory](NAP-INTENT-CONFORMANCE.md). Typecheck passed; runtime/protocol suites passed 118 tests/864 assertions; preview bundling passed. I-01, I-02 and I-04 remain open. Full browser conformance, Nix/package validation, release and deployment remain separate outstanding gates.

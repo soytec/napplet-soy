@@ -113,7 +113,7 @@ Acceptance: all mandatory clause rows have passing evidence, I-01–I-04 are res
 
 ## Completion checklist
 
-- [ ] IN-01: audited contract/binding tuple and faithful catalog/normalized requests.
+- [x] IN-01: audited contract/binding tuple and faithful catalog/normalized requests.
 - [ ] IN-02: truthful namespace availability and INTENT independent of SHELL.
 - [ ] IN-03: coherent verified launch catalog, recommendations and legacy targets.
 - [ ] IN-04: cancellation, independent accepted responsibility and complete shutdown.
@@ -121,3 +121,9 @@ Acceptance: all mandatory clause rows have passing evidence, I-01–I-04 are res
 - [ ] IN-06: packaging gates, guidance and evidence audit.
 
 A working handoff or green broker unit suite alone does not complete this plan. Any unresolved mandatory requirement, silent delivery loss, stale catalog/launch mismatch or failed required packaging gate prevents a full-support claim. Optional independent-host availability and cross-restart durability remain explicitly qualified rather than implied.
+
+## Execution evidence — IN-01, 2026-10-13
+
+Implemented and locally verified: each eligible manifest `i` contract preserves its parameter list; candidate actions/conventions deduplicate; reserved catalog identifiers reject; bounded handler hints are validated and retained for future selection without delivery leakage. Real signed named/root/snapshot sources install without advertisements. The installed production shim now has tests for all six API entrypoints and convention-fragment validation.
+
+`bun run typecheck` passed. Runtime/protocol suites passed 118 tests with 864 assertions; preview asset bundling passed. [The clause inventory](NAP-INTENT-CONFORMANCE.md) records compatibility qualifications and the verification destination for remaining requirements. IN-02–IN-06 remain outstanding; no full-support, released or deployed status is claimed. The unrelated OUTBOX draft was untouched. Nix/package validation remains required before any push of the shared-package changes.

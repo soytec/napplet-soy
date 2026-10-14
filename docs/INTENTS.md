@@ -16,6 +16,14 @@ The host provides a chooser and user-editable defaults per archetype. Explicit c
 
 Queues are session-only: 1 MiB per payload, 64 pending deliveries and 8 MiB total; startup defaults to 30 seconds. The installed binding buffers received deliveries until `onDelivery` registration. This is not durable messaging.
 
-Current limitations: INTENT requests/readiness depend on the host-owned SHELL bootstrap; the injected namespace is present even on surfaces without an endpoint; some advertised parameter lists are altered; web catalog/launch models need refresh reconciliation. The binding normalizes handler recommendations but the broker ignores them; recommendation policy has not been explicitly selected. Preview cold launch does not correctly resolve legacy aggregate artifact hashes. See the review before claiming PR-106 conformance.
+Current limitations: INTENT requests/readiness depend on the host-owned SHELL bootstrap; the injected namespace is present even on surfaces without an endpoint; web catalog/launch models need refresh reconciliation. The binding normalizes handler recommendations and the broker validates/preserves them, but selection does not yet use them. The plan selects recommendation support for IN-03. Preview cold launch does not correctly resolve legacy aggregate artifact hashes. See the review before claiming PR-106 conformance.
 
 The extraction adds no map publication policy or viewer signing permissions. Existing OUTBOX/RELAY app-data rules are unchanged.
+
+## IN-01 contract parsing and request validation
+
+The catalog now preserves each eligible `i` tag and all advertised parameter strings in order, including duplicates and opaque names. Candidate actions/conventions alone are deduplicated. `default` and `choose` cannot be registered as catalog IDs. Public named, root and snapshot source identities continue to work without handler advertisements.
+
+The host accepts only well-formed named handler-hint coordinates, preserves case-sensitive opaque identifiers and bounds hints to 1024 coordinate characters, eight relay strings and 2048 characters per relay string. It strips unrelated hint fields and never includes recommendations in target deliveries. These are untrusted discovery hints; acceptance does not approve a network destination. Recommendation selection is still pending.
+
+[The clause inventory](NAP-INTENT-CONFORMANCE.md) records the installed shim audit, API ownership and verification work remaining for full support. No release or deployment is claimed.
