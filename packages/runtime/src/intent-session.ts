@@ -79,7 +79,7 @@ export function intentContracts(tags: string[][]) {
 const MAX_INTENT_PAYLOAD_BYTES = 1024 * 1024;
 const MAX_PENDING_INTENT_BYTES = 8 * 1024 * 1024;
 /** Resource accounting only: payload contents never participate in handler selection. */
-function payloadBytes(value: unknown) {
+function payloadBytes(value: unknown, limit = MAX_INTENT_PAYLOAD_BYTES) {
   const seen = new Set<object>();
   const queue: { value: unknown; depth: number }[] = [{ value, depth: 0 }];
   let bytes = 0,
@@ -91,7 +91,7 @@ function payloadBytes(value: unknown) {
     if (typeof item === 'function' || typeof item === 'symbol')
       throw new Error('invalid intent payload');
     if (typeof item === 'string') {
-      if (item.length > MAX_INTENT_PAYLOAD_BYTES) throw new Error('intent payload too large');
+      if (item.length > limit) throw new Error('intent payload too large');
       bytes += text.encode(item).byteLength;
     } else if (typeof item === 'bigint') bytes += item.toString().length;
     else if (!item || typeof item !== 'object') bytes += 8;
@@ -115,9 +115,10 @@ function payloadBytes(value: unknown) {
         for (const [key, value] of item) {
           queue.push({ value: key, depth: depth + 1 }, { value, depth: depth + 1 });
         }
-      } else if (item instanceof Set)
+      } else if (item instanceof Set) {
+        if (item.size > 10000) throw new Error('intent payload too large');
         for (const value of item) queue.push({ value, depth: depth + 1 });
-      else {
+      } else {
         if (Array.isArray(item)) bytes += item.length * 8;
         for (const [key, value] of Object.entries(item)) {
           bytes += text.encode(key).byteLength;
@@ -125,10 +126,14 @@ function payloadBytes(value: unknown) {
         }
       }
     }
-    if (bytes > MAX_INTENT_PAYLOAD_BYTES || queue.length > 10000)
-      throw new Error('intent payload too large');
+    if (bytes > limit || queue.length > 10000) throw new Error('intent payload too large');
   }
   return bytes;
+}
+/** Bound the whole structured-clone envelope, including unknown fields.
+ * The request validator separately enforces the 1 MiB payload cap. */
+export function intentMessageBytes(message: Record<string, unknown>) {
+  return payloadBytes(message, MAX_INTENT_PAYLOAD_BYTES + 16 * 1024);
 }
 function request(input: unknown): IntentRequest {
   if (!input || typeof input !== 'object' || Array.isArray(input))
