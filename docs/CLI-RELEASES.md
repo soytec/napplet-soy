@@ -3,6 +3,29 @@
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
 The current published version is **0.27.0**.
 
+**0.28.0 — direct-manifest presentation (release candidate):**
+
+Includes merged [PR #14](https://github.com/zeSchlausKwab/napplet-soy/pull/14).
+Fresh publications put screenshot and optional clip hashes/MIME types on the
+signed current manifest and an explicitly requested snapshot. No new kind-32267
+companion or `app` reference is emitted. The documented `soy.presentation/1`
+profile is a Soy extension, not an upstream NIP-5D requirement.
+
+Old manifests and linked companions remain readable. Interrupted publication
+jobs retain their exact signatures and format; a subsequent fresh publication
+adopts direct presentation without changing the author or napplet address.
+Installing the update does not republish existing napplets.
+
+The matching shell verifies direct covers/clips and uses them for gallery,
+sharing, OG images and deletion inventories. Optional media never becomes a
+playback requirement. Deploy these readers before distributing the new CLI.
+
+Upgrade with `soyli update`, restart previews and run `soyli skills update` in
+existing projects. Modified guidance is preserved and reported as a conflict.
+The bundled guide explains optional snapshots and links to the public media
+contract. `SPEC.md` records the event contracts and collaboration over ordinary
+Git, NIP-34 and GRASP; unrelated protocol questions remain open.
+
 **0.27.0 — keyboard actions, upstream proposals and source compatibility:**
 
 Published and deployed **2026-10-13 (Europe/Vienna)** from source
