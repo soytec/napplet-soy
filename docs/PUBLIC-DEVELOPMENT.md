@@ -50,6 +50,12 @@ Named, naddr, and snapshot pages emit title, description, canonical URL, complet
 
 ## Linked preview metadata
 
-Catalog refresh resolves optional `app` references to NIP-89 application pictures or Zapstore screenshots/icons. The browser uses the signed original image URLs; optional server-normalized images support OG rendering. Missing metadata or failed images keep the generated poster and do not affect playback. Browsing contacts the chosen media providers directly and never executes napplet code for thumbnails. See [direct protocol access](PROTOCOL-ACCESS.md).
+Catalog refresh reads optional `soy.presentation/1` screenshots/clips directly
+from signed manifests, with legacy `app` references to NIP-89 pictures or Zapstore
+media and standard icons as fallbacks. Direct presentation uses verified cached
+media or browser-verified Blob URLs; legacy linked media can still use original
+URLs. Missing metadata or failed images keep the generated poster and do not
+affect playback. Thumbnail generation never executes napplet code. Direct browser
+fetches contact the chosen media providers. See [direct protocol access](PROTOCOL-ACCESS.md).
 
 Refresh older caches with `bun run dev publicdev --refresh` (or `bun run dev:prod publicdev --refresh`). The preview profile also invalidates older caches once automatically. Descriptor lookup requires Node, already used for PM2, and uses a short-lived bounded worker only when supported app links exist. Read [PREVIEWS.md](PREVIEWS.md) for the supported schemas, limits, and verification evidence.

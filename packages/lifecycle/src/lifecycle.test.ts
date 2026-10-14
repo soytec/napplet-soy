@@ -11,6 +11,7 @@ import {
   nappletKey,
 } from './index';
 import type { LifecycleIO } from './transport';
+import { MANIFEST_PRESENTATION_PROFILE } from '../../protocol/src/presentation';
 
 async function fixture(source = '<!doctype html><p>game</p>') {
   const signer = new PrivateKeySigner(),
@@ -313,6 +314,38 @@ test('deleting a napplet keeps the creator’s own source repository but lists t
   );
   expect(retained.world).toBeUndefined();
   expect(retained.SuperSonicRCRevive).toContain('Your own source repository is kept');
+});
+
+test('direct manifest media is inventoried for deletion and shared hashes are retained for other napplets', async () => {
+  const f = await fixture();
+  const image = 'c'.repeat(64),
+    video = 'd'.repeat(64);
+  const tags = [
+    ['x', f.hash],
+    ['server', 'https://blossom.example'],
+    ['presentation', MANIFEST_PRESENTATION_PROFILE],
+    ['screenshot', image, 'image/png'],
+    ['preview', video, 'video/webm'],
+  ];
+  const current = await f.sign({
+    kind: 35129,
+    content: 'Direct media game',
+    created_at: f.current.created_at,
+    tags: [['d', 'world'], ...tags],
+  });
+  const other = await f.sign({
+    ...current,
+    tags: [['d', 'other'], ...tags.filter((t) => t[0] !== 'preview')],
+  });
+  for (const relay of f.relays) f.events.set(relay, [current, other]);
+  const plan = await planLifecycle({ manifest: current, relays: f.relays, io: f.io });
+  expect(plan.metadata).toEqual([]);
+  expect(plan.blobs.find((b) => b.hash === image)).toMatchObject({
+    labels: ['Preview image'],
+    retained: expect.any(String),
+  });
+  expect(plan.blobs.find((b) => b.hash === video)).toMatchObject({ labels: ['Preview video'] });
+  expect(plan.blobs.find((b) => b.hash === video)?.retained).toBeUndefined();
 });
 
 test('standalone lifecycle scopes never delete same-author parents and inventory raw HTML/icon hashes', async () => {

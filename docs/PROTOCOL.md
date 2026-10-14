@@ -1,5 +1,14 @@
 # Napplet interoperability and publishing contract
 
+2026-10-06 source update: fresh soyLI publications attach optional screenshot/video
+hashes and MIME types directly to current manifests and explicitly requested snapshots under the documented
+downstream `soy.presentation/1` convention. They emit no new Zapstore kind-32267
+descriptor. Existing descriptor readers and frozen publication jobs remain compatible.
+This is a Soy extension pending upstream agreement, not an amendment to the selected
+NIP-5D pin. Missing or invalid media never prevents listing or playback. See
+[presentation tags and limits](PREVIEWS.md#direct-manifest-presentation--2026-10-06-source).
+CLI release and website deployment are separate from this source update.
+
 2026-10-05 manifest rollout: soyLI 0.24.0 publications follow [dskvr/nips PR 7](https://github.com/dskvr/nips/pull/7) at `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d51`. The deployed reader retains the previous format. See [migration semantics and rollout](NIP5D-MIGRATION.md) and [release evidence](CLI-RELEASES.md).
 
 2026-09-23 public application-data source update: the shared host grants a
@@ -134,11 +143,30 @@ The display/search projection trims a leading `#` and surrounding whitespace, no
 
 Use the selected manifest fields for identity, raw artifact `x`, `R`/`O` domains, Blossom `server` hints, title, plain-text `content`, and `source`. Optional `z` archetypes and queryless `i` intent identities plus parameter names support discovery, not runtime grants or automatic intent execution. The gallery supports these metadata filters; standard tag queries remain available when a relay lacks optional NIP-91 intersection support. A `source` reference can identify a NIP-34 repository through `nostr://` or a public HTTPS repository/archive. Our publisher defaults to retrievable open source. Source availability affects inspection/remixing, not whether this client can discover and play an otherwise supported napplet.
 
-A standard optional `icon` carries a PNG/JPEG/WebP hash and MIME type. Fetch it only from declared Blossom origins, verify hash and decoded format, and render verified bytes; failures fall back without affecting playback. See [icon limits](PREVIEWS.md). The selected PR defines no screenshot tag: existing linked descriptors continue to supply screenshots and preview clips as optional presentation extensions. Prefer these existing descriptor conventions over inventing new wire tags. [NIP-5A's upstream app descriptors](https://github.com/nostr-protocol/nips/blob/master/5A.md#upstream-app-descriptors) allow an optional `app` reference to an addressable descriptor event. Linked previews support NIP-89 application pictures and Zapstore kind-32267 screenshots/icons, with signed fixtures and a live descriptor lookup checked. Kind-32267 descriptors may also carry NIP-92 video attachments; the initial bounded silent-WebM profile is documented in PREVIEWS.md. Other descriptor formats require a separate adapter and interoperability evidence. There is no Space-specific screenshot field required for playback.
+A standard optional `icon` carries a PNG/JPEG/WebP hash and MIME type. Fetch it only
+from declared Blossom origins, verify hash and decoded format, and render verified
+bytes; failures fall back without affecting playback. The selected PR defines no
+screenshot/video tags. Fresh soyLI publications instead use the documented optional
+downstream `soy.presentation/1` profile: a profile marker, `screenshot` hash/MIME
+tags and an optional `preview` hash/MIME tag, on the current manifest and any requested snapshot. The same
+reader applies to every author; neither the marker nor media is needed to play.
+This convention is pending upstream agreement and independent-client acceptance.
+See [exact fields, precedence and limits](PREVIEWS.md).
+
+Existing [NIP-5A app references](https://github.com/nostr-protocol/nips/blob/master/5A.md#upstream-app-descriptors)
+remain readable as optional legacy extensions. They resolve NIP-89 application
+pictures and Zapstore kind-32267 screenshots/icons, including bounded NIP-92 video
+attachments. Fresh soyLI jobs emit no kind-32267 descriptor or `app` reference;
+already frozen jobs resume their original signed format. Other descriptor formats
+need a separate adapter and interoperability evidence.
 
 Category, cover, aspect ratio, license details, exact source commit, build provenance, and remix references may enrich the gallery. Keep site aliases and curation separate from signed protocol identity. Verify any signed descriptor and its association before trusting its claims. Missing, unknown, invalid, or unavailable optional descriptors fall back to the ordinary manifest and a generated poster; they do not hide a valid napplet or block playback. An optional descriptor may never override the signed artifact hash or required capabilities.
 
-Preview implementation today: the fixtures have bundled SVG illustrations; relay imports resolve supported linked descriptors into bounded cached raster images. Gallery/player covers and OG images use those images, with generated cards for missing or unusable metadata. The latest 93-entry relay cache has no app links, so those cards still use the fallback. A generic card does not prove the author supplied no screenshot through another format. Metadata crawling never executes napplet code. The same descriptor parser and image indexer are available to the future publisher; see [PREVIEWS.md](PREVIEWS.md).
+Preview implementation: direct manifest references and supported linked descriptors
+resolve into bounded, verified raster/video caches. Gallery/player covers, sharing,
+asset inventories and OG images use these associations, with generated cards for
+unusable media. Browser-only discoveries verify direct media before rendering Blob
+URLs. Metadata crawling never executes napplet code. See [PREVIEWS.md](PREVIEWS.md).
 
 Removing all optional Space metadata must leave the same napplet address, playable bytes, and NAP behavior. No client should need the Space website API or a `napplet-space` hashtag to discover our publications.
 

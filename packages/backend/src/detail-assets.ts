@@ -1,4 +1,5 @@
 import { linkedMedia } from '../../protocol/src/linked-media';
+import { manifestScreenshotSources } from '../../protocol/src/presentation';
 import type { SignedEvent } from '../../protocol/src';
 import { descriptorImages, validatedPreview, type CachedPreview } from '../../protocol/src/preview';
 import {
@@ -46,7 +47,8 @@ export function detailAssets(
       kind: 'image',
       title: 'Preview image',
       href: preview.url,
-      thumbnail: preview.url,
+      thumbnail:
+        preview.descriptor.id === manifest.id ? `/api/previews/${manifest.id}` : preview.url,
       // Cached PNG dimensions/size describe a derivative, not the original image.
       detail: imageUrl.host,
     });
@@ -90,6 +92,7 @@ export function detailAssets(
     }
   }
   const links = linkedMedia(manifest, metadata);
+  const directImages = new Set(manifestScreenshotSources(manifest).map((c) => c.url));
   for (const [kind, urls] of [
     ['image', links.images],
     ['video', links.videos.map((v) => v.url)],
@@ -111,7 +114,7 @@ export function detailAssets(
               : `Additional clip ${++videos}`,
         href,
         detail: url.host,
-        ...(kind === 'image' && primary ? { thumbnail: href } : {}),
+        ...(kind === 'image' && primary && !directImages.has(href) ? { thumbnail: href } : {}),
       });
     }
   const archives = manifest.tags.filter((tag) => tag[0] === 'source-archive');

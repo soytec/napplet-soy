@@ -1,16 +1,85 @@
-# Linked napplet previews
+# Napplet previews
+
+## Direct manifest presentation — 2026-10-06 source
+
+Reconciled with main on 2026-10-13; this branch is not yet released or deployed.
+[SPEC D1](../SPEC.md#d1--metadata-belongs-on-the-napplet-manifest) records the
+no-companion decision. The profile below is an implemented Soy convention, not
+a settlement of the remaining upstream/media/source/rollout questions.
+
+Fresh soyLI publications attach presentation files directly to the signed
+current manifest and an explicitly requested `--snapshot` copy. No new kind-32267
+Zapstore descriptor, `app` reference or descriptor `imeta` is generated. Capture and local `preview.image` /
+`preview.video` configuration remain unchanged.
+
+This is the optional downstream **`soy.presentation/1`** convention, pending upstream
+agreement. The selected [NIP-5D revision](PROTOCOL.md) defines icons but no screenshot
+or video tags. [napplet/web PR 111](https://github.com/napplet/web/pull/111), reviewed
+at `6dd79febfa9807d5d3f51cabd77b793f5893d4b7`, uses the older path/aggregate shape
+and does not define standalone presentation tags. This convention does not claim
+to implement a new upstream standard or change the authoritative pin.
+
+```json
+[
+  ["presentation", "soy.presentation/1"],
+  ["screenshot", "<file-sha256>", "image/png"],
+  ["preview", "<file-sha256>", "video/webm"],
+  ["server", "https://blossom.example"]
+]
+```
+
+Require exactly one profile marker, up to four screenshot claims and at most one
+preview claim. Each media tag has exactly three elements: type, lowercase SHA-256
+and MIME. Screenshots support PNG/JPEG/WebP; the clip uses the bounded silent VP8
+WebM profile below. The publisher currently captures one PNG and an optional clip.
+Readers try declared screenshots in order, then legacy descriptor covers, then the
+standard icon and generated art. Direct video takes precedence over legacy video.
+
+Fetch `/<hash>` only from declared origin-only Blossom `server` tags. Check SHA-256,
+declared MIME and actual image format or video container before rendering. Indexed
+images use the normalized verified PNG at `/api/previews/<manifest-event-id>`;
+indexed clips use `/api/previews/<manifest-event-id>/video` with byte-range support.
+Browser-only discoveries verify bytes before decoding a Blob URL. Additional files
+remain explicit links; unverified direct screenshots are not embedded as thumbnails.
+Public HTTPS/network policy, redirect refusal, moderation and existing byte/dimension
+budgets still apply. A cache is optional and grants no publishing authority.
+
+The profile applies to any signed named, root or snapshot manifest, regardless of
+publisher or CLI. Invalid, ambiguous, excessive or unavailable optional claims are
+ignored without changing executable identity, capabilities, description or playback.
+Sharing, the files list and deletion inventory read the same signed associations.
+Shared blobs remain protected by the ordinary lifecycle inventory checks.
+
+Old `app`/descriptor publications remain readable. Interrupted old jobs resume
+their original frozen bytes, descriptor and signatures, even after an upgrade.
+The next ordinary publish of a completed older job produces direct references,
+including when the playable HTML is unchanged. Installing an update does not
+rewrite historical events or automatically republish anything. Deploy compatible
+readers before releasing the updated publisher. Independent-client rendering and
+upstream agreement remain pending; source verification is separate from deployment.
+
+Verification for the reconciled branch is recorded with PR #14. The earlier
+2026-10-06 checks are historical evidence, not a substitute for testing current
+main. Upstream agreement, independent-client rendering and deployment remain
+separate acceptance steps.
 
 ## Standalone manifest icons — 2026-10-04 source
 
 A new-format manifest can advertise `icon` as `["icon", "<sha256>", "image/png"]` (also JPEG/WebP). Icons are optional and do not alter artifact identity. The host downloads only by hash from declared Blossom origins, checks SHA-256, verifies the actual supported file format and decodes it before rendering verified bytes. Browser rendering uses a Blob URL; the index serves its verified normalized PNG. A local 5 MiB / 16 megapixel budget bounds icons. Malformed, missing, unsupported or corrupt icons fall back without blocking playback. Existing screenshots take precedence as covers; a valid icon is a fallback before generated artwork.
 
-The pinned PR 7 has no screenshot-tag schema despite the announcement's mention. Existing linked app descriptors continue to carry screenshots/video as optional extensions, not core NIP-5D requirements. No screenshot/video descriptor is necessary to list or run a standard manifest.
+The pinned PR 7 has no screenshot-tag schema despite the announcement's mention.
+Direct presentation now uses the explicit downstream convention above; existing
+linked app descriptors remain optional legacy inputs. Neither is necessary to list
+or run a standard manifest.
 
 Release `20260915084016730-23084` (2026-09-15) includes the short-video presentation
 and serves soyLI 0.7.0 with recording support. All four CLI downloads were uploaded
 before installer activation. See the [release evidence](DEPLOYMENT.md#rich-comments-and-soyli-070-release--2026-09-15).
 
-The browser follows standard manifest `app` references through Applesauce and displays the published image/video URLs. Server indexing may also cache a normalized image for SSR/OG generation; that cache is optional for browser presentation. No catalog executes downloaded napplets to generate previews. See [direct protocol access](PROTOCOL-ACCESS.md) for the current transport, implemented locally on 2026-09-15 and awaiting deployment.
+The browser reads direct presentation claims from the verified manifest. Legacy
+`app` references are resolved through Applesauce. Server indexing may cache images
+and clips for presentation and SSR/OG; that cache is optional. No catalog executes
+downloaded napplets to generate previews. See [direct protocol access](PROTOCOL-ACCESS.md).
 
 ## Workshop capture — soyLI 0.13.0
 
@@ -34,7 +103,7 @@ a splash screen. Review the saved frame and clip for meaningful action, legibili
 cropping and errors. Agent recipes remain useful for reproducible captures.
 The manager does not record the existing Play tab or export GIFs.
 
-## Supported metadata
+## Legacy linked metadata
 
 The retained optional presentation extension uses [NIP-5A's app descriptor reference](https://github.com/nostr-protocol/nips/blob/master/5A.md#upstream-app-descriptors). New NIP-5D does not require this extension:
 
@@ -45,7 +114,7 @@ The retained optional presentation extension uses [NIP-5A's app descriptor refer
 - [NIP-89, kind 31990](https://github.com/nostr-protocol/nips/blob/master/89.md#handler-information): read `picture` from the descriptor's JSON content. When content is exactly empty, resolve the descriptor author's latest kind-0 profile and use its `picture`. Missing pictures, malformed JSON, and nonempty content without a picture do not trigger the profile fallback.
 - [Zapstore software application metadata, kind 32267](https://github.com/zapstore/zsp#nostr-events): try `image` screenshot tags in order, then `icon` tags. This is the existing Zapstore format, not a claim that NIP-82 is an adopted NIP. Both descriptor kinds can be referenced with `app`.
 
-Across linked descriptors, screenshots take priority over application pictures, then icons; declaration order breaks ties. Unknown descriptor kinds are ignored. No new manifest screenshot tag or Space descriptor is required. A napplet may reference a descriptor signed by a different author: the signed manifest must point to that exact kind/pubkey/identifier. Unrelated descriptors, forged signatures, ambiguous identifiers, and future-dated events are rejected. Select the newest signed event by Nostr ordering before interpreting its content; a newer descriptor that removes its image must not resurrect an old screenshot.
+Across linked descriptors, screenshots take priority over application pictures, then icons; declaration order breaks ties. Unknown descriptor kinds are ignored. A napplet may reference a descriptor signed by a different author: the signed manifest must point to that exact kind/pubkey/identifier. Unrelated descriptors, forged signatures, ambiguous identifiers, and future-dated events are rejected. Select the newest signed event by Nostr ordering before interpreting its content; a newer descriptor that removes its image must not resurrect an old screenshot. Direct manifest presentation takes cover precedence; neither scheme is required for playback.
 
 Preview metadata cannot override the manifest's title, identity, paths, artifact hash, or required capabilities. Missing or unusable previews leave the same napplet in the catalog with the generated poster. A descriptor is addressable, so even a pinned playable snapshot can receive updated presentation metadata on a later refresh; its executable bytes remain pinned.
 
@@ -59,7 +128,7 @@ Images must use public HTTPS on the default TLS port. DNS is checked in the actu
 
 PNG, JPEG, WebP, and GIF input is decoded using pinned Sharp 0.35.4. Take the first frame, apply orientation, strip metadata, and resize within 1200 × 750 while preserving aspect ratio. Cache only the resulting raster PNG. Input is limited to 5 MiB and 16 million pixels; normalized output is capped at 4 MiB. There are three concurrent image jobs and a 50 MiB download budget per refresh. Metadata/image enrichment has a shared 20-second deadline. Expensive or unavailable previews fall back without changing executable availability.
 
-Catalog refresh has the existing fifteen-minute TTL. Cached verified images at content-addressed URLs can be reused; ordinary mutable HTTPS URLs are fetched again on refresh. Cache profile `app-descriptors-1` triggers enrichment once for an older catalog. Current and previous refresh images are retained; older PNGs are pruned after the new catalog is committed. Signed descriptor bindings, cached byte hashes, and PNG dimensions are checked when reading images. Corrupt or missing files yield the generated card. OG ETags include the rendered bytes; share metadata includes the selected image hash.
+Catalog refresh has the existing fifteen-minute TTL. Cached verified images at content-addressed URLs can be reused; ordinary mutable HTTPS URLs are fetched again on refresh. Cache profile `manifest-presentation-and-legacy-descriptors-4` triggers enrichment for an older catalog. Current and previous refresh images are retained; older PNGs are pruned after the new catalog is committed. Signed manifest/descriptor bindings, cached byte hashes, and PNG dimensions are checked when reading images. Corrupt or missing files yield the generated card. OG ETags include the rendered bytes; share metadata includes the selected image hash.
 
 ### Website share cards — 2026-09-21 source update
 
@@ -116,7 +185,9 @@ bunx playwright test tests/browser/previews.spec.ts
 
 Validation: 57 unit/integration tests, type checking, production build/startup, and five Chromium preview/public/runtime checks passed. The optional 78 MiB packaged-loader test was not repeated in this pass. No VPS deployment was performed.
 
-The browser fixture is local test data with a public test key. It must never be published. The creator publisher now emits these same `app` conventions.
+The browser fixture is local test data with a public test key. It must never be
+published. Historical fixtures retain `app` conventions; fresh publication uses
+the direct profile above.
 
 ## Creator capture and publication (2026-09-14)
 
@@ -151,15 +222,13 @@ the story of the app. The installed integration guidance requires visual inspect
 as the finishing step. A manually captured PNG may be selected instead. Remove
 `preview.image` to return to fresh automatic capture for each release.
 
-Publishing uploads the PNG to the configured Blossom server, signs kind 32267
-with an `image` URL, and links it from both current and snapshot manifests using
-NIP-5A `app`. Each release uses its own descriptor identifier, preventing a later
-CLI release from changing an earlier release's preview. The descriptor references
-the current napplet through `latest`. Our primary relay must acknowledge the
-descriptor and manifests before optional mirror copies. Mirror copies include the
-descriptor. No viewer or app private key is involved in capture.
+Publishing uploads the PNG to the configured Blossom server and puts its hash/MIME
+on the current manifest and any requested snapshot under `soy.presentation/1`. Our primary relay acknowledges
+the manifests before optional mirror copies. There is no separate descriptor to
+sign, discover or acknowledge in fresh jobs. No viewer or app private key is
+involved in capture. Already frozen older jobs retain their original descriptor.
 
-Frozen PNG bytes, hashes, descriptor signatures and acknowledgements survive
+Frozen PNG bytes, hashes, manifest signatures and acknowledgements survive
 retries. Resume never recaptures or changes destinations. An older completed
 publication without a preview can receive one on the next ordinary publish,
 including when its executable bytes are unchanged; its old snapshot stays intact.
@@ -219,8 +288,13 @@ Resuming preserves its bytes, destinations and signatures.
 
 ### Signed association and interoperability
 
-The manifest still links the exact per-release kind-32267 app descriptor with the
-existing `app` tag. Its normal `image` tag remains the PNG. Video uses
+Fresh manifests bind the clip directly with `preview` hash/MIME alongside the
+static `screenshot`. See the explicit downstream schema above. Independent clients
+may ignore these optional tags and retain the same executable. No video is added
+to playable paths or used to override artifact identity.
+
+The legacy reader still supports exact per-release kind-32267 app descriptors,
+their `image` PNG and
 [NIP-92](https://github.com/nostr-protocol/nips/blob/a2494f4f81d46684e5814a9bf35e2b1df978f955/92.md):
 the descriptor content includes the Blossom video URL and an `imeta` tag associates
 `url`, `m video/webm`, `x`, `size`, `dim`, `alt` and `thumb` from
@@ -230,7 +304,7 @@ it does not claim a Zapstore-specific trailer standard or a new NIP-5D field.
 Unsupported clients can ignore it and retain the same executable and screenshot.
 No video URL is added to the playable `path` entries or used to override identity.
 
-Discovery verifies the manifest → descriptor → exact URL/digest binding. The URL
+Legacy discovery verifies the manifest → descriptor → exact URL/digest binding. The URL
 must appear in descriptor content, and ambiguous duplicate metadata is rejected.
 The same adapter applies to every publisher. The newest signed descriptor is chosen
 before interpreting attachments, so removing a clip cannot resurrect an older one.
@@ -284,9 +358,10 @@ Chromium listing review, gallery lifecycle/reduced-motion, and static OG checks.
 ## Linked assets on detail pages
 
 Deployed in website release `20260915171125013-66174` (2026-09-15), with soyLI 0.8.3 unchanged.
-The single napplet page lists available linked assets immediately below the player:
-its published preview image, WebM clip, additional image/icon or WebM links in
-the selected supported app descriptors, and its pinned source archive. The same
+The single napplet page lists available linked assets immediately below the player.
+With direct presentation it includes manifest screenshots/clips as well as the
+legacy preview image, WebM clip, additional image/icon or WebM links in selected
+supported app descriptors, and the pinned source archive. The same
 presentation applies to every publisher and hides when there are no attachments
 or while the player is immersive.
 

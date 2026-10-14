@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { eventSchema, type SignedEvent } from './index';
 import { appReferences, latestMetadata } from './preview';
+import { verifiedEvent } from './index';
+import { manifestVideoSources } from './presentation';
 
 export const MAX_VIDEO_BYTES = 5 * 1024 * 1024;
 export const MAX_VIDEO_MS = 12000;
@@ -180,6 +182,14 @@ export type CachedVideo = z.infer<typeof cachedVideoSchema>;
 export function validatedVideo(manifest: SignedEvent, input: unknown): CachedVideo | null {
   try {
     const video = cachedVideoSchema.parse(input);
+    if (video.descriptor.id === manifest.id) {
+      const descriptor = verifiedEvent(video.descriptor);
+      return manifestVideoSources(manifest).some(
+        (v) => v.url === video.url && v.hash === video.hash,
+      )
+        ? { ...video, descriptor }
+        : null;
+    }
     if (!appReferences(manifest).some((ref) => latestMetadata(ref, [video.descriptor])))
       return null;
     return descriptorVideos(video.descriptor).some(

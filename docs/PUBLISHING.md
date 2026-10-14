@@ -88,7 +88,7 @@ at the signed tip. Otherwise publication stops with `SOURCE_NOT_PUSHED`, naming
 the commit to push. Any branch layout is accepted; there is no `main` requirement.
 
 The release's `source` tag becomes that repository's `nostr://` URL, and an
-optional preview descriptor's `repository` tag becomes its first clone URL.
+older frozen preview descriptor retains its original `repository` clone hint.
 `source-commit` and `source-archive` are unchanged, so the exact source remains
 recoverable from Blossom even if the branch later moves. soyLI does not add
 release tags to your repository; keep released commits reachable there.
@@ -294,7 +294,12 @@ uses standalone manifests even when the HTML has not changed. No history rewrite
 or republishing of other authors' events is needed. Deploy the compatible shell
 and indexer before distributing a CLI that publishes the new shape.
 
-Two optional provenance tags, `source-commit` and `source-archive`, carry the exact Git commit and content-addressed source tar URL. These are Space publishing conventions, not NIP-5D requirements. Clients may ignore them; ordinary `source`, manifest and Blossom discovery still work. There is no mandatory descriptor, branded hashtag or current-to-snapshot pointer. Automatic screenshots and optional video descriptor authoring are supported; metadata from other clients remains optional.
+Two optional provenance tags, `source-commit` and `source-archive`, carry the exact Git commit and content-addressed source tar URL. These are Space publishing conventions, not NIP-5D requirements. Clients may ignore them; ordinary `source`, manifest and Blossom discovery still work. There is no mandatory descriptor, branded hashtag or current-to-snapshot pointer. Fresh jobs upload the screenshot and optional clip, then put their hashes and MIME types directly on the current manifest and any explicitly requested snapshot using the optional downstream `soy.presentation/1` profile. They emit no kind-32267 descriptor or `app` reference. See [the presentation contract](PREVIEWS.md#direct-manifest-presentation--2026-10-06-source).
+
+Interrupted older jobs retain their frozen descriptor/signatures on `publish --resume`.
+The next ordinary publication upgrades a completed older job to direct references,
+even with unchanged code; the old signed events and snapshots remain intact. Updating
+the CLI alone does not modify existing public events.
 
 ## Verification
 
@@ -307,7 +312,7 @@ bun run test:publish:native
 
 The deterministic tests cover interrupted uploads, lost relay acknowledgements, unchanged retries, metadata-only updates, modified working/frozen source, forged saved signatures, competing remote versions, concurrent processes, identity/target isolation, failed mirrors and repair of missing data. Native service tests use the actual Khatru/GRASP/Blossom implementations, the browser check, an independent Nostr wire reader, tar extraction and independent Git clone/fetch. An opt-in test drives the real CLI across processes with temporary native Keychain credentials.
 
-Persistent website ingestion, confirmed playable links, authenticated names, the public installer, preview descriptors and remix are implemented. Additional build profiles, explicit journal adoption/conflict recovery, broader native keystore acceptance, and publication/discovery acceptance in an external public client remain separate work. See [the interoperability contract](PROTOCOL.md) and the dated [deployment verification](DEPLOYMENT.md).
+Persistent website ingestion, confirmed playable links, authenticated names, the public installer, preview associations and remix are implemented. Additional build profiles, explicit journal adoption/conflict recovery, broader native keystore acceptance, and publication/discovery acceptance in an external public client remain separate work. See [the interoperability contract](PROTOCOL.md) and the dated [deployment verification](DEPLOYMENT.md).
 
 ## Visible project destinations and previews
 
@@ -351,8 +356,9 @@ entry, license, or other metadata. Precedence is CLI target flags, selected
 `publish.files` can add release inputs but does not remove tracked Git history. Top-level `relays` and `servers`
 are runtime read/resource hints; they are never upload destinations.
 
-`relay` receives signed manifests and preview descriptors. `blossom` receives
-HTML, source archives, PNG previews and optional raster icons. `grasp` must be a compatible NIP-34/GRASP
+`relay` receives signed manifests and source events. Older frozen jobs also send
+their original preview descriptor. `blossom` receives HTML, source archives, PNG
+previews, optional WebM clips and raster icons. `grasp` must be a compatible NIP-34/GRASP
 Git service; it is unused while `repository` or an owned `nostr://` remote selects
 [your own repository](#publishing-from-your-own-nip-34-repository). `site` determines share links and indexing checks. `mirrors` are
 best-effort extra copies after primary acknowledgement, not substitute primaries;

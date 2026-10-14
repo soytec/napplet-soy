@@ -136,15 +136,16 @@ test('publisher runs its sandbox check, survives interruption, retains Git relea
       kinds: [32267],
       authors: [creator.pubkey],
     });
-    expect(descriptors).toHaveLength(1);
-    expect(descriptors[0].id).toBe(first.preview!.descriptor!.id);
+    expect(descriptors).toHaveLength(0);
+    expect(first.preview!.descriptor).toBeUndefined();
     const previewBytes = await (
       await fetch(`${services.targets.blossom}/${first.preview!.hash}`)
     ).bytes();
     expect(await sha256(previewBytes)).toBe(first.preview!.hash);
-    expect(descriptors[0].tags).toContainEqual([
-      'image',
-      `${services.targets.blossom}/${first.preview!.hash}`,
+    expect(events.find((e) => e.kind === 35129)!.tags).toContainEqual([
+      'screenshot',
+      first.preview!.hash,
+      'image/png',
     ]);
     const release = await validateRelease(
       events.find((e) => e.kind === 35129),
