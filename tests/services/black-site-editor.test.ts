@@ -176,6 +176,8 @@ test('native Black Site editor publishes, updates, remixes and deletes through r
       await ui
         .poll(() => frame.evaluate(() => (window as any).napplet.identity.getPublicKey()))
         .toBe(pubkeys[identity]);
+      // The sibling editor's first-run tutorial is an ordinary modal UI step.
+      if (await frame.locator('#help[open]').count()) await frame.locator('#help-close').click();
       return { page, frame };
     }
     async function publish(page: Page, target?: Frame) {
@@ -200,7 +202,9 @@ test('native Black Site editor publishes, updates, remixes and deletes through r
     }
     const alice = await player(editorUrl, 0);
     await ui(alice.frame.locator('#publish')).toBeEnabled();
-    await alice.frame.locator('#id').evaluate((input: HTMLInputElement) => { input.value = 'host-operation'; });
+    await alice.frame.locator('#id').evaluate((input: HTMLInputElement) => {
+      input.value = 'host-operation';
+    });
     await alice.frame.locator('#id').dispatchEvent('change');
     await alice.frame.locator('#settings-open').click();
     await alice.frame.locator('#name').fill('Host Operation');
@@ -226,6 +230,8 @@ test('native Black Site editor publishes, updates, remixes and deletes through r
     await alice.page.locator('iframe').waitFor();
     alice.frame = alice.page.frames().find((f) => f.parentFrame())!;
     await ui(alice.frame.locator('#identity')).toContainText('Signed in');
+    if (await alice.frame.locator('#help[open]').count())
+      await alice.frame.locator('#help-close').click();
     await alice.frame.locator('#library-open').click();
     await alice.frame.locator('#my-maps').click();
     await ui(alice.frame.locator('.map-card h3')).toHaveText('Updated Operation');
@@ -268,6 +274,8 @@ test('native Black Site editor publishes, updates, remixes and deletes through r
     await ui(delivered.locator('#name')).toHaveValue('Updated Operation');
     await ui(delivered.locator('#id')).toHaveValue('host-operation');
     await ui(delivered.locator('#id')).toBeDisabled();
+    if (await delivered.locator('#help[open]').count())
+      await delivered.locator('#help-close').click();
     await delivered.locator('#settings-open').click();
     await delivered.locator('#name').fill('Handed-off Operation');
     await delivered.locator('#name').dispatchEvent('change');

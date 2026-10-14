@@ -1,15 +1,14 @@
 # Napplet playback profile
 
-2026-10-13 OUTBOX routing source update: event reads and resolveRelays now share
-a bounded verified NIP-65 planner, with a 60-second positive cache (128 authors).
-Missing authors add configured fallback destinations even when other authors have
-resolved lists. Read plans cover at most 16 authors and eight relays; omitted
-coverage and discovery failures produce incomplete reads. Explicit hints retain
-the existing missing-metadata policy, but cannot hide fanout truncation.
-The new publication planner preflights own write relays, required recipient read
-relays and explicit destinations; generic publication is not yet wired into the
-host. Existing map/app-data write permissions remain as documented below.
-This is source work only. See [implementation progress](NAP-OUTBOX-PLAN.md).
+2026-10-13 OUTBOX source update: web and preview share an account-scoped Applesauce
+store/loaders, verified NIP-65 planner, live route refresh and consented general
+event publication. Own write relays, required recipient read relays and explicit
+destinations form one deduplicated fanout; incomplete required routing fails before
+signing. Partial relay rejection returns the signed event and per-relay results.
+Map/app-data writes retain their specialized protections and configured destinations;
+generic deletion remains denied. Older publishing/lifetime descriptions below are
+superseded by [current OUTBOX behavior and limits](OUTBOX.md). This is source work,
+not a release or deployment. See [implementation evidence](NAP-OUTBOX-PLAN.md).
 
 2026-10-13 source update: web and preview now implement NAP-INTENT handler
 discovery/chooser/defaults and retained cold-target delivery, using shim 0.31.0
@@ -62,7 +61,7 @@ References: [NAP registry and web projection](https://github.com/napplet/naps), 
 | `identity` | Connected key, user NIP-65 relay preferences, profile, follows, public mute list                                     | Guest key is the empty string; extra list projections return explicit errors; no private lists or signer access                                                            |
 | `theme`    | Resolved shell colors; live `theme.changed` notifications                                                            | Light/Dark/Auto preference; napplets opt in to applying colors; no frame reload. See [appearance](APPEARANCE.md)                                                           |
 | `relay`    | Filtered query and live subscribe/close                                                                              | Guarded public WSS reads; signatures checked, duplicates removed, filters reapplied; scoped app-data and native map metadata/deletion with viewer consent; other writes/encryption denied |
-| `outbox`   | Query, getEvent, subscriptions, close, resolveRelays                                                                 | NIP-65 selection and public relay hints under the shared read policy, fallback when needed, partial results marked; scoped app-data and native map metadata/deletion with viewer consent  |
+| `outbox` | getEvent/query/subscribe/close/resolveRelays and consented templates | Shared verified Applesauce store/loaders, reactive NIP-65 routing, strict complete fanout and specialized protections; [bounds](OUTBOX.md), [evidence](NAP-OUTBOX-PLAN.md) |
 | `common`   | Public NIP-19 helpers including nrelay, profile/follows, follow/unfollow/react/report                                | Viewer signer and host approval for writes; signed native event targets only; no secret identifiers                                                                        |
 | `resource` | HTTPS and hash-verified Blossom bytes, ordered bulk responses, cancellation, scheme discovery                        | `data:` handled locally by upstream shim; no htree/nostr resolver; raw SVG/HTML/XML denied                                                                                 |
 | `intent` | Verified handler discovery, exact conventions, chooser/defaults, attested delivery and cold-target launch | Source implemented/local verified; session queue only; acceptance is not a handled acknowledgement. See [limits](MAP-INTENTS.md) |

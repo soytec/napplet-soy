@@ -1,5 +1,18 @@
 # NAP concepts and expansion review
 
+## OUTBOX integration — 2026-10-13 source
+
+The subsequent implementation completes the foundation below with a shared verified
+store, actual Applesauce network loaders, reactive live routing, per-event consent,
+exact signing and strict per-relay publication outcomes. PR 32 remains pinned at
+`8865f73d52a4864afee145f28d26520476273927`, audited against napplet-web
+`44d663a14af0f91a3797614c76e5c3d684cec52e` and the installed 0.31.0 shim's
+0.33.0 core/nap bindings. Applesauce loaders 6.2.0 joins unchanged core 6.2.0,
+relay 6.2.1 and signers 6.2.2. The NIP-5D authority is unchanged. Generic writes
+never bypass map/app-data namespace, ownership, revision or deletion checks.
+[Policy/limits](OUTBOX.md) and [verification evidence](NAP-OUTBOX-PLAN.md) distinguish
+this source implementation from independent-client conformance and public deployment.
+
 ## OUTBOX relay planning foundation — 2026-10-13 source
 
 Reviewed [NAP-OUTBOX PR 32 at 8865f73d](https://github.com/napplet/naps/blob/8865f73d52a4864afee145f28d26520476273927/naps/NAP-OUTBOX.md)

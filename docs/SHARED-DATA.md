@@ -1,5 +1,14 @@
 # Shared application data
 
+2026-10-13 OUTBOX integration: general templates now have a separate consented
+publication handler; this feature's schema, ownership, revision and configured-relay
+protections remain mandatory. OUTBOX own-outbox, recipient-inbox and explicit routing
+options are honored only when the complete resolved target set is configured in
+host Network settings; otherwise publication fails before signing. Required relay
+rejection retains the signed event, per-relay outcomes and feature-specific safe
+failure cause. See [current OUTBOX behavior](OUTBOX.md). No release or deployment
+is claimed for this source update.
+
 Use this guide when players should publish tracks, puzzles, drawings, presets or
 other structured creations independently of a score. Use the bundled
 `docs/examples/app-data.ts` and `app-data-contract.ts` together. They use the

@@ -1,11 +1,74 @@
 # NAP-OUTBOX implementation plan
 
-Initial draft: 2026-10-13. The implementation checkpoint below records subsequent
+Initial draft: 2026-10-13. The implementation checkpoints below record subsequent
 source work; no release or deployment is claimed. This standalone feature plan
 does not replace historical PLAN.md. No local AGENDA.md or .planning phase setup
 existed during this review.
 
-### Implementation checkpoint — 2026-10-13
+### Implemented and locally verified — 2026-10-13
+
+Three coordinated workers owned store/loaders, reactive routing/subscriptions and
+publishing. Integration work owns shared host dispatch, specialized request replay
+protection, creator guidance, package inputs and browser validation. All source
+work remains on `feat/nap-outbox` in `../napplet-soy-outbox`; the original worktree
+is untouched. No release or deployment is authorized or performed.
+
+| Plan | Implemented behavior | Evidence |
+| --- | --- | --- |
+| O-01 | Exact spec/binding audit; ordinary third-party kind-1 publish/read tracer in both players | Actual shim browser fixture; no source/Space/publisher gate |
+| O-02 | One account OUTBOX store, actual lazy/network SDK loaders, signed list cache, deadline/coverage accounting, exact-ID matching, opt-in observed-source hints | Store, playback and routing suites, real multi-relay transports |
+| O-03 | Periodic/observed list refresh, subId retention, bounded cross-route dedup/backfill, pending-close cancellation, useful terminal reasons | Route swap/stalled discovery/race tests; browser sign-out closes streams |
+| O-04 | Per-event consent, sign-once exact template, strict required target union, per-relay outcomes, bounded identical-byte retries and request-ID replay accounting | Publishing tests, actual WebSocket OK/rejection/lost-OK fixtures, browser directed/explicit/partial flows |
+| O-05 | Shared web/preview dispatch; protected map/app-data/deletion handlers; configured specialized targets; account cancellation and redacted signer causes | Host/process tests, app-data/map suites and actual-shim browser checks |
+| O-06 | Embedded creator guide, upstream limitation audit, production build, TypeScript and validation commands | Final results recorded below |
+
+Contract tuple audited without changing the selected NIP-5D authority:
+
+- NIP-5D `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d51` (unchanged).
+- NAP-OUTBOX PR 32 `8865f73d52a4864afee145f28d26520476273927`.
+- Imported NAP-RELAY read/result/privacy contract from
+  [PR 2 at 9f30b350](https://github.com/napplet/naps/blob/9f30b3505335a52c574ff570576687d6467021ff/naps/NAP-RELAY.md).
+  Generic/encrypted RELAY writes remain separately denied by host policy.
+- NIP-01/65 field/signature/list semantics reviewed at
+  [a79e21d9](https://github.com/nostr-protocol/nips/blob/a79e21d90fce5465b50ef385dd368bba99ec4a0b/65.md).
+  OUTBOX recipient fanout follows its explicit options; it does not infer recipients
+  from the NIP-65 mention recommendation.
+- Shim 0.31.0, core/nap 0.33.0, Applesauce core/loaders 6.2.0, relay 6.2.1,
+  signers 6.2.2; sibling binding/conformance source `44d663a14af0f91a3797614c76e5c3d684cec52e`.
+
+The sibling conformance reference shell returns empty fixtures and permissive
+response envelopes for OUTBOX; it is not evidence for real routing or fanout.
+Actual-shim tests exercise this host instead. Resource sidecars and active NIP-66
+crawling remain optional exclusions; independent-host acceptance is not claimed.
+Connected signers can deny kinds outside their own session policy. See
+[host policy and all budgets](OUTBOX.md).
+
+Final validation evidence:
+
+- `bun run typecheck`: passed.
+- `bun run build`: passed (production website); the Nix package build also bundles
+  the CLI preview and creator guides.
+- Actual-shim browser checks: four tests / 112 assertions passed across
+  `tests/services/outbox-browser.test.ts`, `runtime-actions.test.ts`,
+  `app-data-browser.test.ts` and `black-site-editor.test.ts`. They cover web/preview
+  parity, all OUTBOX operations, denial, own/inbox/explicit fanout, partial relay
+  rejection, protected-kind refusal, sign-out stream teardown, and native map
+  create/update/reload/remix/play/delete plus cold-editor INTENT handoff. The native
+  fixture uses locally built sibling game/editor artifacts, not public services.
+- `bun run check:nix`: passed on x86_64 Linux, including realization and forced
+  rebuild of nodeModules/soyli and the NixOS VM regressions. The added loaders
+  dependency required the documented `update:nix-hashes` procedure; only the exact
+  nodeModules output hash changed. Bun/Node/Playwright pins are unchanged.
+- `git diff --check`: passed.
+- `bun run test`: 691 tests / 5,336 assertions across 145 files passed in a
+  serialized final run using Git 2.55.0. Merge tests require Git 2.38 or newer;
+  the system Git 2.34.1 lacks merge-tree --write-tree.
+
+Remaining scope is optional NIP-66/resource-sidecar expansion, independent-client
+acceptance, and release/deployment. None is a hidden playback prerequisite or
+claimed by this source implementation. Earlier foundation evidence below is historical.
+
+### Historical foundation checkpoint — 2026-10-13 (`fbc4246`)
 
 The draft above describes its original planning status. Work has now started in
 `../napplet-soy-outbox` on `feat/nap-outbox`, based on
@@ -59,7 +122,7 @@ intelligence are not prerequisites for that claim. Shell signing keys stay outsi
 the frame. Encryption APIs, automatic DM construction, generic NAP-RELAY publishing,
 release and public deployment are separate scope.
 
-## Existing foundation and gaps
+## Original foundation and gaps (before implementation)
 
 | Area | Source evidence | Remaining work |
 | --- | --- | --- |
@@ -71,27 +134,24 @@ release and public deployment are separate scope.
 | Existing writes | App-data and map sessions enforce specialized schemas, configured destinations and revision rules | Preserve protections while making OUTBOX routing/options contract consistent; no bypass through generic handling |
 | Signing/transport | signExact in action-session.ts; ProtocolClient provides verified reads and publication transport | Audit reuse against fanout completeness, exact template signing and actionable result requirements |
 
-Current read plans truncate authors to 16 and relays to eight. Current reads discard
-duplicate observations before recording relay hints. Current stream relay selection
-is fixed at open. These are code observations, not failures established by new tests.
-No tests were run for this documentation-only draft.
+At initial review, read plans truncated authors to 16 and relays to eight, discarded
+duplicate relay observations and fixed stream routing at open. These observations
+described the starting point; current implementation and verification are above.
 
 ## Decisions to settle
 
-- **O-D01 — publication approval:** open. Recommended first implementation reviews
-  every event before signing. Alternative: remembered permission scoped to viewer,
-  author-qualified napplet identity and event kind, with clear revocation. Do not
-  implement persistent grants until this choice is settled.
-- **O-D02 — acknowledgement policy:** proposed: `ok: true` requires every selected
+- **O-D01 — publication approval:** implemented as per-event consent using the
+  existing host prompt. No remembered grants; viewer signer/session permissions
+  remain authoritative. Consent includes the signed napplet identity and destinations.
+- **O-D02 — acknowledgement policy:** implemented host policy: `ok: true` requires every selected
   destination to acknowledge. Any missing required inbox routing or failed selected
   relay produces `ok: false`, retaining signed event and per-relay outcomes when
   available. This strict policy avoids reporting successful partial delivery;
-  confirm against pinned binding behavior during the contract audit.
-- **O-D03 — host limits:** retain bounded public-network access. Over-limit writes
+  the audited binding returns the complete inline result without rejecting its Promise.
+- **O-D03 — host limits:** implemented bounded public-network access. Over-limit writes
   fail before signing rather than silently dropping destinations. Bounded reads
-  report incomplete coverage. Document exact limits after measuring the existing
-  transport and signer deadlines.
-- **O-D04 — optional features:** resource sidecars stay default-off. Add relay health
+  report incomplete coverage. Exact limits and signer deadlines are in OUTBOX.md.
+- **O-D04 — optional features:** resource sidecars remain disabled. Add relay health
   tracking only if needed for reliable routing; active NIP-66 crawling is deferred.
 
 ## Delivery sequence

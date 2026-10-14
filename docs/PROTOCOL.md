@@ -1,5 +1,19 @@
 # Napplet interoperability and publishing contract
 
+## OUTBOX integration — 2026-10-13 source
+
+The shared host implements [NAP-OUTBOX at 8865f73d](https://github.com/napplet/naps/blob/8865f73d52a4864afee145f28d26520476273927/naps/NAP-OUTBOX.md)
+with account-scoped Applesauce stores/loaders, reactive NIP-65 routing and
+per-event viewer consent for general templates. Publication signs once, fans out
+the exact event to own write relays, required recipient read relays and validated
+explicit destinations, and reports partial delivery without false success.
+Specialized map/app-data/deletion policy cannot be bypassed through the general
+handler. The selected NIP-5D authority remains `4d0fb2e`; shim 0.31.0 and core/nap
+0.33.0 remain pinned. Applesauce loaders 6.2.0 is now explicit. No new domain,
+wire field, source/provenance requirement or iframe signing key is introduced.
+See [current policy and bounds](OUTBOX.md) and [verification](NAP-OUTBOX-PLAN.md).
+Source implementation is distinct from release/deployment; neither is performed here.
+
 ## Native map and INTENT source integration — 2026-10-13
 
 Source now uses published shim 0.31.0 and core/nap 0.33.0 for the canonical

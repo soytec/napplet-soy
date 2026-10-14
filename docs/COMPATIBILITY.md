@@ -1,5 +1,19 @@
 # Compatibility evidence and remaining audit
 
+## OUTBOX integration — 2026-10-13 source
+
+The shared web/preview host now implements verified Applesauce stores and network
+loaders, reactive NIP-65 streams and consented general publication with strict
+per-relay outcomes. NAP-OUTBOX is pinned to PR 32 `8865f73d`; code/binding audit
+uses napplet-web `44d663a`. Runtime shim 0.31.0 and core/nap 0.33.0 are unchanged.
+Applesauce loaders 6.2.0 is explicit alongside core 6.2.0, relay 6.2.1 and signers
+6.2.2. The selected NIP-5D authority is unchanged. Older inventory limitations below
+are superseded by [current policy](OUTBOX.md) and [test evidence](NAP-OUTBOX-PLAN.md).
+The sibling conformance runner's OUTBOX reference responses validate envelopes and
+empty fixtures, not routing/fanout correctness; passing them alone is insufficient.
+Our actual-shim/multi-relay tests exercise those behaviors. Independent-client
+acceptance, release and deployment are not claimed.
+
 ## NIP-5D PR 7 migration — 2026-10-04
 
 soyLI 0.24.0 publications target `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d51`; old `24711d9` manifests remain readable/playable by the deployed dual reader. See [the migration matrix and rollout](NIP5D-MIGRATION.md) and [release evidence](CLI-RELEASES.md). The manifest publisher/parser changes while NAP runtime and upstream package pins stay unchanged. Existing upstream Paja acceptance is evidence for the legacy format only, not a claim that that client supports PR 7.
@@ -139,7 +153,7 @@ proposal revisions; mapping the remaining domains to individual NAP revisions/de
 | `theme`    | get resolved shell colors; live theme.changed through installed onChanged hook                                                                                   | `runtime/appearance.ts`, `runtime/host.ts`; pinned-shim browser checks cover get/onChanged, unsubscribe and unchanged gameplay/settings; [appearance](APPEARANCE.md) |
 | `resource` | info, bytes, bytesMany, cancel; shim data URL/object URL helpers; HTTPS/Blossom mediation; unsupported schemes and unsafe destinations/formats rejected          | `runtime/host.ts`, backend resource responder; resource tests, queued cancellation, public packaged-loader historical check                                          |
 | `relay`    | query/subscribe/close on allowed relays; publish limited to scoped public app-data records with viewer consent; publishEncrypted denied                          | `nostr/playback.ts`; actual WebSocket fixtures, signature/filter/dedup tests; denied publish browser test                                                            |
-| `outbox`   | getEvent/query/subscribe/close/resolveRelays; bounded NIP-65 planning, incomplete results; publish limited to scoped public app-data records with viewer consent | Same Applesauce implementation; playback tests. No signer is installed in the iframe                                                                                 |
+| `outbox` | getEvent/query/subscribe/close/resolveRelays and consented templates | Shared verified Applesauce store/loaders, reactive NIP-65 routing, strict complete fanout and specialized protections; [bounds](OUTBOX.md), [evidence](NAP-OUTBOX-PLAN.md) |
 | `common`   | Public NIP-19 helpers including nrelay, profile/follows and approved follow/unfollow/react/report                                                                | Shared action session; signed event targets; action/unit and real-shim browser tests                                                                                 |
 | `link`     | open an HTTPS link through a host-owned user choice; other schemes/credentials denied                                                                            | `runtime/host.ts`; CLI browser prompt policy checks                                                                                                                  |
 | `fs`       | Session operations plus file/multiple-file/directory import copies and export picker                                                                             | Atomic virtual copies only; filesystem/unit and real-shim browser tests                                                                                              |
