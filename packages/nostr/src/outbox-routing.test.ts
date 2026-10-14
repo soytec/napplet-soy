@@ -220,3 +220,95 @@ test('closing during discovery prevents a late relay plan and explicit-only publ
     planner.publication(author, { toOutbox: false, relays: ['wss://explicit.example'] }),
   ).rejects.toThrow('closed');
 });
+
+test('refresh cannot replace fresh metadata with an older signed record and discovery failure uses read fallback', async () => {
+  const key = new Uint8Array(32).fill(17);
+  const now = Math.floor(Date.now() / 1000);
+  const latest = finalizeEvent(
+    { kind: 10002, content: '', tags: [['r', 'wss://latest.example/', 'write']], created_at: now },
+    key,
+  );
+  const older = finalizeEvent(
+    {
+      kind: 10002,
+      content: '',
+      tags: [['r', 'wss://older.example/', 'write']],
+      created_at: now - 10,
+    },
+    key,
+  );
+  const planner = new OutboxRelayPlanner(['wss://fallback.example/'], async () => ({
+    events: [older],
+    incomplete: false,
+  }));
+  planner.observe(latest);
+  expect((await planner.resolve([latest.pubkey], 'author-read', 100, true)).relays).toEqual([
+    'wss://latest.example/',
+  ]);
+  planner.close();
+  const failed = new OutboxRelayPlanner(['wss://fallback.example/'], async () => {
+    throw new Error('transport unavailable');
+  });
+  expect(await failed.resolve([latest.pubkey], 'author-read')).toMatchObject({
+    relays: ['wss://fallback.example/'],
+    incomplete: true,
+  });
+  await expect(
+    failed.publication(latest.pubkey, { toOutbox: false, toInboxes: [latest.pubkey] }),
+  ).rejects.toThrow('unavailable');
+  failed.close();
+});
+
+test('observing a signed relay list cannot promote incomplete discovery into publish coverage', async () => {
+  const signed = finalizeEvent(
+    {
+      kind: 10002,
+      content: '',
+      tags: [['r', 'wss://inbox.example/', 'read']],
+      created_at: Math.floor(Date.now() / 1000),
+    },
+    new Uint8Array(32).fill(19),
+  );
+  let discoveries = 0;
+  const planner = new OutboxRelayPlanner(['wss://fallback.example/'], async () => {
+    discoveries++;
+    return { events: [signed], incomplete: true };
+  });
+  planner.observe(signed);
+  expect(await planner.resolve([signed.pubkey], 'recipient-inbox')).toMatchObject({
+    relays: ['wss://inbox.example/'],
+    incomplete: true,
+  });
+  await expect(
+    planner.publication(signed.pubkey, { toOutbox: false, toInboxes: [signed.pubkey] }),
+  ).rejects.toThrow('incomplete');
+  expect(discoveries).toBe(2);
+  planner.close();
+});
+
+test('a newer observation during awaited discovery cannot be overwritten by a completed older response', async () => {
+  const key = new Uint8Array(32).fill(36);
+  const now = Math.floor(Date.now() / 1000);
+  const list = (relay: string, created_at: number) =>
+    finalizeEvent({ kind: 10002, content: '', tags: [['r', relay, 'write']], created_at }, key);
+  const older = list('wss://older.example/', now - 1);
+  const newer = list('wss://newer.example/', now);
+  let finish!: (value: { events: (typeof older)[]; incomplete: boolean }) => void;
+  const planner = new OutboxRelayPlanner(
+    ['wss://fallback.example/'],
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  planner.observe(older);
+  const pending = planner.resolve([older.pubkey], 'author-read');
+  planner.observe(newer);
+  finish({ events: [older], incomplete: false });
+  expect((await pending).relays).toEqual(['wss://newer.example/']);
+  expect(await planner.resolve([older.pubkey], 'author-read')).toMatchObject({
+    relays: ['wss://newer.example/'],
+    source: 'cache',
+  });
+  planner.close();
+});

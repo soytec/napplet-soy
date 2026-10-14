@@ -23,6 +23,7 @@ export type RelayPlan = {
 type Discovery = (
   authors: string[],
   timeoutMs: number,
+  signal?: AbortSignal,
 ) => Promise<{
   events: SignedEvent[];
   incomplete: boolean;
@@ -31,7 +32,7 @@ type Discovery = (
 /** NIP-65 policy shared by event reads and publication planning. No signing here. */
 export class OutboxRelayPlanner {
   private closed = false;
-  private cache = new Map<string, { event: SignedEvent; expires: number }>();
+  private cache = new Map<string, { event: SignedEvent; expires: number; complete: boolean }>();
   constructor(
     private configured: string[],
     private discover: Discovery,
@@ -42,22 +43,74 @@ export class OutboxRelayPlanner {
     this.cache.clear();
   }
 
-  async resolve(input: string[], purpose: RelayPurpose, timeoutMs = 2000): Promise<RelayPlan> {
+  observe(input: SignedEvent) {
+    if (
+      this.closed ||
+      input.kind !== 10002 ||
+      input.created_at > Math.floor(this.now() / 1000) + 600
+    )
+      return false;
+    const event = verifiedEvent(input);
+    const old = this.cache.get(event.pubkey)?.event;
+    if (
+      !old ||
+      event.created_at > old.created_at ||
+      (event.created_at === old.created_at && event.id < old.id)
+    ) {
+      this.cache.set(event.pubkey, { event, expires: this.now() + 60000, complete: false });
+      while (this.cache.size > 128) this.cache.delete(this.cache.keys().next().value!);
+      return true;
+    }
+    return false;
+  }
+
+  async resolve(
+    input: string[],
+    purpose: RelayPurpose,
+    timeoutMs = 2000,
+    refresh = false,
+    signal?: AbortSignal,
+  ): Promise<RelayPlan> {
     if (this.closed) throw new Error('Outbox relay planner closed.');
+    if (signal?.aborted) throw new Error('Outbox relay planning cancelled.');
     const authors = [...new Set(authorsSchema.parse(input))];
     const bounded = authors.slice(0, 16);
     const records = new Map<string, SignedEvent>();
     const uncached: string[] = [];
     for (const author of bounded) {
       const cached = this.cache.get(author);
-      if (cached && cached.expires > this.now()) records.set(author, cached.event);
-      else uncached.push(author);
+      if (cached && cached.expires > this.now()) {
+        records.set(author, cached.event);
+        if (refresh || !cached.complete) uncached.push(author);
+      } else uncached.push(author);
     }
     let discoveryIncomplete = false;
     if (uncached.length) {
-      const discovered = await this.discover(uncached, timeoutMs);
+      let discovered: { events: SignedEvent[]; incomplete: boolean };
+      try {
+        discovered = await this.discover(uncached, timeoutMs, signal);
+      } catch {
+        if (this.closed || signal?.aborted)
+          throw new Error('Outbox relay planning cancelled or closed.');
+        discovered = { events: [], incomplete: true };
+      }
       if (this.closed) throw new Error('Outbox relay planner closed.');
+      if (signal?.aborted) throw new Error('Outbox relay planning cancelled.');
       discoveryIncomplete = discovered.incomplete;
+      // A live store observation may arrive while discovery is awaiting EOSE.
+      // Merge it before selecting/certifying records so an older response can
+      // never overwrite the newer signed replacement.
+      for (const author of uncached) {
+        const observed = this.cache.get(author)?.event;
+        const previous = records.get(author);
+        if (
+          observed &&
+          (!previous ||
+            observed.created_at > previous.created_at ||
+            (observed.created_at === previous.created_at && observed.id < previous.id))
+        )
+          records.set(author, observed);
+      }
       for (const input of discovered.events) {
         let event: SignedEvent;
         try {
@@ -86,7 +139,7 @@ export class OutboxRelayPlanner {
         // next time: cache reuse must not turn partial discovery into completeness.
         if (!discoveryIncomplete) {
           this.cache.delete(author);
-          this.cache.set(author, { event, expires: this.now() + 60000 });
+          this.cache.set(author, { event, expires: this.now() + 60000, complete: true });
           while (this.cache.size > 128) this.cache.delete(this.cache.keys().next().value!);
         }
       }
@@ -123,13 +176,13 @@ export class OutboxRelayPlanner {
   }
 
   /** Preflight every required target before a caller signs an event. */
-  async publication(pubkey: string, input: unknown, timeoutMs = 2000) {
+  async publication(pubkey: string, input: unknown, timeoutMs = 2000, signal?: AbortSignal) {
     if (this.closed) throw new Error('Outbox relay planner closed.');
     hex.parse(pubkey);
     const options = outboxPublishOptions.parse(input ?? {});
     const selected = new Set(options.relays.map((r) => readRelayUrl(r, this.configured, true)));
     if (options.toOutbox) {
-      const own = await this.resolve([pubkey], 'own-write', timeoutMs);
+      const own = await this.resolve([pubkey], 'own-write', timeoutMs, false, signal);
       // Missing own metadata may use fallback, but truncated/discovery-failed
       // known plans cannot silently omit requested destinations.
       if (own.limited || (own.incomplete && !own.missingAuthors.length))
@@ -137,7 +190,13 @@ export class OutboxRelayPlanner {
       own.relays.forEach((relay) => selected.add(relay));
     }
     if (options.toInboxes.length) {
-      const inbox = await this.resolve(options.toInboxes, 'recipient-inbox', timeoutMs);
+      const inbox = await this.resolve(
+        options.toInboxes,
+        'recipient-inbox',
+        timeoutMs,
+        false,
+        signal,
+      );
       if (inbox.missingAuthors.length)
         throw new Error(
           `Required recipient inbox relay lists unavailable for ${inbox.missingAuthors.length} author(s). Retry relay discovery.`,
@@ -148,6 +207,8 @@ export class OutboxRelayPlanner {
         );
       inbox.relays.forEach((relay) => selected.add(relay));
     }
+    if (this.closed) throw new Error('Outbox relay planner closed.');
+    if (signal?.aborted) throw new Error('Outbox relay planning cancelled.');
     if (!selected.size)
       throw new Error(
         'No publish destinations. Select an outbox, recipient inbox or explicit relay.',
