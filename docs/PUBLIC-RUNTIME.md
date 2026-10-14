@@ -1,5 +1,16 @@
 # Napplet playback profile
 
+2026-10-13 OUTBOX routing source update: event reads and resolveRelays now share
+a bounded verified NIP-65 planner, with a 60-second positive cache (128 authors).
+Missing authors add configured fallback destinations even when other authors have
+resolved lists. Read plans cover at most 16 authors and eight relays; omitted
+coverage and discovery failures produce incomplete reads. Explicit hints retain
+the existing missing-metadata policy, but cannot hide fanout truncation.
+The new publication planner preflights own write relays, required recipient read
+relays and explicit destinations; generic publication is not yet wired into the
+host. Existing map/app-data write permissions remain as documented below.
+This is source work only. See [implementation progress](NAP-OUTBOX-PLAN.md).
+
 2026-10-13 source update: web and preview now implement NAP-INTENT handler
 discovery/chooser/defaults and retained cold-target delivery, using shim 0.31.0
 and core/nap 0.33.0. OUTBOX/RELAY additionally admit viewer-consented native

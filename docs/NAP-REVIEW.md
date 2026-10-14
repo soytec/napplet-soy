@@ -1,5 +1,17 @@
 # NAP concepts and expansion review
 
+## OUTBOX relay planning foundation — 2026-10-13 source
+
+Reviewed [NAP-OUTBOX PR 32 at 8865f73d](https://github.com/napplet/naps/blob/8865f73d52a4864afee145f28d26520476273927/naps/NAP-OUTBOX.md)
+against sibling napplet-web `44d663a14af0f91a3797614c76e5c3d684cec52e`
+OUTBOX types/shim and installed shim 0.31.0 / core/nap 0.33.0. No package or
+selected NIP-5D pin changes. Shared read planning now caches verified relay lists,
+preserves mixed-author fallback coverage and exposes truncation as incomplete.
+An independently tested publication planner resolves the requested target union
+and fails unresolved required inboxes or over-limit fanout before signing.
+It is not yet a general publishing host implementation or a conformance claim.
+See [scope, verification and remaining work](NAP-OUTBOX-PLAN.md).
+
 ## Native map and INTENT review — 2026-10-13
 
 Source now uses published shim 0.31.0 and core/nap 0.33.0 for the canonical

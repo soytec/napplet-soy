@@ -3,6 +3,78 @@ import { finalizeEvent } from 'nostr-tools';
 import { Observable } from 'rxjs';
 import { PlaybackNostr, type PlaybackReadPool } from './playback';
 
+test('mixed-author OUTBOX queries read resolved write relays plus fallback and report missing coverage', async () => {
+  const key = new Uint8Array(32).fill(43);
+  const list = finalizeEvent(
+    {
+      kind: 10002,
+      tags: [['r', 'wss://author.example', 'write']],
+      content: '',
+      created_at: Math.floor(Date.now() / 1000),
+    },
+    key,
+  );
+  const requested: string[][] = [];
+  const host = new PlaybackNostr(
+    ['wss://fallback.example/'],
+    () => {},
+    () => null,
+    {
+      close() {},
+      req: (relays, filters) =>
+        new Observable((output) => {
+          requested.push(relays);
+          for (const from of relays) {
+            if (filters[0].kinds?.includes(10002))
+              output.next({ type: 'EVENT', from, event: list });
+            output.next({ type: 'EOSE', from });
+          }
+          output.complete();
+        }),
+    },
+  );
+  try {
+    expect(
+      await host.handle({
+        type: 'outbox.query',
+        filters: { kinds: [1], authors: [list.pubkey, 'a'.repeat(64)] },
+      }),
+    ).toMatchObject({ events: [], incomplete: true });
+    expect(requested[1]).toEqual(['wss://author.example/', 'wss://fallback.example/']);
+    // Fresh signed list reused; unresolved authors are discovered again.
+    expect(
+      await host.handle({ type: 'outbox.resolveRelays', target: { pubkey: list.pubkey } }),
+    ).toEqual({ plan: { relays: ['wss://author.example/'], source: 'cache', missingAuthors: [] } });
+    expect(requested).toHaveLength(2);
+  } finally {
+    host.close();
+  }
+});
+
+test('explicit hints cannot hide OUTBOX relay coverage lost to the eight-relay limit', async () => {
+  const host = new PlaybackNostr(
+    ['wss://fallback.example/'],
+    () => {},
+    () => null,
+    {
+      close() {},
+      req: (relays) =>
+        new Observable((output) => {
+          relays.forEach((from) => output.next({ type: 'EOSE', from }));
+          output.complete();
+        }),
+    },
+  );
+  try {
+    const relays = Array.from({ length: 8 }, (_, i) => `wss://hint${i}.example/`);
+    expect(
+      await host.handle({ type: 'outbox.query', filters: { kinds: [1] }, options: { relays } }),
+    ).toMatchObject({ events: [], incomplete: true });
+  } finally {
+    host.close();
+  }
+});
+
 test('explicit app-data storage reads do not contact unrelated discovery relays or require a NIP-65 profile', async () => {
   const requested: string[] = [];
   const host = new PlaybackNostr(

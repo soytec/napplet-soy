@@ -5,6 +5,7 @@ import { Subscription, take, takeUntil, timer, type Observable } from 'rxjs';
 import { z } from 'zod';
 import { verifiedEvent, type SignedEvent } from '../../protocol/src';
 import { readRelayUrl } from './relay-policy';
+import { OutboxRelayPlanner } from './outbox-routing';
 import { APP_DATA_KIND, APP_DATA_PROFILE } from '../../app-data/src/app-data-contract';
 
 const hex = z.string().regex(/^[a-f0-9]{64}$/);
@@ -57,14 +58,25 @@ export function directReadPool(pool = new RelayPool()): PlaybackReadPool {
 export class PlaybackNostr {
   private subscriptions = new Map<string, Subscription>();
   private scope = new Subscription();
+  readonly planner: OutboxRelayPlanner;
   constructor(
     readonly relays: string[],
     private send: Send,
     private pubkey: () => string | null,
     private pool: PlaybackReadPool = directReadPool(),
-  ) {}
+  ) {
+    this.planner = new OutboxRelayPlanner(relays, async (authors, timeoutMs) => {
+      const result = await this.collect(
+        [{ kinds: [10002], authors, limit: 32 }],
+        relays,
+        timeoutMs,
+      );
+      return { events: result.events.map(({ event }) => event), incomplete: result.incomplete };
+    });
+  }
   close() {
     this.scope.unsubscribe();
+    this.planner.close();
     this.subscriptions.clear();
     this.pool.close();
   }
@@ -157,47 +169,14 @@ export class PlaybackNostr {
     });
   }
   async plan(authors: string[], direction = 'read', timeout = 2000) {
-    if (!authors.length) return { relays: this.relays, source: 'fallback', missingAuthors: [] };
-    const records = await this.query(
-      [{ kinds: [10002], authors: authors.slice(0, 16), limit: 32 }],
-      this.relays,
+    const { incomplete, limited, ...plan } = await this.planner.resolve(
+      authors,
+      direction === 'read' ? 'author-read' : 'recipient-inbox',
       timeout,
     );
-    const latest = new Map<string, SignedEvent>();
-    for (const { event } of records) {
-      const previous = latest.get(event.pubkey);
-      if (
-        !previous ||
-        event.created_at > previous.created_at ||
-        (event.created_at === previous.created_at && event.id < previous.id)
-      )
-        latest.set(event.pubkey, event);
-    }
-    const selected = new Set<string>(),
-      missing: string[] = [];
-    for (const author of authors) {
-      const tags = latest.get(author)?.tags ?? [];
-      const found = tags
-        .filter(
-          (t) => t[0] === 'r' && (!t[2] || t[2] === (direction === 'read' ? 'write' : 'read')),
-        )
-        .map((t) => {
-          try {
-            return readRelayUrl(t[1], this.relays, true);
-          } catch {
-            return '';
-          }
-        })
-        .filter(Boolean);
-      if (!found.length) missing.push(author);
-      found.forEach((url) => selected.add(url));
-    }
-    return {
-      relays: selected.size ? [...selected].slice(0, 8) : this.relays,
-      source: selected.size ? 'nip65' : 'fallback',
-      missingAuthors: missing,
-    };
+    return plan;
   }
+
   async handle(message: Record<string, unknown>) {
     const type = String(message.type),
       domain = type.split('.')[0];
@@ -269,19 +248,23 @@ export class PlaybackNostr {
           ...(options.author ? [options.author] : []),
           ...filters.flatMap((f) => f.authors ?? []),
         ]),
-      ].slice(0, 16);
-      const plan = await this.plan(authors, 'read', Math.min(2000, Math.floor(readBudget / 3)));
+      ];
+      const plan = await this.planner.resolve(
+        authors,
+        'author-read',
+        Math.min(2000, Math.floor(readBudget / 3)),
+      );
       relays = plan.relays;
       // Explicit application/storage relays are a usable read plan even when
       // the author has never published NIP-65 metadata. Actual relay failures
       // still mark the result incomplete below.
-      incomplete = plan.missingAuthors.length > 0 && !hints.length;
+      incomplete =
+        plan.limited ||
+        (plan.incomplete && !(hints.length && plan.missingAuthors.length === authors.length));
     }
-    relays = explicit
-      ? [explicit]
-      : appStorage
-        ? [...new Set(hints)]
-        : [...new Set([...hints, ...relays])].slice(0, 8);
+    const candidates = [...new Set([...hints, ...relays])];
+    if (!explicit && !appStorage && candidates.length > 8) incomplete = true;
+    relays = explicit ? [explicit] : appStorage ? [...new Set(hints)] : candidates.slice(0, 8);
     if (this.scope.closed) throw new Error('Player closed');
     if (type.endsWith('.subscribe')) {
       const subId = z.string().max(128).parse(message.subId);
