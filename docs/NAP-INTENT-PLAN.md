@@ -133,3 +133,15 @@ Implemented and locally verified: each eligible manifest `i` contract preserves 
 Implemented in source: one per-document surface policy for admission/injection, document readiness independent of SHELL, source/origin/session authentication and retirement on navigation. Normal web/preview source and target players share the session; review/demo surfaces omit INTENT. Runtime profile is `space-playback-7`, with unchanged upstream pins.
 
 Typecheck passed; runtime/protocol suites passed 120 tests/880 assertions. Two real Chromium shared-host fixtures passed with 15 assertions, including no-SHELL invocation/cold retention and foreign/unready rejection. Four CLI preview process-lifecycle tests passed with 12 assertions. Web production build and preview asset bundling passed. The fixture uses verified signed manifests/artifacts and the published shim without adjacent app checkouts. Complete production-web/preview UI/discovery conformance remains IN-05; Nix/distributed CLI package checks remain IN-06 and mandatory before push. The OUTBOX draft remains untouched; nothing is released or deployed.
+
+## Deferred launch approval policy
+
+The project owner deferred further cross-napplet launch-prompt decisions on 2026-10-13. Existing chooser/default/explicit-handler authorization remains the implemented behavior; this draft introduces no separate confirmation for automatic single-handler/default launches. Revisit this policy in later product work. This deferral does not mark the remaining INTENT implementation/conformance stages complete.
+
+## Draft publication validation — 2026-10-13
+
+Merged main at `6f2f270`, preserving its browser event cache, NAP-KEYS domain/cleanup and release metadata. The dependency lock retains both the shim upgrade and main's nostr-idb dependency. The exact nodeModules hash was refreshed with `bun run update:nix-hashes`; realization, forced nodeModules/soyli rebuilds and flake checks passed on x86_64 Linux. The daemon build user lacked KVM access and ran its VM in software emulation; the same generated NixOS test driver was then run as the existing KVM-authorized user and passed the complete suite with confirmed KVM acceleration. No device permissions were changed. aarch64 was not checked.
+
+Typecheck and the web production build passed. Runtime/protocol suites passed 125 tests/921 assertions. The combined INTENT-readiness and NAP-KEYS web/preview browser regressions passed three tests/27 assertions. The INTENT browser fixture compiler now runs in a fresh process so preceding server-side imports do not contaminate browser module resolution, matching preview's existing isolation pattern.
+
+These checks qualify publishing this branch as a draft PR. IN-03–IN-06 completion, further launch-approval policy, a released CLI and public deployment remain outstanding; no feature-complete claim is made. The unrelated OUTBOX draft remains local and untracked.

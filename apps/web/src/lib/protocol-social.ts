@@ -4,7 +4,7 @@ import { validateManifest } from '../../../../packages/protocol/src/manifest';
 import { socialScope, socialView, rootComment } from '../../../../packages/protocol/src/social';
 import { latestProfile, profileView } from '../../../../packages/protocol/src/profile';
 import { GallerySocialReader } from '../../../../packages/client/src/gallery-social';
-import { protocolClient, network, manifestAllowed } from './network';
+import { protocolClient, network, manifestAllowed, publicEventCacheReady } from './network';
 import { queryCatalog, availableCatalog, featured } from './protocol-catalog';
 import { matchesGallery } from '../../../../packages/protocol/src/topics';
 import { zapTotalsStore } from './zap-totals';
@@ -24,6 +24,7 @@ export async function readSocial(
   await validateManifest(manifest);
   const scope = socialScope(manifest),
     client = protocolClient();
+  await publicEventCacheReady();
   const filters = socialFilters(manifest);
   const raw = new Map((history.get(scope.key) ?? []).filter(manifestAllowed).map((e) => [e.id, e]));
   client.cached(filters).forEach((e) => raw.set(e.id, e));
@@ -188,6 +189,8 @@ export async function gallerySocial(
   signal?: AbortSignal,
   onUpdate?: (data: GallerySocialData) => void,
 ): Promise<GallerySocialData> {
+  protocolClient();
+  await publicEventCacheReady();
   const entries = (availableCatalog().length ? availableCatalog() : await queryCatalog()).filter(
     (n) =>
       matchesGallery(n, search) &&

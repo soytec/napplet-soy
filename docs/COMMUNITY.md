@@ -398,7 +398,16 @@ batches split when combining hints would discard a publication's relay choices.
 Verified events update counts and rankings as they arrive, coalesced over 40ms,
 without waiting for slow relays to finish. Cached counts appear immediately on
 returning to the gallery or changing filters/accounts in the same browser session;
-the current viewer's liked state is recomputed. A reload still starts a fresh read.
+the current viewer's liked state is recomputed. A reload still starts a fresh relay read.
+
+Local browser implementation: public events admitted into the Applesauce store are
+also written to a bounded `nostr-idb` database (8,000 events). On reload, up to
+2,000 recent stored events are signature-checked again before entering the store;
+kind-5 deletions use a separate path because Applesauce consumes them. This can
+populate social views while relays refresh. Browser storage failures leave relay
+reads available. The cache is local to this browser and does not establish a
+complete relay view for deletion or other authority-sensitive operations. This
+implementation builds locally and has not been deployed.
 
 Gallery summaries fetch referenced releases/reply parents and author deletions in
 a shared follow-up query. They omit comment-reaction and general profile hydration,

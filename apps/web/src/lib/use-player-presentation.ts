@@ -115,18 +115,23 @@ export function usePlayerPresentation(
     };
   }, [expanded, exitNative, wrapper, restoreScroll]);
 
+  const escape = useCallback(() => {
+    if (
+      !expanded ||
+      modalOpen ||
+      document.fullscreenElement ||
+      performance.now() - lastNativeExit.current <= 250
+    )
+      return false;
+    leave();
+    return true;
+  }, [expanded, modalOpen, leave]);
+
   useEffect(() => {
     if (!expanded || modalOpen) return;
     const keyboard = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
-      if (
-        event.key === 'Escape' &&
-        !document.fullscreenElement &&
-        performance.now() - lastNativeExit.current > 250
-      ) {
-        event.preventDefault();
-        leave();
-      }
+      if (event.key === 'Escape' && escape()) event.preventDefault();
       if (event.key === 'Tab') {
         const controls = [
           ...(wrapper.current?.querySelectorAll<HTMLElement>(
@@ -145,7 +150,7 @@ export function usePlayerPresentation(
     };
     document.addEventListener('keydown', keyboard);
     return () => document.removeEventListener('keydown', keyboard);
-  }, [expanded, leave, modalOpen, wrapper]);
+  }, [expanded, escape, modalOpen, wrapper]);
 
-  return { expanded, fullscreen, enterNative, exitNative, leave };
+  return { expanded, fullscreen, enterNative, exitNative, leave, escape };
 }

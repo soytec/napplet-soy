@@ -107,18 +107,28 @@ test('INTENT presence, cold delivery and document retirement work without SHELL 
 }, 30000);
 
 async function harnessServer() {
-  const build = await Bun.build({
-    entrypoints: ['tests/fixtures/intent-host.ts'],
-    target: 'browser',
-    format: 'esm',
-    define: {
-      NAPPLET_TEST_SHIM: JSON.stringify(
-        await Bun.file(Bun.resolveSync('@napplet/shim/prelude.global', import.meta.dir)).text(),
-      ),
+  const child = Bun.spawn(
+    [process.execPath, new URL('../fixtures/intent-host-build.ts', import.meta.url).pathname],
+    {
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env: { PATH: process.env.PATH, BUN_BE_BUN: '1' },
     },
-  });
-  if (!build.success) throw new Error(build.logs.join('\n'));
-  const script = await build.outputs[0].text();
+  );
+  const timer = setTimeout(() => child.kill('SIGKILL'), 20000);
+  let script: string;
+  try {
+    const [status, output, errors] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    if (status !== 0)
+      throw new Error(`Could not bundle INTENT test host (exit ${status}): ${errors}`);
+    script = output;
+  } finally {
+    clearTimeout(timer);
+  }
   const server = Bun.serve({
     hostname: '127.0.0.1',
     port: 0,

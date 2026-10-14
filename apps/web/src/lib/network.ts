@@ -68,5 +68,16 @@ export function manifestAllowed(e: SignedEvent) {
 export const featuredRules = () => policy.featured;
 export const backendProvider = () => policy.backend;
 let instance: ProtocolClient | undefined;
-export const protocolClient = () =>
-  (instance ??= new ProtocolClient(() => network().relays, manifestAllowed));
+let cacheReady: Promise<void> = Promise.resolve();
+export const publicEventCacheReady = () =>
+  Promise.race([cacheReady, new Promise<void>((resolve) => setTimeout(resolve, 400))]);
+export const protocolClient = () => {
+  if (!instance) {
+    instance = new ProtocolClient(() => network().relays, manifestAllowed);
+    if (typeof window !== 'undefined')
+      cacheReady = import('./event-cache')
+        .then(({ startBrowserEventCache }) => startBrowserEventCache(instance!))
+        .catch(() => console.warn('Public event cache unavailable; using relay reads.'));
+  }
+  return instance;
+};

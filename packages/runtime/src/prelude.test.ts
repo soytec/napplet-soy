@@ -24,6 +24,7 @@ test('injected INTENT presence agrees with surface policy and private readiness 
     };
     runInNewContext(nappletPrelude(shim, undefined, session), {
       window,
+      document: { addEventListener() {}, removeEventListener() {} },
       crypto,
       structuredClone,
       setTimeout,

@@ -7,7 +7,8 @@ import { resolveRepositoryRef, values } from '../../collaboration/src/protocol';
 import type { SignedEvent } from '../../protocol/src';
 import { newer } from './relay';
 
-/** A project's own NIP-34 repository. soyLI reads it but never signs or pushes to it. */
+/** A project's own NIP-34 repository. The napplet publisher reads it without
+ * signing or pushing; explicit collaboration `soyli push` is a separate action. */
 export class RepositoryError extends DiagnosticError {
   constructor(
     code: string,
@@ -41,7 +42,7 @@ type Latest = (
 type LsRemote = (directory: string, clone: string, refs: string[]) => Promise<string>;
 const commitPattern = /^[a-f0-9]{40}$/;
 const pushRecovery = (commit: string) =>
-  `Push commit ${commit} to your repository (for example git push <remote> or ngit push), then rerun soyli publish. soyLI does not write to your repository.`;
+  `Push commit ${commit} to your repository (for example git push <remote>), then rerun soyli publish. The publish command does not write to your repository.`;
 
 export function relayUrl(value: string, local = false) {
   const u = new URL(/^wss?:\/\//i.test(value) ? value : `wss://${value}`),

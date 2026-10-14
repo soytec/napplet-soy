@@ -384,6 +384,25 @@ playback with separate state and guest identity. Optional `soy-preview` is a Soy
 attachment convention, explicitly documented in [COLLABORATION.md](COLLABORATION.md),
 not claimed as a standardized NAP or prerequisite for external proposals.
 
+### 2026-10-12 Forkless collaboration source correction
+
+Native GRASP 3.0.2 at the existing `cdda4a23` pin accepts non-maintainer roots and
+updates at upstream `refs/nostr/<event-id>` after event delivery. Its normative
+GRASP pin remains `f35b4f9a4ed2f0aaaf46926e4b1733c79e21b377`. The adapter now uses
+that facility directly without signing or publishing contributor repository
+announcement/state events. The ngit 2.6.1 source at
+`55f3e3a838dffd03f0fdd996103b8dc8c2cddcd6` establishes branch names without `pr/`
+and reciprocal maintainer state handling for the tested profile. The independent
+fixture covers create/update/checkout/accept in both directions. ngit 2.6.1
+`pr merge` merges into the current branch; do not infer newer documented target
+selection behavior from this test.
+
+No authoritative NIP-5D, NAP or NIP-34 pin changes. Playable attachments remain
+optional. Soy's state resolver covers owners and direct reciprocal maintainers;
+role-based or indirect recursive authority requires ngit. Native non-main/ref
+preservation and recovery fixtures supplement the independent PR test. These are
+local source checks, not a production deployment or independent browser UI check.
+
 ## Managed resource authoring review — 2026-09-20
 
 2026-10-03 authoring correction: soyLI's inventory now admits the same verified
@@ -484,3 +503,10 @@ this is HTML association metadata, not a NAP operation or manifest extension.
 The existing NIP-5D and NAP-RESOURCE pins and `blossom:sha256:<hash>` playback
 calls remain unchanged. Missing related links never prevent playback or change
 publisher admission. See [coverage and limits](ASSETS.md#related-resource-links--soyli-0253).
+
+## NAP-KEYS host support — 2026-10-13 source
+
+The keyboard fix uses [NAP-KEYS PR 9 at 8869a4c](https://github.com/napplet/naps/blob/8869a4cf77b023f4b049f47c546910a0280dc1a6/naps/NAP-KEYS.md)
+and the existing shim 0.30.0. No event kind, manifest extension, author restriction
+or NIP-5D pin changes. All publishers receive the same frame-scoped action API.
+See [runtime behavior, limits and shim normalization caveat](PUBLIC-RUNTIME.md#keyboard-actions--2026-10-13-source).

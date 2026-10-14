@@ -206,7 +206,7 @@ to inspect larger archives; optional source inspection never gates playback.
 The hash-verifiable archive remains portable for recovery, offline inspection and
 independent mirroring alongside the source repository.
 
-In its hosted repository the publisher retains Git release refs so published commits remain reachable after branches move. A creator can instead publish against their own NIP-34 repository, which soyLI references but never writes ([details](PUBLISHING.md#publishing-from-your-own-nip-34-repository)). There the creator keeps released commits reachable; the release commit must be in a ref of the repository's signed state and served by one of its clone URLs before publication. The `source` value keeps its ordinary `nostr://` shape, so this changes no standard manifest field, admission rule or NIP-5D pin. It includes optional `source-commit` and `source-archive` provenance tags alongside the standard `source` repository URL. Linked repositories also carry optional `soy-source-repository` metadata (`address`, `linked`), an author-signed cleanup policy that retains that repository when deleting a napplet even if their identifiers match. A local publication journal provides the same retention protection for older signed releases. It is not a discovery or playback requirement. These convenience tags are Space conventions, not protocol requirements; clients can ignore them and discover/play the same manifest. Large original media can be represented in a content-addressed source asset lockfile and restored during remix; every required source asset must be retained and hash-checked too. V1 can keep normal small assets in Git and introduce that lockfile only when needed.
+In its hosted repository the publisher retains Git release refs so published commits remain reachable after branches move. A creator can instead publish against their own NIP-34 repository, which the `publish` command verifies read-only ([details](PUBLISHING.md#publishing-from-your-own-nip-34-repository)); explicit collaboration `soyli push` is a separate branch-publication action. There the creator keeps released commits reachable; the release commit must be in a ref of the repository's signed state and served by one of its clone URLs before publication. The `source` value keeps its ordinary `nostr://` shape, so this changes no standard manifest field, admission rule or NIP-5D pin. It includes optional `source-commit` and `source-archive` provenance tags alongside the standard `source` repository URL. Linked repositories also carry optional `soy-source-repository` metadata (`address`, `linked`), an author-signed cleanup policy that retains that repository when deleting a napplet even if their identifiers match. A local publication journal provides the same retention protection for older signed releases. It is not a discovery or playback requirement. These convenience tags are Space conventions, not protocol requirements; clients can ignore them and discover/play the same manifest. Large original media can be represented in a content-addressed source asset lockfile and restored during remix; every required source asset must be retained and hash-checked too. V1 can keep normal small assets in Git and introduce that lockfile only when needed.
 
 A creator signature and matching source archive prove what the creator published and claimed. They do not prove the HTML was built from that source. Initially label the association as creator-declared. Only show a stronger reproducible-build claim after an independent isolated rebuild reproduces the artifact hash. That verification is a later worker capability, not a prerequisite for every quick first publish.
 
@@ -293,6 +293,17 @@ independent napplet or propose the same changes upstream; neither happens merely
 on clone. Proposal refs use GRASP-01 `refs/nostr/<event-id>` without updating a
 maintainer branch. The existing GRASP 3.0.2 pin is retained.
 
+2026-10-12 source removes contributor repository creation from submission. Signed
+roots/updates advertise the existing upstream clone and precede immutable ref
+delivery. Ref verification, exact commit fetch and relay read-back gate success;
+hosting failure never falls back to a fork. Legacy signed jobs retain their original
+clone locations. Acceptance publishes an existing target branch with saved state
+and applied events while retaining other refs/HEAD. The bounded authority profile
+supports the owner and direct reciprocal maintainers; role-based and indirect
+recursive authority use ngit. Independent ngit PR qualification uses 2.6.1 at
+`55f3e3a838dffd03f0fdd996103b8dc8c2cddcd6`. NIP-34 and NIP-5D pins are unchanged;
+GRASP-06 is not enabled. See [behavior and limits](COLLABORATION.md).
+
 The optional `soy-preview` tag binds a hash-addressed JSON descriptor, signed
 snapshot and source commit to the exact PR revision. It adds no requirement to
 NIP-34 discovery or NIP-5D playback; attachments are not gallery publications.
@@ -330,3 +341,10 @@ unpublished proof scoped to provider/module. Provider signatures attest builds;
 they are not proof of honest execution. Public admission defaults off; explicit creator admission and verified Linux isolation are required. See
 [DYNAMIC-BACKENDS.md](DYNAMIC-BACKENDS.md) for implemented behavior and limits.
 A possible upstream CEP is explicitly deferred; upstream protocol pins are unchanged.
+
+## NAP-KEYS host support — 2026-10-13 source
+
+The keyboard fix uses [NAP-KEYS PR 9 at 8869a4c](https://github.com/napplet/naps/blob/8869a4cf77b023f4b049f47c546910a0280dc1a6/naps/NAP-KEYS.md)
+and the existing shim 0.30.0. No event kind, manifest extension, author restriction
+or NIP-5D pin changes. All publishers receive the same frame-scoped action API.
+See [runtime behavior, limits and shim normalization caveat](PUBLIC-RUNTIME.md#keyboard-actions--2026-10-13-source).

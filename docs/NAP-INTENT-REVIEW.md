@@ -101,3 +101,9 @@ I-01 and I-02 are resolved in local source: a per-document surface domain set co
 Navigation retires the host and endpoint via before-unload/page-hide signals and a repeated-load fallback. Chromium no-SHELL fixtures cover signed/verified source and target documents, cold buffering, source closure before receiver registration, unsupported surfaces, wrong/foreign readiness signals and retirement. The browser experiment established that pagehide alone was insufficient for this srcdoc navigation path; the capture-phase beforeunload listener provides the retirement signal and is installed before creator listeners.
 
 The complete two-surface chooser/discovery/lifecycle evidence remains IN-05. I-04, recommendation resolution and workspace/choice lifecycle work remain open. No full-support, release or deployment claim follows from this slice.
+
+## Draft PR validation after main integration — 2026-10-13
+
+Main at `6f2f270` is merged, preserving NAP-KEYS cleanup and browser caching. The combined dependency hash was updated using the project's exact hash-refresh helper. Full realization, forced rebuild and flake checks passed on x86_64 Linux; the generated NixOS VM suite also passed with confirmed KVM when run as the existing authorized user, because daemon builders had fallen back to software emulation. No system permission changes were made; aarch64 was not checked.
+
+Merged-tree typecheck/web build passed; runtime/protocol suites passed 125 tests/921 assertions, and combined INTENT-readiness/NAP-KEYS browser checks passed three tests/27 assertions. This supersedes the earlier pending packaging evidence for the draft branch. Remaining implementation/conformance findings are unchanged, and no release or deployment is claimed.

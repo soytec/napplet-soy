@@ -1,5 +1,7 @@
 {
   "upstream": "956135bfc41a2cff5e45d6c68d9f9a4d68c50531",
   "paja": "0.16.4",
-  "ngitVerified": "2.1.0"
+  "ngitVerified": "2.1.0",
+  "ngitProposals": "2.6.1",
+  "ngitProposalsCommit": "55f3e3a838dffd03f0fdd996103b8dc8c2cddcd6"
 }
