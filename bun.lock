@@ -11,7 +11,7 @@
         "@fontsource/fredoka": "5.3.0",
         "@jitl/quickjs-singlefile-cjs-release-sync": "0.31.0",
         "@modelcontextprotocol/sdk": "1.30.0",
-        "@napplet/shim": "0.30.0",
+        "@napplet/shim": "0.31.0",
         "@noble/curves": "2.0.1",
         "@noble/hashes": "2.0.1",
         "@radix-ui/react-dialog": "1.1.23",
@@ -302,11 +302,11 @@
 
     "@napplet-space/cvm": ["@napplet-space/cvm@workspace:apps/cvm"],
 
-    "@napplet/core": ["@napplet/core@0.32.0", "", {}, "sha512-gP+U7xd32gD7uFYINK+NWDJfW2TMvhLcIPr+Boafta7tZWTRIlyzozvqsooyFg7XUapCOnGKqnjIUa0DFo6Brw=="],
+    "@napplet/core": ["@napplet/core@0.33.0", "", {}, "sha512-hiodOl6MeWgFNFQLRryv8MdMRekcrgTX5SK/eb9KEhKh4dghf9QlS/eXGiSTvWSMNabwUCArtS7zTe9y6dPsdg=="],
 
-    "@napplet/nap": ["@napplet/nap@0.32.0", "", { "dependencies": { "@napplet/core": "^0.32.0" }, "peerDependencies": { "json-schema-to-ts": "^3.1.1" }, "optionalPeers": ["json-schema-to-ts"] }, "sha512-DvlneleMpcUtOZmLGRGj9QSCor67veL4gWOYGTWaXPDkBEaEuiU4Ijtreb3+kVky/4ghjL3qmScOFMW6WorWQw=="],
+    "@napplet/nap": ["@napplet/nap@0.33.0", "", { "dependencies": { "@napplet/core": "^0.33.0", "nostr-tools": "^2.23.3" }, "peerDependencies": { "json-schema-to-ts": "^3.1.1" }, "optionalPeers": ["json-schema-to-ts"] }, "sha512-i3KR+9K50MicpfX00Em/NhQaDiF4IAtcXBGQJO90xbLUsKMXz0FUTmvRvTBnobg3QzCEbQ03SLuzctkfPiSD4g=="],
 
-    "@napplet/shim": ["@napplet/shim@0.30.0", "", { "dependencies": { "@napplet/core": "0.32.0", "@napplet/nap": "0.32.0" } }, "sha512-aGkHuT6NI28rC1x8LXDKnF7XTv8RVf1WieItCJqKag14jQqxUOIuDUqFru1uzE5BIj6TnuqO3LRwvQzxuw7BwQ=="],
+    "@napplet/shim": ["@napplet/shim@0.31.0", "", { "dependencies": { "@napplet/core": "0.33.0", "@napplet/nap": "0.33.0" } }, "sha512-QKGl/Ag/rhVfovE3Ez5rvtw8NWGZJQ/K22fYLIdMhmcJYMhMnZNUGqSQ1gobIsXgIod3o6Mz/46MZr0SiTNTUw=="],
 
     "@noble/ciphers": ["@noble/ciphers@2.1.1", "", {}, "sha512-bysYuiVfhxNJuldNXlFEitTVdNnYUc+XNJZd7Qm2a5j1vZHgY+fazadNFWFaMK/2vye0JVlxV3gHmC0WDfAOQw=="],
 

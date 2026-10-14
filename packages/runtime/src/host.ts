@@ -9,6 +9,7 @@ import { NappletFiles, type ExportFile, type FilePick } from './filesystem';
 import { NappletActions } from './action-session';
 import { NappletUploads } from './upload-session';
 import { NappletAppData, appDataPolicy } from './app-data-session';
+import type { IntentWorkspace } from './intent-session';
 import type { HostSign } from './action-contracts';
 import { PlaybackNostr } from '../../nostr/src/playback';
 import { WorkQueue } from './work-queue';
@@ -32,6 +33,8 @@ export type HostPrompt = {
   dismiss: () => void;
 };
 export type HostOptions = {
+  /** Trusted shell catalog/lifecycle broker; the frame cannot supply these values. */
+  intent?: { workspace: IntentWorkspace; catalogId: string };
   frame: HTMLIFrameElement;
   identity: string;
   manifestId: string;
@@ -79,6 +82,7 @@ export function attachNappletHost(options: HostOptions) {
   const send = (message: Record<string, unknown>) => {
     if (alive) source?.postMessage(message, '*');
   };
+  const intentEndpoint = options.intent?.workspace.attach(options.intent.catalogId, send);
   // The iframe/handshake outlive account scopes. Each request captures its scope;
   // retiring it settles promises and prevents delayed results reaching a new user.
   const createAccount = (pubkey: string | null) => {
@@ -282,6 +286,10 @@ export function attachNappletHost(options: HostOptions) {
       if (domain === 'fs')
         return files.handle(message, (name) => choose('save', name), chooseFiles, lifetime.signal);
       if (domain === 'identity') return nostr.identity(action);
+      if (domain === 'intent')
+        return intentEndpoint
+          ? intentEndpoint.handle(message)
+          : { result: { ok: false, error: 'No intent workspace is available in this surface.' } };
       if (type === 'outbox.publish' || type === 'relay.publish') return appData.handle(message);
       if (domain === 'relay' || domain === 'outbox') return nostr.handle(message);
       if (domain === 'upload') return uploads.handle(message);
@@ -423,10 +431,14 @@ export function attachNappletHost(options: HostOptions) {
       initialized = true;
       send({
         type: 'shell.init',
-        capabilities: { domains: [...RUNTIME_DOMAINS], appData: dataPolicy },
+        capabilities: {
+          domains: RUNTIME_DOMAINS.filter((domain) => domain !== 'intent' || !!intentEndpoint),
+          appData: dataPolicy,
+        },
         services: [],
       });
       config.ready();
+      intentEndpoint?.ready();
       return;
     }
     if (
@@ -502,6 +514,16 @@ export function attachNappletHost(options: HostOptions) {
           : error instanceof Error
             ? error.message
             : 'Request failed';
+      if (message.type.startsWith('intent.')) {
+        scope.send({
+          type: `${message.type}.result`,
+          id: message.id,
+          ...(message.type === 'intent.invoke'
+            ? { result: { ok: false, error: detail } }
+            : { error: detail }),
+        });
+        return;
+      }
       if (message.type.startsWith('resource.'))
         scope.send({
           type: `${message.type}.error`,
@@ -571,6 +593,7 @@ export function attachNappletHost(options: HostOptions) {
     close() {
       if (!alive) return;
       alive = false;
+      intentEndpoint?.close();
       unsubscribePermission();
       unsubscribeTheme?.();
       window.removeEventListener('message', listener);

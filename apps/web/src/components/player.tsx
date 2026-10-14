@@ -1,3 +1,8 @@
+import {
+  installPlayerIntent,
+  playerIntentCatalogId,
+  webIntentWorkspace,
+} from '@/lib/intent-workspace';
 import { shellTheme } from '../../../../packages/runtime/src/appearance';
 import { network, backendProvider } from '@/lib/network';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -60,6 +65,7 @@ export function Player({
   onExit,
   detailPath,
   returnLabel = 'Back to gallery',
+  onLoadError,
 }: {
   napplet: Napplet | PublicNapplet;
   reviewScope?: string;
@@ -72,6 +78,7 @@ export function Player({
   onExit?: () => void;
   detailPath?: string;
   returnLabel?: string;
+  onLoadError?: (error: Error) => void;
 }) {
   const external = 'provenance' in napplet;
   const manifest = external ? napplet.manifest : pinned ? napplet.snapshot : napplet.current;
@@ -161,6 +168,9 @@ export function Player({
       host.current = undefined;
       if (!node || !release) return;
       host.current = attachNappletHost({
+        intent: reviewScope
+          ? undefined
+          : { workspace: webIntentWorkspace(), catalogId: playerIntentCatalogId(release.manifest) },
         theme: shellTheme,
         backend: reviewScope ? undefined : backendProvider(),
         frame: node,
@@ -197,6 +207,7 @@ export function Player({
     setRelease(null);
     void preparePlayback(manifest, napplet.artifactHash)
       .then(async (release) => {
+        if (!reviewScope) await installPlayerIntent(release.manifest, napplet.title);
         let config: ReturnType<typeof declaredConfig> = {};
         const html = await loadArtifact(
           release.artifactHash,
@@ -218,11 +229,15 @@ export function Player({
         }
       })
       .catch((reason) => {
-        if (!controller.signal.aborted)
-          setError(reason instanceof Error ? reason.message : 'Could not load this creation.');
+        if (!controller.signal.aborted) {
+          const error =
+            reason instanceof Error ? reason : new Error('Could not load this creation.');
+          setError(error.message);
+          onLoadError?.(error);
+        }
       });
     return () => controller.abort();
-  }, [playing, releaseId, revision]);
+  }, [playing, releaseId, revision, reviewScope]);
   return (
     <div className="player-slot" style={expanded ? { height: restingHeight } : undefined}>
       <div

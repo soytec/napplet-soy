@@ -30,6 +30,17 @@ const relayUrl = z
   )
   .transform((url) => url.href);
 const configSchema = z.object({
+  title: z.string().max(256).optional(),
+  archetypes: z.array(z.string().max(256)).max(32).default([]),
+  intents: z
+    .array(
+      z.object({
+        intent: z.string().max(1024),
+        parameters: z.array(z.string().max(128)).max(32).default([]),
+      }),
+    )
+    .max(64)
+    .default([]),
   backend: backendConfig.optional(),
   previewId: z.uuid(),
   entry: z.enum(['index.html', 'dist/index.html']),
@@ -41,6 +52,9 @@ const configSchema = z.object({
   servers: z.array(z.url().max(2048)).max(8).default([]),
 });
 export type PreviewRevision = {
+  intentCatalogId: string;
+  intentTags: string[][];
+  title: string;
   backend?: BackendProvider;
   backendAliases?: BackendProvider[];
   id: string;
@@ -89,6 +103,12 @@ export function startPreviewServer(
     const artifactHash = await sha256(bytes);
     const backend = listing.backend ? await backendProject(fileURLToPath(root)) : undefined;
     const info: PreviewRevision = {
+      intentCatalogId: `soy:local-preview:${config.previewId}`,
+      title: config.title ?? 'Local preview',
+      intentTags: [
+        ...config.archetypes.map((role) => ['z', role]),
+        ...config.intents.map((i) => ['i', i.intent, ...i.parameters]),
+      ],
       backend: listing.backend,
       backendAliases: listing.backend && config.backend?.provider ? [config.backend.provider] : [],
       id: await sha256(`${artifactHash}:${configText}:${JSON.stringify(managed)}`),

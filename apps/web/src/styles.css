@@ -3359,3 +3359,6 @@ input::placeholder, textarea::placeholder { color: var(--muted-foreground); opac
 .admin-hosting-dot.is-live { background:var(--primary); box-shadow:0 0 0 4px color-mix(in srgb,var(--primary) 12%,transparent); }
 .admin-empty { padding:24px 0; }
 @media (max-width:700px) { .admin-tabs { flex-wrap:nowrap; margin-right:-2px; } .admin-tabs [role="tab"] { flex:0 0 auto; } .admin-actions button { min-height:44px; } }
+
+/* Shell-owned cross-napplet routing controls. */
+.intent-choice{position:fixed;z-index:10050;inset:auto 1rem 1rem auto;max-width:min(500px,calc(100vw - 2rem));padding:20px;background:var(--background,#fff);color:var(--foreground,#222);border:1px solid currentColor;box-shadow:0 12px 40px #0004;max-height:80vh;overflow:auto}.intent-choice button{display:block;min-height:44px;padding:8px 12px;margin-top:8px}.intent-target{position:fixed;inset:0;z-index:10000;background:var(--background,#fff);padding-top:44px;overflow:auto}.intent-target .player-slot,.intent-target .player-wrap{height:calc(100dvh - 44px);width:100%}.intent-close{position:absolute;right:8px;top:4px;min-height:36px;z-index:1}
