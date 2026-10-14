@@ -119,13 +119,15 @@ export function Player({
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
-  const { expanded, fullscreen, enterNative, exitNative, leave } = usePlayerPresentation(
+  const { expanded, fullscreen, enterNative, exitNative, leave, escape } = usePlayerPresentation(
     wrapper,
     immersive,
     settingsOpen || prompt !== null,
     onEnter,
     onExit,
   );
+  const escapeCurrent = useRef(escape);
+  escapeCurrent.current = escape;
   const owner = useRef({});
   const stopCurrent = useRef<() => void>(() => {});
   stopCurrent.current = () => {
@@ -171,6 +173,7 @@ export function Player({
         intent: reviewScope
           ? undefined
           : { workspace: webIntentWorkspace(), catalogId: playerIntentCatalogId(release.manifest) },
+        escape: () => escapeCurrent.current(),
         theme: shellTheme,
         backend: reviewScope ? undefined : backendProvider(),
         frame: node,

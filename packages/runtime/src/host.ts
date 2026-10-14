@@ -19,6 +19,7 @@ import type { IntentWorkspace } from './intent-session';
 import type { HostSign } from './action-contracts';
 import { PlaybackNostr } from '../../nostr/src/playback';
 import { WorkQueue } from './work-queue';
+import { NappletKeys } from './keys-session';
 import { NappletConfig } from './config-session';
 import { NappletMedia } from './media-session';
 import { NappletBackend, transportSigner } from './backend-session';
@@ -64,6 +65,8 @@ export type HostOptions = {
   backendIdentity?: string;
   backendAliases?: BackendProvider[];
   theme?: ThemeSource;
+  /** Narrow shell shortcut; only invoked for a focused, interactive frame. */
+  escape?: () => void;
 };
 const envelope = z
   .object({
@@ -498,6 +501,14 @@ export function attachNappletHost(options: HostOptions) {
     focused: () => document.activeElement === options.frame,
   });
   options.configuration?.(config);
+  const keys = new NappletKeys({
+    send,
+    focused: () =>
+      document.hasFocus() &&
+      document.activeElement === options.frame &&
+      !options.frame.closest('[inert]'),
+    escape: options.escape,
+  });
   let configCalls = 0,
     configWindow = Date.now();
   let mediaCalls = 0,
@@ -523,6 +534,11 @@ export function attachNappletHost(options: HostOptions) {
       });
       config.ready();
       intentEndpoint?.ready();
+      keys.ready();
+      return;
+    }
+    if (initialized && message.type.startsWith('keys.') && HOST_REQUESTS.has(message.type)) {
+      keys.handle(message);
       return;
     }
     if (
@@ -699,6 +715,7 @@ export function attachNappletHost(options: HostOptions) {
       window.removeEventListener('message', listener);
       account.close('Player closed');
       config.close();
+      keys.close();
       options.configuration?.(null);
       options.media?.(null);
       options.files([]);

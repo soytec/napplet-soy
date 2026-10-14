@@ -75,8 +75,12 @@ test('bound host replies with official invoke result and cold delivery follows t
     targetHost = make(target, 'editor');
     expect(sentTarget).toEqual([]);
     deliver(target, { type: 'shell.ready' });
-    expect(sentTarget.map((m) => m.type)).toEqual(['shell.init', 'intent.deliver']);
-    expect(sentTarget.at(-1)).toEqual({
+    expect(sentTarget.map((m) => m.type)).toEqual([
+      'shell.init',
+      'intent.deliver',
+      'keys.bindings',
+    ]);
+    expect(sentTarget.find((message) => message.type === 'intent.deliver')).toEqual({
       type: 'intent.deliver',
       delivery: {
         sender: 'attested-source',

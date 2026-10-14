@@ -1,5 +1,19 @@
 # soyLI error diagnostics
 
+Forkless proposal hosting reports `PROPOSAL_HOSTING` with the upstream clone,
+Git exit status and useful server output, without automatically creating a fork.
+`PROPOSAL_UNCONFIRMED` retains relay or advertised-clone failures after signing.
+The transport keeps the underlying Git diagnostic close enough to the terminal
+boundary that bounded cause formatting does not drop its actionable output.
+Real CLI JSON checks exercise HTTP 403 hosting refusal and saved-event recovery.
+
+A proposal `SIGNER_TIMEOUT` before journaling explicitly instructs retrying the
+description command without `--resume`. `PROPOSAL_NOT_SAVED` distinguishes absent
+signed state from frozen preparation files. Real encrypted NIP-46 CLI tests cover
+that timeout, permission scope and redaction. `GIT_PUBLICATION_UNCONFIRMED` retains
+branch-hosting causes; `PROPOSAL_STATUS_UNCONFIRMED` means Git succeeded but applied
+status is pending, and instructs rerunning `soyli push` without another merge.
+
 `CONFORMANCE_BROWSER` identifies missing compatible headless Chromium or FFmpeg
 for the project's own Playwright version, including the expected revision and
 executable path. Nix builds report this before running the project conformance

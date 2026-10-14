@@ -1,4 +1,5 @@
 import { EventStore } from 'applesauce-core';
+import { markFromCache } from 'applesauce-core/helpers';
 import { RelayPool } from 'applesauce-relay';
 import { matchFilters, type Filter } from 'nostr-tools';
 import { Observable, Subject, shareReplay, take, takeUntil, takeWhile, timer } from 'rxjs';
@@ -14,6 +15,8 @@ export class ProtocolClient {
   // Our reducers need the signed request's timestamp/author, within the same byte budget.
   private deletions = new Map<string, SignedEvent>();
   private deletionUpdates = new Subject<SignedEvent>();
+  /** Verified kind-5 events are consumed by EventStore, so cache them separately. */
+  readonly deletionEvents = this.deletionUpdates.asObservable();
   private retainedBytes = 0;
   private connections = new Map<
     string,
@@ -76,10 +79,11 @@ export class ProtocolClient {
     readonly relays: () => string[],
     readonly allowed: (event: SignedEvent) => boolean = () => true,
   ) {}
-  seed(inputs: SignedEvent[]) {
+  seed(inputs: SignedEvent[], fromCache = false) {
     for (const input of inputs)
       try {
         const event = verifiedEvent(input);
+        if (fromCache) markFromCache(event);
         this.remember(event);
       } catch {}
   }

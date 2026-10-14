@@ -1,5 +1,63 @@
 # Cross-client and standalone release checks
 
+## Forkless proposals and acceptance
+
+2026-10-12 local source qualification uses native GRASP 3.0.2 at
+`cdda4a23fe5dede2411e18aaa8b82c1747c97ddf`, GRASP specifications at
+`f35b4f9a4ed2f0aaaf46926e4b1733c79e21b377`, and independent ngit/git-remote-nostr
+2.6.1 (source `55f3e3a838dffd03f0fdd996103b8dc8c2cddcd6`). The PR test checks the
+installed ngit version against `tests/fixtures/interoperability/pins.json`.
+The historical 2.1.0 fetch qualification below remains separate evidence.
+
+`tests/services/forkless-proposals.test.ts` runs a real Soy CLI submission through
+an encrypted NIP-46 provider that refuses repository signing. It checks permitted
+signing kinds, no new repository events, unchanged upstream branches/tags, and
+retry without reconnecting the signer. Independent ngit lists and checks out the
+PR, updates the same root, and accepts it with `pr merge` on the target followed
+by Git push. Soy continues a mixed-client revision and reads ngit's applied status.
+
+The reverse leg creates and updates a PR with actual `git-remote-nostr` pushes,
+without a Soy preview. Soy merges and publishes it, and ngit reads the applied
+status. A new ngit root can acquire a Soy journal without another root. Fixtures
+also cover an interrupted Git/status publication, real CLI HTTP 403 diagnostics,
+legacy journal resume/clone transition, and a real encrypted signer timeout before
+journaling. Distinct Nostr timestamps are used for sequential cross-client updates;
+this does not qualify simultaneous or equal-timestamp revision conflict behavior.
+
+`tests/services/forkless-acceptance.test.ts` verifies a signed `develop` default,
+additional maintainer invitation versus reciprocal confirmation, an exact reviewed
+merge, and publication retaining `main`, tags, `HEAD` and the announcement.
+`tests/services/grasp.test.ts` independently verifies event-first pending visibility,
+exact commit fetch, immutable root/update refs, retry and branch-write refusal.
+The existing collaboration test in `tests/services/publish.test.ts` exercises the
+shared local-review browser, mobile width, sandbox and revision-selection behavior.
+
+Run with Git 2.38 or newer, ngit 2.6.1, the native-service build prerequisites and
+the installed Playwright browsers:
+
+```sh
+bun test tests/services/grasp.test.ts tests/services/forkless-proposals.test.ts tests/services/forkless-acceptance.test.ts tests/services/publish.test.ts
+```
+
+All keys and services are disposable and confined to loopback. Test-only ngit
+credentials live privately outside Git repositories; production proposal transport
+does not pass signer secrets to Git/ngit. These are CLI/native-service and Soy UI
+checks, not independent Nostr Git browser UI acceptance, public hosting policy
+qualification or deployment. Role-based and indirect recursive maintainer state
+authority, branch creation and squash/rebase acceptance remain delegated to ngit.
+
+The native/service run records 14 passes and one existing opt-in native credential
+test skipped. The final targeted collaboration run passes, and the same PR fixture
+also passes against the Nix-built standalone CLI (`SPACE_TEST_CLI`). Its shortened
+pre-journal signer-timeout leg uses the source entrypoint to set the test budget.
+The full repository check records 616 passes. Nix dependency and CLI force
+rebuilds pass with unchanged dependency hashes. The final NixOS regression driver
+passes with KVM under the current user. The all-in-one `check:nix` remains blocked
+in the daemon's build environment: that build user lacks KVM device access, falls
+back to emulation and exceeds the Chromium navigation deadline. This is not
+recorded as a passing flake check; the same driver's direct KVM run is separate
+verification. [Remaining work](FORKLESS-PROPOSALS-PLAN.md).
+
 ## Current migration scope — 2026-10-04
 
 [NIP-5D PR 7 migration](NIP5D-MIGRATION.md) has a separate real-service/browser fixture in `tests/services/nip5d-migration.test.ts`: directly signed new and legacy manifests, raw artifact verification, saved-state continuity, independent snapshot isolation, icons, required/optional domains and retained pinned revisions. These fixtures are independent of Soy's event builder, but are not an external client implementation.
