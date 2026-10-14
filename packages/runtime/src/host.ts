@@ -15,7 +15,7 @@ import { NappletAppData, appDataPolicy } from './app-data-session';
 import { APP_DATA_KIND } from '../../app-data/src/app-data-contract';
 import { NappletOutbox } from './outbox-session';
 import { NappletMapPublication, isMapPublication } from './map-publication-session';
-import type { IntentWorkspace } from './intent-session';
+import { intentMessageBytes, type IntentWorkspace } from './intent-session';
 import type { HostSign } from './action-contracts';
 import { PlaybackNostr } from '../../nostr/src/playback';
 import { WorkQueue } from './work-queue';
@@ -595,13 +595,6 @@ export function attachNappletHost(options: HostOptions) {
       scope.cancel(message.id);
       return;
     }
-    let size: number;
-    try {
-      size = JSON.stringify(message).length;
-    } catch {
-      return;
-    }
-    if (size > 360000) return;
     if (Date.now() - windowStart >= 60000) {
       windowStart = Date.now();
       calls = 0;
@@ -668,6 +661,17 @@ export function attachNappletHost(options: HostOptions) {
           });
       }
     };
+    let size: number;
+    const intent = message.type.startsWith('intent.');
+    try {
+      // INTENT payloads use structured clone, not JSON. Apply the same bounded
+      // accounting as the broker before dispatch, including unknown fields.
+      size = intent ? intentMessageBytes(message) : JSON.stringify(message).length;
+    } catch (error) {
+      if (intent) failure(error);
+      return;
+    }
+    if (!intent && size > 360000) return;
     const realtime = message.type === 'webrtc.send';
     if (Date.now() - rtcWindow >= 1000) {
       rtcWindow = Date.now();

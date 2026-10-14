@@ -87,6 +87,21 @@ not durable messaging.
 acknowledgement from the editor, and does not prove a map was loaded, edited or
 published. Receivers still enforce login, map ownership, downloads and unsaved
 work protection. An intent does not grant signing or bypass publication consent.
+
+The browser keeps at most 100 discovered handler identities per workspace and
+refreshes their replaceable coordinates alongside role searches (30-second read
+cache). Newer verified revisions replace old contracts even when they remove or
+change the advertised role. Unsupported or unavailable revisions retire the old
+handler; older relay results cannot restore it. An empty/partial catalog response
+alone does not remove installed handlers. Reopening the same handler with
+`reuse: false` preserves the newly accepted delivery for the replacement surface.
+
+The host accepts structured-clone payloads, including cycles, BigInt and binary
+data. It bounds the whole INTENT message to the payload allowance plus 16 KiB of
+envelope overhead, and independently checks the 1 MiB payload limit. Oversized
+messages receive a correlated INTENT failure instead of being silently discarded.
+Existing per-frame request quotas and other domains' message limits still apply.
+
 Both preview and web handler launch/chooser/default UI are implemented in source;
 public deployment remains separate.
 
@@ -102,3 +117,10 @@ retry. The related runtime suite passed 83 tests.
 
 These checks establish local source integration, not public relay availability,
 a released CLI, a deployed website or universal independent-host conformance.
+
+2026-10-14 follow-up regressions cover same-handler replacement, different-target
+cancellation, named/root contract removal and role changes, unsupported revisions,
+invalid signatures, stale observations and partial reads. The real shim/browser
+fixture exercises circular/BigInt/binary payloads, correlated size refusal and
+coordinate refresh against an isolated relay after the old role tags disappear.
+These are INTENT corrections; OUTBOX relay discovery policy is unchanged.
