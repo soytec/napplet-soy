@@ -1,5 +1,16 @@
 # Napplet playback profile
 
+## NAP-INTENT extraction — 2026-10-13 source
+
+The independent INTENT branch includes the shared broker, web/preview target
+launch and shim 0.31.0 with nap/core 0.33.0. It adds no native map publication
+or signer permissions. Review against PR 106 at
+`fc121fc264615482143eda86125863d2e1f741a2` found unresolved domain-availability,
+SHELL coupling, manifest-parameter and catalog/launch consistency issues.
+The selected NIP-5D authority is unchanged. Source implementation and passing
+local tests do not establish full conformance, release or deployment. See
+[behavior and limits](INTENTS.md) and [review findings](NAP-INTENT-REVIEW.md).
+
 2026-09-23 source update: `relay.publish` and `outbox.publish` now accept the
 bounded public kind-30078 application-data convention with viewer consent. Other
 event kinds and encryption remain denied. The optional shell-init `appData`
@@ -29,7 +40,7 @@ Fixtures and relay-imported napplets use the same manifest validator, capability
 
 Named/root manifests retain their existing author/address/build storage and settings scopes across the old-to-new manifest migration, computed from verified HTML bytes. Legacy snapshots keep their validated own-address sharing. New standalone snapshots have an independent author/event/build scope; their optional ancestry never grants parent saves, account backend bindings or social identity. New soyLI pinned URLs use the exact named manifest revision so that the named app keeps its scope. See [migration details](NIP5D-MIGRATION.md). The new protocol artifact identity is the raw SHA-256; the physical legacy-derived save key is a compatibility detail. Old fixture-only prototype saves remain unmigrated.
 
-The browser injects the published **@napplet/shim 0.30.0** prelude, with transitive **@napplet/nap 0.32.0** and **@napplet/core 0.32.0** pinned in the lockfile. These are protocol bindings, not another catalog: discovery remains Applesauce queries against Nostr relays. The shim is loaded with the player route, not by executing an external script inside a napplet.
+The browser injects the published **@napplet/shim 0.31.0** prelude, with transitive **@napplet/nap 0.33.0** and **@napplet/core 0.33.0** pinned in the lockfile. These are protocol bindings, not another catalog: discovery remains Applesauce queries against Nostr relays. The shim is loaded with the player route, not by executing an external script inside a napplet.
 
 Space adds the [NAP-SHELL handshake](https://github.com/napplet/naps/blob/master/naps/NAP-SHELL.md), absent from that shim release. `shell.ready` establishes one frame session; `shell.init` replies once; `shell.ready()`, `onReady()`, `supports()` and `services` expose its environment. Unknown message types are silently ignored before quota accounting; recognized operations can still return policy errors. The host verifies `MessageEvent.source` and the opaque origin, and binds identity to the verified manifest before accepting requests. Messages cannot choose a different author, build, account, or storage namespace.
 
@@ -47,6 +58,7 @@ References: [NAP registry and web projection](https://github.com/napplet/naps), 
 | `outbox`   | Query, getEvent, subscriptions, close, resolveRelays                                                                 | NIP-65 selection and public relay hints under the shared read policy, fallback when needed, partial results marked; scoped public app-data publishing with viewer consent  |
 | `common`   | Public NIP-19 helpers including nrelay, profile/follows, follow/unfollow/react/report                                | Viewer signer and host approval for writes; signed native event targets only; no secret identifiers                                                                        |
 | `resource` | HTTPS and hash-verified Blossom bytes, ordered bulk responses, cancellation, scheme discovery                        | `data:` handled locally by upstream shim; no htree/nostr resolver; raw SVG/HTML/XML denied                                                                                 |
+| `intent` | Verified catalog discovery, exact convention routing, chooser/defaults and retained target delivery | Local source only; conformance findings remain open. See [INTENT limits](INTENTS.md) |
 | `link`     | HTTPS links presented in a host-owned confirmation                                                                   | User clicks to open; no automatic navigation                                                                                                                               |
 | `config`   | Static/runtime schemas, validated settings UI, snapshots/subscriptions, focused settings opening                     | Browser-local values scoped to author/address/build/account; session-only secrets; see [configuration limits](CONFIGURATION.md). Deployed 2026-09-14                       |
 | `fs`       | Session files, native file/folder import copies, chunked reads/writes, metadata, move/remove/watch and export picker | 10 MiB aggregate, 256 KiB chunks, 128 entries, 16 watches; no live device paths                                                                                            |
@@ -60,7 +72,7 @@ including live streams and play/pause/stop/volume. It is deployed and available 
 unsupported ownership/source modes, limits and evidence. The runtime profile changes
 to `space-playback-2` so the index retries formerly unsupported media creations.
 
-Required unsupported domains still gate launch: for example `inc`, `intent`, `keys`, and `connect`. Composability, napplet signing grants, extended identity projections and arbitrary backend execution remain separate additions. Older artifacts that omit required domains may still depend on unavailable APIs.
+Required unsupported domains still gate launch: for example `inc`, `keys`, and `connect`. Composability, napplet signing grants, extended identity projections and arbitrary backend execution remain separate additions. Older artifacts that omit required domains may still depend on unavailable APIs.
 
 The 2026-09-17 local source update adds NAP-CVM and NAP-WEBRTC under
 `space-playback-3`. Direct encrypted CVM requests/discovery/registry calls and

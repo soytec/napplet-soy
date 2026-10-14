@@ -1,5 +1,16 @@
 # NAP concepts and expansion review
 
+## NAP-INTENT extraction — 2026-10-13 source
+
+The independent INTENT branch includes the shared broker, web/preview target
+launch and shim 0.31.0 with nap/core 0.33.0. It adds no native map publication
+or signer permissions. Review against PR 106 at
+`fc121fc264615482143eda86125863d2e1f741a2` found unresolved domain-availability,
+SHELL coupling, manifest-parameter and catalog/launch consistency issues.
+The selected NIP-5D authority is unchanged. Source implementation and passing
+local tests do not establish full conformance, release or deployment. See
+[behavior and limits](INTENTS.md) and [review findings](NAP-INTENT-REVIEW.md).
+
 ## Stable publishing and historical gallery grouping — 2026-10-09 source
 
 Ordinary publication now writes the stable named listing; `publish --snapshot`
