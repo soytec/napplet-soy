@@ -227,12 +227,12 @@ paths. This binding stays out of Git changes proposed upstream. Never put secret
 in either file. Preserve the binding and journals when moving the project.
 
 New projects expose publish.networks.public and publish.networks.local explicitly:
-relay is the primary manifest/descriptor relay, blossom receives the HTML, source
+relay is the primary manifest relay, blossom receives the HTML, source
 archive, preview image and selected WebM, grasp is the NIP-34 Git service, and site displays the
 result. The defaults use wss://relay.napplet.soy, https://blossom.napplet.soy,
 https://git.napplet.soy and https://napplet.soy. Edit those fields to choose services.
 CLI --relay/--blossom/--grasp/--site overrides apply only to that publication.
-The optional mirrors array receives extra descriptor/manifest copies only after
+The optional mirrors array receives extra manifest copies only after
 our primary relay acknowledges publication; failures do not undo the primary
 publication. Use mirrors: [] to disable extra copies. Publishing also copies the
 release to the creator's NIP-65 write relays (best effort, at most eight, read from
@@ -246,16 +246,19 @@ saved release destinations. Keep the publication journal to preserve that histor
 
 Publishing automatically captures a 1200 × 750 PNG from the sandbox when no
 preview.image is selected, using preview.delayMs (1500 by default, 250–10000).
-It uploads the PNG to the selected Blossom server and publishes a linked signed
-app descriptor so other clients can discover it. This fallback prevents accidental
+It uploads the PNG to the selected Blossom server and signs its hash/MIME in the
+napplet manifest. The optional soy.presentation/1 convention uses presentation,
+screenshot and preview tags; these are not established NIP-5D fields. Clients that
+ignore them can still play the same napplet. No new Zapstore event is generated.
+This fallback prevents accidental
 imageless releases; an inspected screenshot is still the preferred finishing step.
 For an interactive scene needing a start click, take a representative PNG during
 manual/browser testing and select it with preview.image. Only PNG up to 5 MiB and
 4096 × 4096 is currently accepted. Remove preview.image to resume automatic capture.
 Optional clips use silent VP8 WebM up to 5 MiB, 1200 × 750 and 12 seconds.
 soyli record produces 960 × 600 video; the recorder may add a brief final frame.
-Publishing freezes its bytes and NIP-92 imeta on the linked app descriptor, retaining
-ordinary PNG metadata for clients that do not display video. Never fabricate a clip
+Publishing freezes its bytes and a signed preview hash/MIME on the napplet manifest,
+retaining a screenshot for clients that do not display video. Never fabricate a clip
 or change preview.video.artifactHash to bypass the stale-build check.
 The local preview setting is authoring configuration, not a new Nostr manifest tag.
 

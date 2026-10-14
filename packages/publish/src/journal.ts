@@ -9,6 +9,11 @@ import { remixSchema } from '../../protocol/src/remix';
 import type { Network } from '../../identity/src/signer';
 import { PublishError, targetsSchema, intentSchema } from './config';
 import { MAX_SOURCE_FILES, MAX_PUBLICATION_JOURNAL_BYTES } from './limits';
+import {
+  MANIFEST_PRESENTATION_PROFILE,
+  manifestScreenshots,
+  manifestPreviewVideo,
+} from '../../protocol/src/presentation';
 
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 import {
@@ -74,6 +79,8 @@ const planSchema = z
 export const jobSchema = z
   .object({
     version: z.literal(1),
+    // Absent on previously frozen jobs: resume their original linked descriptor.
+    presentationProfile: z.literal(MANIFEST_PRESENTATION_PROFILE).optional(),
     id: hash,
     fingerprint: hash,
     // Absent in older journals: preserve their automatically paired publication.
@@ -176,9 +183,22 @@ export const jobSchema = z
         !!job.current &&
         (job.snapshotMode === 'none' || !!job.snapshot) &&
         (!job.preview ||
-          (!!job.preview.descriptor &&
-            job.receipts.preview === true &&
-            job.receipts.descriptor === true)) &&
+          (job.receipts.preview === true &&
+            (job.presentationProfile === MANIFEST_PRESENTATION_PROFILE
+              ? !job.preview.descriptor &&
+                [job.current, ...(job.snapshotMode === 'none' ? [] : [job.snapshot])].every(
+                  (event) =>
+                    !!event &&
+                    manifestScreenshots(event).some(
+                      (c) => c.hash === job.preview!.hash && c.mime === 'image/png',
+                    ),
+                )
+              : !!job.preview.descriptor && job.receipts.descriptor === true))) &&
+        (!job.video ||
+          job.presentationProfile !== MANIFEST_PRESENTATION_PROFILE ||
+          [job.current, ...(job.snapshotMode === 'none' ? [] : [job.snapshot])].every(
+            (event) => !!event && manifestPreviewVideo(event)?.hash === job.video!.hash,
+          )) &&
         Object.entries(job.receipts).every(([kind, accepted]) =>
           kind === 'snapshot' && job.snapshotMode === 'none' ? !accepted : accepted,
         )),

@@ -13,7 +13,7 @@ This source targets [dskvr/nips PR 7 at `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d5
 | Icons                   | Optional hash plus PNG/JPEG/WebP MIME                                        | Existing linked covers remain supported                       |
 | Discovery               | `z` archetypes, queryless `i` intents and parameter names, `#R`/`#O` filters | Existing kinds, titles, descriptions and topic filters        |
 | Snapshot ancestry       | Optional `a` parent / `A` root on 5129 only                                  | Historical named ancestry and snapshot self-address semantics |
-| Source and presentation | Existing optional Git/source/archive/descriptor extensions                   | Existing source and preview links remain valid                |
+| Source and presentation | Optional Git/source/archive and direct presentation extensions                   | Existing source and preview links remain valid                |
 
 One shared validator handles web, indexer, local review, remix, moderation inputs and playback. Format selection is explicit; failure is not a reason to reinterpret a malformed new event as an old event. Nostr ordering still chooses the current event before package admission. An invalid newer event does not silently restore an older release as current.
 
@@ -43,7 +43,14 @@ The gallery exposes archetype, intent, required-domain and optional-domain filte
 
 The discovery helper also supports opt-in intersection queries from [NIP-91 PR 2252 at `b93bda29d45998866e81c65e0693616294a78672`](https://github.com/dskvr/nips/blob/b93bda29d45998866e81c65e0693616294a78672/91.md). Every `&` constraint retains its matching `#` fallback in the same filter, and results are checked locally. The gallery's single-selection facets use ordinary NIP-01 filters. The managed relay supports those indexed filters but does not advertise NIP-91 intersection support; that separate relay extension is not a requirement of NIP-5D.
 
-The current upstream announcement mentions screenshot tags and possible intent hints, but the pinned PR defines neither a screenshot-tag schema nor an intent dispatch operation. Existing signed application descriptors continue to provide screenshot/video presentation. No undocumented tag or message is invented. There is no new runtime `intent` grant, inter-napplet launch or automatic handler invocation.
+The upstream announcement mentions screenshot tags and possible intent hints, but
+the pinned PR defines neither a screenshot-tag schema nor an intent dispatch
+operation. Fresh soyLI publications use the documented optional downstream
+[`soy.presentation/1` convention](PREVIEWS.md#direct-manifest-presentation--2026-10-06-source)
+for hash/MIME screenshot and video references on the existing manifest. This is
+not part of the selected NIP-5D pin. Existing signed application descriptors remain
+readable; old frozen jobs finish unchanged. There is no new event kind, runtime
+`intent` grant, inter-napplet launch or automatic handler invocation.
 
 The executable remains one self-contained HTML file verified before CSP and shim injection into an opaque `allow-scripts` iframe. WASM and managed resource transport are unchanged. No source, icon, descriptor, Git host, site alias or Soy provenance is a playback prerequisite. All publishers use the same admission rules.
 
