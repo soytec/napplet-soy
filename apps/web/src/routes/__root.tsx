@@ -2,6 +2,7 @@ import { getClientPolicy } from '@/lib/client-policy.functions';
 import { configureClient } from '@/lib/network';
 import { createRootRoute, HeadContent, Link, Outlet, Scripts } from '@tanstack/react-router';
 import { NostrProvider } from '@/components/nostr-provider';
+import { IntentLauncher } from '@/components/intent-launcher';
 import { Shell } from '@/components/shell';
 import styles from '@/styles.css?url';
 import { ProfilesProvider } from '@/lib/profiles';
@@ -67,6 +68,7 @@ function Root() {
           <NostrProvider>
             <Shell>
               <Outlet />
+              <IntentLauncher />
             </Shell>
           </NostrProvider>
         </ProfilesProvider>

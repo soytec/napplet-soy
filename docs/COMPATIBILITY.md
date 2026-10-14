@@ -1,5 +1,26 @@
 # Compatibility evidence and remaining audit
 
+## NAP-INTENT IN-02 — local source, 2026-10-13
+
+The trusted document session selects the actual injected/admitted domains and
+signals binding readiness independently of SHELL. Normal web/preview playback
+supply INTENT; review playback and the backend demo omit it. Profile
+`space-playback-7` separates the corrected admission behavior from the extracted
+profile. The package/protocol tuple is unchanged. Shared-host Chromium fixtures
+verify cold retention, no-SHELL operation and navigation retirement with real
+signed manifests, verified HTML and the published shim. Full web/preview UI and
+public discovery coverage remain IN-05 work; no independent-client, release or
+deployment claim is added.
+
+## NAP-INTENT IN-01 — local source, 2026-10-13
+
+Shim 0.31.0 and nap/core 0.33.0 were audited against PR 106 at
+`fc121fc264615482143eda86125863d2e1f741a2` and its web projection. Production-bundle
+tests cover URI/hint normalization, open, discovery and subscription behavior.
+Catalog parameter preservation and bounded host hint validation are implemented.
+See the [clause inventory and remaining evidence](NAP-INTENT-CONFORMANCE.md).
+This does not certify full-host conformance or change the selected NIP-5D authority.
+
 ## Forkless Git collaboration source qualification
 
 2026-10-12 source hosts proposal commits through upstream GRASP-01 refs without

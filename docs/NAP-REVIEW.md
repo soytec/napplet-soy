@@ -1,5 +1,29 @@
 # NAP concepts and expansion review
 
+## NAP-INTENT IN-02 — 2026-10-13 source
+
+Surface admission, shim namespace injection and optional SHELL capability reporting
+now share one trusted domain set. INTENT appears only where an endpoint exists;
+proposal-review playback rejects required INTENT before execution. Host-owned,
+document-bound readiness/retirement is independent of the SHELL handshake and
+adds no NAP API operation or acknowledgement. The runtime profile is
+`space-playback-7`; shim 0.31.0, nap/core 0.33.0 and the selected NIP-5D pin are
+unchanged. Shared-host Chromium fixtures verify no-SHELL cold delivery and
+navigation retirement. Catalog/recommendation work and full two-surface browser
+conformance remain pending. See [implemented behavior and limits](INTENTS.md).
+Source implementation/local verification is not release or deployment.
+
+## NAP-INTENT extraction — 2026-10-13 source
+
+The independent INTENT branch includes the shared broker, web/preview target
+launch and shim 0.31.0 with nap/core 0.33.0. It adds no native map publication
+or signer permissions. Review against PR 106 at
+`fc121fc264615482143eda86125863d2e1f741a2` found unresolved domain-availability,
+SHELL coupling, manifest-parameter and catalog/launch consistency issues.
+The selected NIP-5D authority is unchanged. Source implementation and passing
+local tests do not establish full conformance, release or deployment. See
+[behavior and limits](INTENTS.md) and [review findings](NAP-INTENT-REVIEW.md).
+
 ## Stable publishing and historical gallery grouping — 2026-10-09 source
 
 Ordinary publication now writes the stable named listing; `publish --snapshot`

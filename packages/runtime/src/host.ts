@@ -9,6 +9,8 @@ import { NappletFiles, type ExportFile, type FilePick } from './filesystem';
 import { NappletActions } from './action-session';
 import { NappletUploads } from './upload-session';
 import { NappletAppData, appDataPolicy } from './app-data-session';
+import type { IntentWorkspace } from './intent-session';
+import type { FrameSession } from './frame-session';
 import type { HostSign } from './action-contracts';
 import { PlaybackNostr } from '../../nostr/src/playback';
 import { WorkQueue } from './work-queue';
@@ -33,6 +35,10 @@ export type HostPrompt = {
   dismiss: () => void;
 };
 export type HostOptions = {
+  /** Same trusted session used to inject this verified document. */
+  session?: FrameSession;
+  /** Trusted shell catalog/lifecycle broker; the frame cannot supply these values. */
+  intent?: { workspace: IntentWorkspace; catalogId: string };
   frame: HTMLIFrameElement;
   identity: string;
   manifestId: string;
@@ -69,10 +75,13 @@ const envelope = z
 
 /** A single frame session. Caller supplies verified identity; messages cannot change it. */
 export function attachNappletHost(options: HostOptions) {
+  if (!!options.intent !== !!options.session?.domains.includes('intent'))
+    throw new Error('Intent injection and endpoint support must agree.');
   const source = options.frame.contentWindow;
   const dataPolicy = appDataPolicy(options.identity, options.actionRelays ?? options.relays);
   let alive = true,
     initialized = false,
+    documentReady = !options.session,
     calls = 0,
     windowStart = Date.now();
   // Frame budgets and concurrency survive account changes.
@@ -82,6 +91,7 @@ export function attachNappletHost(options: HostOptions) {
   const send = (message: Record<string, unknown>) => {
     if (alive) source?.postMessage(message, '*');
   };
+  const intentEndpoint = options.intent?.workspace.attach(options.intent.catalogId, send);
   // The iframe/handshake outlive account scopes. Each request captures its scope;
   // retiring it settles promises and prevents delayed results reaching a new user.
   const createAccount = (pubkey: string | null) => {
@@ -285,6 +295,10 @@ export function attachNappletHost(options: HostOptions) {
       if (domain === 'fs')
         return files.handle(message, (name) => choose('save', name), chooseFiles, lifetime.signal);
       if (domain === 'identity') return nostr.identity(action);
+      if (domain === 'intent') {
+        if (!intentEndpoint) throw new Error('No intent workspace is available in this surface.');
+        return intentEndpoint.handle(message);
+      }
       if (type === 'outbox.publish' || type === 'relay.publish') return appData.handle(message);
       if (domain === 'relay' || domain === 'outbox') return nostr.handle(message);
       if (domain === 'upload') return uploads.handle(message);
@@ -426,6 +440,20 @@ export function attachNappletHost(options: HostOptions) {
     rtcWindow = Date.now();
   const listener = (event: MessageEvent) => {
     if (!alive || event.source !== source || event.origin !== 'null') return;
+    if (options.session && event.data?.session === options.session.id) {
+      if (event.data.type === 'soy.frame.retired') {
+        close();
+        return;
+      }
+      if (event.data.type === 'soy.frame.ready') {
+        if (!documentReady) {
+          documentReady = true;
+          intentEndpoint?.ready();
+        }
+        return;
+      }
+    }
+    if (!documentReady) return;
     const parsed = envelope.safeParse(event.data);
     if (!parsed.success) return;
     const message = parsed.data;
@@ -434,7 +462,11 @@ export function attachNappletHost(options: HostOptions) {
       initialized = true;
       send({
         type: 'shell.init',
-        capabilities: { domains: [...RUNTIME_DOMAINS], appData: dataPolicy },
+        capabilities: {
+          domains:
+            options.session?.domains ?? RUNTIME_DOMAINS.filter((domain) => domain !== 'intent'),
+          appData: dataPolicy,
+        },
         services: [],
       });
       config.ready();
@@ -487,7 +519,12 @@ export function attachNappletHost(options: HostOptions) {
       }
       return;
     }
-    if (!initialized || !message.id || !HOST_REQUESTS.has(message.type)) return;
+    if (
+      (!initialized && !(intentEndpoint && message.type.startsWith('intent.'))) ||
+      !message.id ||
+      !HOST_REQUESTS.has(message.type)
+    )
+      return;
     const scope = account;
     // NAP-IDENTITY requires this basic snapshot to succeed without an error
     // field, even when asynchronous services have exhausted their quota.
@@ -518,6 +555,16 @@ export function attachNappletHost(options: HostOptions) {
           : error instanceof Error
             ? error.message
             : 'Request failed';
+      if (message.type.startsWith('intent.')) {
+        scope.send({
+          type: `${message.type}.result`,
+          id: message.id,
+          ...(message.type === 'intent.invoke'
+            ? { result: { ok: false, error: detail } }
+            : { error: detail }),
+        });
+        return;
+      }
       if (message.type.startsWith('resource.'))
         scope.send({
           type: `${message.type}.error`,
@@ -573,6 +620,27 @@ export function attachNappletHost(options: HostOptions) {
   const unsubscribeTheme = options.theme?.subscribe(() => {
     if (initialized) send({ type: 'theme.changed', theme: options.theme!.get() });
   });
+  let loaded = false;
+  const onLoad = () => {
+    if (loaded) close();
+    else loaded = true;
+  };
+  function close() {
+    if (!alive) return;
+    alive = false;
+    intentEndpoint?.close();
+    unsubscribePermission();
+    unsubscribeTheme?.();
+    window.removeEventListener('message', listener);
+    options.frame.removeEventListener?.('load', onLoad);
+    account.close('Player closed');
+    config.close();
+    keys.close();
+    options.configuration?.(null);
+    options.media?.(null);
+    options.files([]);
+  }
+  options.frame.addEventListener?.('load', onLoad);
   window.addEventListener('message', listener);
   return {
     diagnostics: () => (alive ? account.diagnostics() : Promise.resolve([])),
@@ -584,18 +652,6 @@ export function attachNappletHost(options: HostOptions) {
       if (initialized) send({ type: 'identity.changed', pubkey: pubkey ?? '' });
       config.updateIdentity(pubkey);
     },
-    close() {
-      if (!alive) return;
-      alive = false;
-      unsubscribePermission();
-      unsubscribeTheme?.();
-      window.removeEventListener('message', listener);
-      account.close('Player closed');
-      config.close();
-      keys.close();
-      options.configuration?.(null);
-      options.media?.(null);
-      options.files([]);
-    },
+    close,
   };
 }

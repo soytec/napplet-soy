@@ -1,3 +1,5 @@
+import { createFrameSession } from '../../../../packages/runtime/src/frame-session';
+import { previewIntents } from './intent-client';
 import { AppearanceControl } from '../../../../packages/runtime/src/appearance-control';
 import { shellTheme } from '../../../../packages/runtime/src/appearance';
 import type { ExtensionSigner } from 'applesauce-signers';
@@ -47,6 +49,29 @@ let loaded = '';
 let pubkey: string | null = null;
 let viewerSigner: ExtensionSigner | undefined;
 const lifetime = new AbortController();
+let previewInfo: PreviewRevision | undefined;
+const intents = previewIntents({
+  signal: lifetime.signal,
+  sourceFrame: () => frame,
+  hostOptions: () => ({
+    theme: shellTheme,
+    relays: previewInfo?.relays ?? [],
+    servers: previewInfo?.servers ?? [],
+    localServers: previewInfo?.servers ?? [],
+    uploadServers: previewInfo?.uploadServers ?? [],
+    backend: previewInfo?.backend,
+    pubkey,
+    sign: async (key, template) => {
+      const signer = viewerSigner;
+      if (!signer || pubkey !== key) throw new Error('Identity changed');
+      const event = await signer.signEvent(template);
+      if (signer !== viewerSigner || pubkey !== key) throw new Error('Identity changed');
+      return event;
+    },
+    prompt: showPrompt,
+    files: showFiles,
+  }),
+});
 setupListing(lifetime.signal);
 setupManager(lifetime.signal);
 const diagnostics = () => host?.diagnostics() ?? Promise.resolve([]);
@@ -142,6 +167,7 @@ connect.onclick = async () => {
       viewerSigner = signer;
     }
     host?.updateIdentity(pubkey);
+    intents.updateIdentity(pubkey);
     connect.textContent = pubkey ? 'Disconnect' : 'Connect browser extension';
     status.textContent = pubkey ? 'Connected' : 'Guest preview';
   } catch {
@@ -159,13 +185,16 @@ async function refresh() {
     const info: PreviewRevision & { error?: string } = await response.json();
     if (!response.ok) throw new Error(info.error ?? 'Could not read local source.');
     if (info.id === loaded) return;
+    previewInfo = info;
+    intents.update(info);
     host?.close();
     host = undefined;
     stage.replaceChildren();
     frame = undefined;
     loaded = info.id;
     status.textContent = 'Verifying preview…';
-    const missing = missingDomains(info.requires);
+    const session = createFrameSession(true);
+    const missing = missingDomains(info.requires, session.domains);
     if (missing.length) throw new Error(`Unsupported required capabilities: ${missing.join(', ')}`);
     let declaration: ReturnType<typeof declaredConfig> = {};
     const doc = await loadArtifact(
@@ -173,7 +202,7 @@ async function refresh() {
       lifetime.signal,
       (verifiedHtml) => {
         declaration = declaredConfig(verifiedHtml);
-        return nappletPrelude(shim, declaration);
+        return nappletPrelude(shim, declaration, session);
       },
       { localUrl: `/artifacts/${info.artifactHash}` },
     );
@@ -183,9 +212,11 @@ async function refresh() {
     frame.allow = 'fullscreen';
     frame.referrerPolicy = 'no-referrer';
     frame.srcdoc = doc;
-    // Attach before the child's bootstrap can post shell.ready.
+    // Attach before the verified document's private bootstrap can establish its session.
     stage.replaceChildren(frame);
     host = attachNappletHost({
+      session,
+      intent: { workspace: intents.workspace, catalogId: info.intentCatalogId },
       theme: shellTheme,
       backend: info.backend,
       backendIdentity: info.backendIdentity,
