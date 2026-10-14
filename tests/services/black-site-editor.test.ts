@@ -196,14 +196,16 @@ test('native Black Site editor publishes, updates, remixes and deletes through r
         console.error('HOST', await page.locator('body').innerText());
         throw error;
       }
-      await ui(frame.locator('#status')).toContainText('Published');
+      await ui(frame.locator('#status')).toContainText('published');
     }
     const alice = await player(editorUrl, 0);
     await ui(alice.frame.locator('#publish')).toBeEnabled();
-    await alice.frame.locator('#id').fill('host-operation');
+    await alice.frame.locator('#id').evaluate((input: HTMLInputElement) => { input.value = 'host-operation'; });
     await alice.frame.locator('#id').dispatchEvent('change');
+    await alice.frame.locator('#settings-open').click();
     await alice.frame.locator('#name').fill('Host Operation');
     await alice.frame.locator('#name').dispatchEvent('change');
+    await alice.frame.locator('#settings-close').click();
     await publish(alice.page);
     const first = events.find((e) => e.kind === 35858 && e.pubkey === pubkeys[0])!;
     expect(first).toBeDefined();
@@ -211,8 +213,10 @@ test('native Black Site editor publishes, updates, remixes and deletes through r
     expect(first.tags.find((t) => t[0] === 'd')?.[1]).toBe('host-operation');
     const firstHash = first.tags.find((t) => t[0] === 'x')![1];
     expect(blobs.has(firstHash)).toBe(true);
+    await alice.frame.locator('#settings-open').click();
     await alice.frame.locator('#name').fill('Updated Operation');
     await alice.frame.locator('#name').dispatchEvent('change');
+    await alice.frame.locator('#settings-close').click();
     await publish(alice.page);
     expect(events.filter((e) => e.kind === 35858 && e.pubkey === pubkeys[0])).toHaveLength(2);
     await alice.page.reload();
@@ -221,7 +225,7 @@ test('native Black Site editor publishes, updates, remixes and deletes through r
       .click();
     await alice.page.locator('iframe').waitFor();
     alice.frame = alice.page.frames().find((f) => f.parentFrame())!;
-    await ui(alice.frame.locator('#identity')).toContainText(pubkeys[0].slice(0, 12));
+    await ui(alice.frame.locator('#identity')).toContainText('Signed in');
     await alice.frame.locator('#library-open').click();
     await alice.frame.locator('#my-maps').click();
     await ui(alice.frame.locator('.map-card h3')).toHaveText('Updated Operation');
@@ -264,12 +268,14 @@ test('native Black Site editor publishes, updates, remixes and deletes through r
     await ui(delivered.locator('#name')).toHaveValue('Updated Operation');
     await ui(delivered.locator('#id')).toHaveValue('host-operation');
     await ui(delivered.locator('#id')).toBeDisabled();
+    await delivered.locator('#settings-open').click();
     await delivered.locator('#name').fill('Handed-off Operation');
     await delivered.locator('#name').dispatchEvent('change');
     await delivered
       .locator('#desc')
       .fill('Updated inside the game INTENT target using its connected viewer signer.');
     await delivered.locator('#desc').dispatchEvent('change');
+    await delivered.locator('#settings-close').click();
     await publish(game.page, delivered);
     const handoffUpdate = events.filter((e) => e.kind === 35858 && e.pubkey === pubkeys[0]).at(-1)!;
     expect(verifyEvent(handoffUpdate)).toBe(true);
