@@ -3,6 +3,31 @@
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
 The current published version is **0.28.0**.
 
+**0.29.0 — prepared for release: OUTBOX, intent handlers and native maps.**
+Merged PR #20 includes the three INTENT corrections from PR #21: retain deliveries
+when reopening the same handler, retire stale contracts after signed catalog
+updates, and transport bounded structured-clone payloads through the actual host.
+The shared website/preview host now provides account-scoped Applesauce OUTBOX
+reads, live subscriptions and viewer-consented publication with NIP-65 routing
+and explicit delivery results. Native Black Site map writes retain the specialized
+schema, ownership and revision checks; linked map JSON is not validated by the host.
+See [OUTBOX limits](OUTBOX.md) and [intent/map contracts](MAP-INTENTS.md).
+
+The combined source passes 731 tests, TypeScript, the production build and four
+browser integration suites (107 assertions). [Native candidate CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38617877093)
+and [Nix candidate CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38617877084)
+passed for `da6b4a2`, the exact source tree merged by `4a5023d`. Release-candidate
+qualification and public rollout remain separate gates. Deploy the compatible
+shell with its existing installer first; publish 0.29.0 only after live verification,
+then deploy the matching installer.
+
+The NIP-5D authority and direct-manifest presentation behavior from 0.28.0 remain
+unchanged, including legacy readers. The separately proposed relay-discovery
+policy change is not included. Existing installations should run `soyli update`,
+restart previews and run `soyli skills update` when the release is available;
+application source is not rewritten.
+
+
 **0.28.0 — direct-manifest presentation:**
 
 Published **2026-10-14 (Europe/Vienna)** from source

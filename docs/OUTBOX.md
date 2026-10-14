@@ -3,8 +3,8 @@
 The shared website and soyLI preview host implements the
 [NAP-OUTBOX contract](https://github.com/napplet/naps/blob/8865f73d52a4864afee145f28d26520476273927/naps/NAP-OUTBOX.md)
 using Applesauce stores, loaders and relay transports. This guide describes host
-behavior and policy; the linked proposal defines the protocol. This source update
-has not been released or deployed.
+behavior and policy; the linked proposal defines the protocol. Included in the
+0.29.0 source; see [release and deployment status](CLI-RELEASES.md).
 
 Declare the ordinary `outbox` domain using your project's manifest tooling. Domain
 availability is distinct from permission to publish. The host injects the shim;

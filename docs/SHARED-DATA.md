@@ -6,8 +6,8 @@ protections remain mandatory. OUTBOX own-outbox, recipient-inbox and explicit ro
 options are honored only when the complete resolved target set is configured in
 host Network settings; otherwise publication fails before signing. Required relay
 rejection retains the signed event, per-relay outcomes and feature-specific safe
-failure cause. See [current OUTBOX behavior](OUTBOX.md). No release or deployment
-is claimed for this source update.
+failure cause. See [current OUTBOX behavior](OUTBOX.md). Included in the
+0.29.0 source; see [release and deployment status](CLI-RELEASES.md).
 
 Use this guide when players should publish tracks, puzzles, drawings, presets or
 other structured creations independently of a score. Use the bundled
