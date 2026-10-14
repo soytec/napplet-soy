@@ -2,6 +2,7 @@
 export const RUNTIME_DOMAINS = [
   'shell',
   'identity',
+  'intent',
   'storage',
   'theme',
   'resource',
@@ -17,12 +18,13 @@ export const RUNTIME_DOMAINS = [
   'cvm',
   'webrtc',
 ] as const;
-export const RUNTIME_PROFILE = 'space-playback-4';
+export const RUNTIME_PROFILE = 'space-playback-6';
 
 // Only request types understood by this host. Notifications, responses and future
 // operations must be ignored, including unknown operations in supported domains.
 export const HOST_REQUESTS = new Set(
   Object.entries({
+    intent: ['invoke', 'available', 'handlers'],
     upload: ['info', 'upload', 'status'],
     lists: ['supported', 'add', 'remove'],
     cvm: [

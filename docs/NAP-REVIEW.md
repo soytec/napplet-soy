@@ -1,5 +1,27 @@
 # NAP concepts and expansion review
 
+## Native map and INTENT review — 2026-10-13
+
+Source now uses published shim 0.31.0 and core/nap 0.33.0 for the canonical
+NAP-INTENT contract at `e5308ac`. The shared web/preview host implements exact
+queryless convention routing, verified author-qualified catalogs, user chooser
+and editable defaults, attested senders and retained cold-target deliveries.
+Acceptance means delivery responsibility, not a target handled acknowledgement.
+The selected NIP-5D authority is unchanged.
+
+Viewer-authorized OUTBOX/RELAY writes now also admit bounded native kind-35858
+Black Site map metadata and narrowly verified owner-map NIP-09 deletion.
+Configured destinations, consent, complete revision reads, exact signing and
+identity cancellation constrain writes. Admission is metadata-only: current host
+wiring does not validate linked JSON bytes or the map schema before signing.
+No publisher provenance gate or arbitrary signing surface is added.
+
+Actual source-host map create/update/reload/remix/play/delete and the game's
+EDIT-to-cold-editor INTENT path passed local browser integration. Native session
+tests passed 10/101 assertions; related runtime tests passed 83. Implemented and
+locally verified is distinct from release or public deployment; neither occurred
+for this update. See [policy, contract and limits](MAP-INTENTS.md).
+
 ## Stable publishing and historical gallery grouping — 2026-10-09 source
 
 Ordinary publication now writes the stable named listing; `publish --snapshot`
