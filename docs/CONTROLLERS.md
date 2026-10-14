@@ -9,12 +9,31 @@ actions to input.
 
 **Isolation (unreleased source after 0.25.3).** Player frames can no longer read
 controllers directly. The runtime page is the only native reader, and it passes input
-only to the napplet that has focus (local [NAP-GAMEPAD draft](NAP-GAMEPAD.md)). A shim
+only to the napplet that has focus (local [NAP-GAMEPAD draft](NAP-GAMEPAD.md), proposed
+upstream as [napplet/naps#108](https://github.com/napplet/naps/pull/108)). A shim
 injected before your code keeps `navigator.getGamepads()` and the
 `gamepadconnected`/`gamepaddisconnected` events working, so existing games and this
 helper need no changes. Click a napplet to give it the controllers. Input arrives
 about one frame later than native input, there is no rumble (`vibrationActuator` is
 `null`), and connection events are untrusted `GamepadEvent`s.
+
+How the shim works, for creators and agents:
+
+- It installs only where the native `navigator.getGamepads()` exists but the host
+  denied it. It replaces only `Navigator.prototype.getGamepads`; listeners, `on…`
+  handlers, `Gamepad`, `GamepadButton` and `GamepadEvent` stay native. Hosts that
+  allow native access are left untouched, so the same game code runs everywhere.
+- Pads come from the shell's `gamepad.state` snapshots, in slot order with `null`
+  gaps. Without focus, connected pads read as zero axes/buttons with `timestamp` 0.
+- A `blocked` host makes `getGamepads()` throw `SecurityError`; `unavailable` returns
+  empty slots.
+- The optional `window.napplet.gamepad` offers `getGamepads()`, `available`,
+  `focused` and `onChange(callback) → { close }`. It exists only where the shim
+  installed. The pinned `@napplet/sdk` has no gamepad domain; do not import one.
+- Treat losing focus as idle input, not release events, and do not count a button
+  held while focus returns as a new press (the helper handles both). Route players by
+  `index`. Do not gate on `event.isTrusted`, own-property shape or `[native code]`.
+- Do not add `gamepad` to `requires`; keep keyboard and pointer/touch controls.
 
 ## Try a controller
 
@@ -54,13 +73,16 @@ From a typical `src/main.ts`:
 ```ts
 import { createGamepadInput } from '../docs/examples/gamepad.js';
 
-const input = createGamepadInput({
-  moveX: [{ axis: 0 }, { button: 14, scale: -1 }, { button: 15 }],
-  moveY: [{ axis: 1 }, { button: 12, scale: -1 }, { button: 13 }],
-  jump: [{ button: 0 }],
-  fire: [{ button: 7 }],
-  pause: [{ button: 9 }],
-}, { deadZone: 0.18 });
+const input = createGamepadInput(
+  {
+    moveX: [{ axis: 0 }, { button: 14, scale: -1 }, { button: 15 }],
+    moveY: [{ axis: 1 }, { button: 12, scale: -1 }, { button: 13 }],
+    jump: [{ button: 0 }],
+    fire: [{ button: 7 }],
+    pause: [{ button: 9 }],
+  },
+  { deadZone: 0.18 },
+);
 
 // In your existing requestAnimationFrame loop, poll exactly once:
 const frame = input.poll();
