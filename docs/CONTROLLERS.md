@@ -9,7 +9,7 @@ actions to input.
 
 **Isolation (unreleased source after 0.25.3).** Player frames can no longer read
 controllers directly. The runtime page is the only native reader, and it passes input
-only to the napplet that has focus (local [NAP-GAMEPAD draft](NAP-GAMEPAD.md), proposed
+only to the napplet that has focus (merged upstream [NAP-GAMEPAD draft](NAP-GAMEPAD.md), merged
 upstream as [napplet/naps#108](https://github.com/napplet/naps/pull/108)). A shim
 injected before your code keeps `navigator.getGamepads()` and the
 `gamepadconnected`/`gamepaddisconnected` events working, so existing games and this
@@ -28,8 +28,7 @@ How the shim works, for creators and agents:
 - A `blocked` host makes `getGamepads()` throw `SecurityError`; `unavailable` returns
   empty slots.
 - The optional `window.napplet.gamepad` offers `getGamepads()`, `available`,
-  `focused` and `onChange(callback) → { close }`. It exists only where the shim
-  installed. The pinned `@napplet/sdk` has no gamepad domain; do not import one.
+  `focused` and `onChange(callback) → { close }`. It is installed independently of the native API replacement. The pinned `@napplet/sdk` has no gamepad domain; do not import one.
 - Treat losing focus as idle input, not release events, and do not count a button
   held while focus returns as a new press (the helper handles both). Route players by
   `index`. Do not gate on `event.isTrusted`, own-property shape or `[native code]`.
@@ -142,7 +141,7 @@ localStorage. Never assume Xbox/PlayStation lettering has identical names.
   were tested; synthetic snapshots and `soyli check` are not hardware certification.
 - Do not add `requires: ['gamepad']` or `serial`. Prefer the standard
   `navigator.getGamepads()` API. `window.napplet.gamepad` exists only in runtimes
-  that implement the local draft. Runtimes or browser policy may withhold controller
+  that implement the merged upstream draft. Runtimes or browser policy may withhold controller
   input, so keep useful fallback controls.
   No WebHID, WebUSB, serial-port support, rumble or controller-driven shell navigation
   is promised by this slice. Feature-detected haptics are a possible later addition.

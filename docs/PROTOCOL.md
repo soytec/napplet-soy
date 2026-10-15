@@ -296,7 +296,7 @@ through relays, without publishing synthetic receipts or introducing a site API.
 CSP cannot govern device APIs such as the Gamepad API; Permissions-Policy can.
 Player frames use `PLAYER_ALLOW`, which denies `gamepad` along with default-granted
 ad, attribution and cross-site storage features. The shell owns the only native
-controller reader and forwards focus-scoped snapshots through the local
+controller reader and forwards focus-scoped snapshots through the merged upstream
 [NAP-GAMEPAD draft](NAP-GAMEPAD.md). A prelude shim serves the standard
 `navigator.getGamepads()` API from those snapshots, so napplets running side by side
 cannot read each other's input. This adds no SERIAL/device grant, signing authority
@@ -399,3 +399,15 @@ The keyboard fix uses [NAP-KEYS PR 9 at 8869a4c](https://github.com/napplet/naps
 and the existing shim 0.30.0. No event kind, manifest extension, author restriction
 or NIP-5D pin changes. All publishers receive the same frame-scoped action API.
 See [runtime behavior, limits and shim normalization caveat](PUBLIC-RUNTIME.md#keyboard-actions--2026-10-13-source).
+
+## NAP-GAMEPAD merged-contract review — 2026-10-15
+
+Reviewed [NAP-GAMEPAD](https://github.com/napplet/naps/blob/19de5ce1cea40cd4c76089cdd8126e9f87648049/naps/NAP-GAMEPAD.md) at
+`19de5ce1cea40cd4c76089cdd8126e9f87648049` (merged PR #108; specification
+status remains draft). The shared web/CLI host implements its notification-only
+subscribe/unsubscribe/state contract and standard binding independently of native
+API replacement. Native access is denied through player Permissions-Policy;
+unfocused frames receive neutral values and timestamps. Required `gamepad` is
+supported by capability admission; creator guidance recommends fallback controls.
+All publishers use the same host. No NIP-5D identity or SDK pin changes.
+See [implementation and verification limits](NAP-GAMEPAD.md).

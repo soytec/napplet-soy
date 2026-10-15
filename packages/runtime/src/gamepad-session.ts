@@ -1,5 +1,5 @@
 /**
- * NAP-GAMEPAD (local draft, docs/NAP-GAMEPAD.md). The shell owns the only native
+ * NAP-GAMEPAD (merged upstream draft, docs/NAP-GAMEPAD.md). The shell owns the only native
  * Gamepad reader; player frames are denied the browser API by Permissions-Policy and
  * receive snapshots only while their frame has input focus.
  */
@@ -109,9 +109,13 @@ export const browserGamepadEnvironment: GamepadEnvironment = {
   },
   watch: (callback) => {
     window.addEventListener('blur', callback);
+    window.addEventListener('focus', callback, true);
+    window.addEventListener('blur', callback, true);
     document.addEventListener('visibilitychange', callback);
     return () => {
       window.removeEventListener('blur', callback);
+      window.removeEventListener('focus', callback, true);
+      window.removeEventListener('blur', callback, true);
       document.removeEventListener('visibilitychange', callback);
     };
   },
@@ -148,7 +152,7 @@ export class GamepadBroker {
     if (!this.subscribers.size) return;
     const sample = sampleGamepads(this.environment.read);
     for (const subscriber of this.subscribers) {
-      const focused = this.environment.focused(subscriber.frame);
+      const focused = sample.available && this.environment.focused(subscriber.frame);
       const message: GamepadState = {
         type: 'gamepad.state',
         ...sample,
@@ -183,6 +187,10 @@ export class NappletGamepad {
   }
   handle(message: { type: string }) {
     if (!this.alive) return;
+    if (message.type === 'gamepad.unsubscribe') {
+      this.stop();
+      return;
+    }
     if (Date.now() - this.window >= 60000) {
       this.window = Date.now();
       this.toggles = 0;

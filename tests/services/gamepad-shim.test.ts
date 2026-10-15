@@ -242,8 +242,38 @@ test('the shim leaves the native API untouched when the host does not deny it', 
         native: String(navigator.getGamepads).includes('[native code]'),
         api: 'gamepad' in (window as unknown as { napplet: object }).napplet,
       })),
-    ).toEqual({ native: true, api: false });
+    ).toEqual({ native: true, api: true });
     await Bun.sleep(100);
-    expect(await received()).toEqual([]);
+    expect(await received()).toEqual([{ type: 'gamepad.subscribe' }]);
+  });
+}, 20000);
+
+test('the standard binding works without a native Gamepad API', async () => {
+  await withFrame(async (page) => {
+    const { frame, post, received } = await mount(
+      page,
+      `<script>
+        delete Navigator.prototype.getGamepads;
+        delete window.Gamepad;
+        delete window.GamepadButton;
+        window.napplet = {};
+      </script><script>${gamepadPrelude(0)}</script><script>window.booted = true;</script>`,
+    );
+    await browserExpect.poll(received).toEqual([{ type: 'gamepad.subscribe' }]);
+    await post({ pads: [pad('Controller', 9)] });
+    await browserExpect
+      .poll(() => frame.evaluate(() => (window as any).napplet.gamepad.getGamepads()[0]?.id))
+      .toBe('Controller');
+    await post({ available: false, reason: 'unavailable', focused: false, pads: [] });
+    await browserExpect
+      .poll(() =>
+        frame.evaluate(() => ({
+          available: (window as any).napplet.gamepad.available,
+          focused: (window as any).napplet.gamepad.focused,
+          pads: (window as any).napplet.gamepad.getGamepads(),
+          native: typeof navigator.getGamepads,
+        })),
+      )
+      .toEqual({ available: false, focused: false, pads: [], native: 'undefined' });
   });
 }, 20000);

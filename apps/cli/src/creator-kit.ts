@@ -136,7 +136,7 @@ and report missing coverage honestly. Never invent a portrait recording option.
   axes, dead zones and test mappings inside the real sandbox. Wire named actions
   into your game; retain keyboard/touch input and handle disconnect/focus/pause.
   Use the standard Gamepad API; the runtime brokers it to the focused napplet
-  through the NAP-GAMEPAD draft (https://github.com/napplet/naps/pull/108) and a
+  through the merged NAP-GAMEPAD draft (https://github.com/napplet/naps/pull/108) and a
   prelude shim that patches navigator.getGamepads(). The installed skills explain
   the shim, focus rules and limits. Do not add SERIAL or a gamepad requires entry.
   Test actual controllers as well as synthetic input; soyli check is not a hardware test.
@@ -528,7 +528,7 @@ docs and skills replace uniform density/whole-surface host-matching mandates wit
 project-specific visual direction for content and UI. Generated manifest guidance
 is adapted to the selected standalone NIP-5D draft; vendor snapshots stay intact.
 Game-facing skills gain controller guidance for the NAP-GAMEPAD draft
-(napplet/naps#108) and this host's getGamepads() shim.
+(napplet/naps#108, merged at 19de5ce1) and this host's getGamepads() shim.
 NAP message APIs and the pinned build plugin are unchanged.
 Installed skill folders are excluded from the boilerplate's repository-guidance
 scan; the schema-free-starter assertion checks our static settings example instead.

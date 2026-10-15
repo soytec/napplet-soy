@@ -38,23 +38,24 @@ export function hostGamepadSlots() {
 }
 
 /**
- * NAP-GAMEPAD compatibility shim (local draft, docs/NAP-GAMEPAD.md). Permissions-Policy
+ * NAP-GAMEPAD binding (merged upstream draft, docs/NAP-GAMEPAD.md). Permissions-Policy
  * leaves the native API in player frames but makes it throw. Only in that case is the
  * one denied operation replaced, with native property attributes, name, length and
  * receiver check. Events and handlers stay native. Frames where the browser lacks the
- * API, or the host allows native access, are left untouched.
+ * API, or the host allows native access, keep their native surface unchanged.
+ * The standard window.napplet.gamepad binding is always installed.
  */
 export function gamepadPrelude(slots = hostGamepadSlots()) {
   return `
 (() => {
   const native = Navigator.prototype.getGamepads;
-  if (typeof native !== 'function' || typeof Gamepad !== 'function') return;
-  try {
-    native.call(navigator);
-    return;
-  } catch (error) {
-    if (error?.name !== 'SecurityError') return;
+  let replaceNative = false;
+  if (typeof native === 'function') {
+    try { native.call(navigator); }
+    catch (error) { replaceNative = error?.name === 'SecurityError'; }
   }
+  const PadProto = typeof Gamepad === 'function' ? Gamepad.prototype : Object.prototype;
+  const ButtonProto = typeof GamepadButton === 'function' ? GamepadButton.prototype : Object.prototype;
   const EventProto = typeof GamepadEvent === 'function' ? GamepadEvent.prototype : Event.prototype;
   let state = { available: true, focused: false }, raw = [], current = Array(${Math.max(0, Math.min(8, Math.trunc(slots) || 0))}).fill(null);
   const changes = new Set();
@@ -66,14 +67,14 @@ export function gamepadPrelude(slots = hostGamepadSlots()) {
   };
   const unit = (value, min) => typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(1, value)) : 0;
   const list = (value, max) => Array.isArray(value) ? value.slice(0, max) : [];
-  const pad = (data, index, connected = true) => own(Gamepad.prototype, {
+  const pad = (data, index, connected = true) => own(PadProto, {
     id: String(data.id ?? '').slice(0, 128),
     index,
     mapping: String(data.mapping ?? '').slice(0, 16),
     connected,
     timestamp: typeof data.timestamp === 'number' && Number.isFinite(data.timestamp) ? data.timestamp : 0,
     axes: Object.freeze(list(data.axes, 16).map(value => unit(value, -1))),
-    buttons: Object.freeze(list(data.buttons, 32).map(button => own(GamepadButton.prototype, {
+    buttons: Object.freeze(list(data.buttons, 32).map(button => own(ButtonProto, {
       pressed: !!button?.pressed, touched: !!button?.touched, value: unit(button?.value, 0),
     }))),
     vibrationActuator: null,
@@ -81,6 +82,7 @@ export function gamepadPrelude(slots = hostGamepadSlots()) {
   // GamepadEvent's constructor rejects shim pads. A real Event with GamepadEvent's
   // prototype passes instanceof checks and reaches listeners and native on* handlers.
   const emit = (type, gamepad) => {
+    if (!replaceNative) return;
     const event = new Event(type);
     Object.setPrototypeOf(event, EventProto);
     Object.defineProperty(event, 'gamepad', { value: gamepad, enumerable: true });
@@ -111,7 +113,7 @@ export function gamepadPrelude(slots = hostGamepadSlots()) {
       return current.slice();
     },
   }.getGamepads;
-  Object.defineProperty(Navigator.prototype, 'getGamepads', {
+  if (replaceNative) Object.defineProperty(Navigator.prototype, 'getGamepads', {
     ...Object.getOwnPropertyDescriptor(Navigator.prototype, 'getGamepads'),
     value: replacement,
   });
@@ -125,7 +127,7 @@ export function gamepadPrelude(slots = hostGamepadSlots()) {
         return { close: () => changes.delete(callback) };
       },
     });
-  // Subscribing at install keeps every native listener and handler surface untouched.
+  // The standard binding is independent of optional native-API replacement.
   window.parent.postMessage({ type: 'gamepad.subscribe' }, '*');
 })();`;
 }

@@ -132,5 +132,25 @@ test('subscription churn from a frame is rate limited', () => {
   state.slots = [pad('Pad', 0)];
   for (let i = 0; i < 300; i++) session.handle({ type: 'gamepad.subscribe' });
   expect(sent).toBe(120);
+  session.handle({ type: 'gamepad.unsubscribe' });
+  expect(state.scheduled).toHaveLength(0);
+  expect(state.watchers.size).toBe(0);
+  session.close();
+});
+
+test('unavailable host never reports live focus', () => {
+  const { frames, state, environment } = fakeEnvironment();
+  state.focus = frames.a;
+  state.error = Object.assign(new Error('denied'), { name: 'SecurityError' });
+  const sent: GamepadState[] = [];
+  const session = new NappletGamepad({
+    frame: frames.a,
+    send: (message) => sent.push(message),
+    broker: new GamepadBroker(environment),
+  });
+  session.handle({ type: 'gamepad.subscribe' });
+  expect(sent).toEqual([
+    { type: 'gamepad.state', available: false, reason: 'blocked', focused: false, pads: [] },
+  ]);
   session.close();
 });

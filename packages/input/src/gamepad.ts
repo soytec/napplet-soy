@@ -168,7 +168,7 @@ export function createGamepadInput(
             value,
             down,
             pressed: enabled && activeLast && same && down && !wasDown,
-            released: wasDown && !down,
+            released: enabled && wasDown && !down,
           };
         }
         next.set(pad.index, {

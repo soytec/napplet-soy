@@ -1,10 +1,11 @@
-# NAP-GAMEPAD — shell-brokered controller input (local draft)
+# NAP-GAMEPAD — shell-brokered controller input (merged upstream draft)
 
-Status: **local draft**, implemented in unreleased source after soyLI 0.25.3 and
-proposed upstream as [napplet/naps#108](https://github.com/napplet/naps/pull/108) (open draft, not merged). Pinned shim 0.30.0 and the
-[NAP registry](https://github.com/napplet/naps) define no gamepad domain yet, so this host
-adds one through its own prelude, as it does for NAP-SHELL. Nothing here changes
-NIP-5D kinds, manifests or `requires` semantics. Not deployed.
+Status: **merged upstream draft**, pinned to [NAP-GAMEPAD at
+`19de5ce1cea40cd4c76089cdd8126e9f87648049`](https://github.com/napplet/naps/blob/19de5ce1cea40cd4c76089cdd8126e9f87648049/naps/NAP-GAMEPAD.md)
+([PR #108](https://github.com/napplet/naps/pull/108)). Reviewed against the merged
+contract on 2026-10-15. Implemented in source; not deployed or released.
+The pinned shim 0.31.0 has no gamepad binding, so this host supplies the standard
+binding in its prelude. No SDK or authoritative NIP-5D pin changes.
 
 ## Why
 
@@ -63,10 +64,10 @@ Shell rules:
   snapshot.
 - Bounds: at most 8 slots, 16 axes, 32 buttons, a 128-character `id` and a
   16-character `mapping`. Axes are clamped to −1…1 and button values to 0…1.
-- Subscription churn is limited to 120 changes per minute per frame. Closing the
+- Subscribe requests are limited to 120 per minute per frame; unsubscribe always stops input. Closing the
   session ends the subscription.
 
-The domain is optional, with no `requires` entry. Napplets must keep keyboard and
+The domain is optional. Declare it required only if the napplet cannot run without controllers. Napplets must keep keyboard and
 pointer/touch controls.
 
 ## Compatibility shim
@@ -80,7 +81,7 @@ and follows these rules:
 
 - **It replaces only a denied API.** It installs only when the native `getGamepads`
   exists and throws `SecurityError`. If the host allows native access, or the browser
-  has no Gamepad API, it changes nothing and does not subscribe.
+  has no Gamepad API, it leaves the native API untouched. The standard binding still subscribes.
 - **It replaces exactly one property: `Navigator.prototype.getGamepads`.** The
   replacement keeps the native writable/enumerable/configurable attributes, the name
   `getGamepads`, `length` 0, and the `TypeError` for a non-`Navigator` receiver.
@@ -95,14 +96,14 @@ and follows these rules:
   `Event`s with `GamepadEvent.prototype`, so `instanceof GamepadEvent` holds and
   `Object.prototype.toString` reports `[object GamepadEvent]`. They reach listeners
   and the native `on…` handlers. A disconnect carries `connected: false`.
-- **It subscribes at install.** It sends one `gamepad.subscribe` so no listener API
+- **The standard binding subscribes at install.** It sends one `gamepad.subscribe` so no listener API
   has to be wrapped to detect use.
 - **Denial matches native.** `reason: "blocked"` from the shell makes `getGamepads()`
   throw `SecurityError`, as native denial does. `unavailable` returns the empty-slot
   list.
-- **There is an optional direct API.** `window.napplet.gamepad` offers
+- **There is a standard direct API.** `window.napplet.gamepad` offers
   `getGamepads()`, `available`, `focused` and `onChange(callback) → { close }`. It
-  exists only where the shim installed.
+  is installed independently of native API replacement, including browsers without a native API.
 
 Remaining observable differences, verified in Chromium 153:
 
@@ -144,3 +145,21 @@ Remaining observable differences, verified in Chromium 153:
 
 Physical controllers and Safari/Firefox behavior are not yet verified (see
 [CONTROLLERS.md](CONTROLLERS.md)).
+
+
+### Merged-contract review evidence — 2026-10-15
+
+- Merged current `origin/main` without conflicts.
+- `bun run check` with Git 2.55.0: 736 tests passed, zero failures; typecheck passed.
+  The system Git 2.34.1 cannot run the existing merge-tree tests, which require
+  Git 2.38 or newer.
+- Chromium: six tests passed across the gamepad shim and real preview/controller
+  tester, including standard binding installation without a native Gamepad API.
+- Web production build passed.
+- `bun run check:nix` passed: package realization, forced rebuilds and x86_64
+  Linux flake/VM regressions, including upstream conformance. The VM used TCG
+  fallback because KVM access was denied. Other architectures were not checked.
+- Review fixes: install the standard binding independently of native replacement;
+  report no live focus when unavailable; observe frame focus changes immediately;
+  honor unsubscribe after rate limiting; suppress helper release actions on blur.
+- Physical USB/Bluetooth controllers and Safari/Firefox remain unverified.

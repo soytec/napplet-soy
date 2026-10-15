@@ -19,7 +19,7 @@ Read this before adding, porting or testing USB/Bluetooth gamepad support. Read
 docs/napplet-controllers.md for the full guide and use docs/examples/gamepad.ts.
 
 **Protocol.** Controllers follow the NAP-GAMEPAD draft,
-https://github.com/napplet/naps/pull/108 (open, not merged). The pinned
+https://github.com/napplet/naps/pull/108 (merged at 19de5ce1cea40cd4c76089cdd8126e9f87648049; spec status: draft). The pinned
 @napplet/sdk and shim have no \`gamepad\` domain: do not import one from the SDK or
 invent other wire messages. Controllers are browser-wide devices, so the soyLI
 runtime is their only native reader. It denies the native API to napplet frames
@@ -34,9 +34,9 @@ one \`gamepad.subscribe\`. Pads keep native \`Gamepad\`/\`GamepadButton\` protot
 in slot order with \`null\` gaps. \`gamepadconnected\`/\`gamepaddisconnected\` arrive
 as \`GamepadEvent\`s through listeners and \`on…\` handlers. A host \`blocked\` state
 throws \`SecurityError\`; \`unavailable\` returns empty slots. Where native access is
-allowed or there is no Gamepad API, nothing is patched. The shim also exposes the
+allowed or there is no Gamepad API, the native API is untouched; the standard binding still subscribes. The shim also exposes the
 optional \`window.napplet.gamepad\`: \`getGamepads()\`, \`available\`, \`focused\` and
-\`onChange(callback) → { close }\`. It exists only where the shim installed.
+\`onChange(callback) → { close }\`. It is installed independently of native API replacement.
 
 **Build rules.**
 - Write ordinary Gamepad API code: poll \`navigator.getGamepads()\` once per
