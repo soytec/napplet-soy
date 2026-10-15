@@ -113,6 +113,7 @@ export const jobSchema = z
       .max(50 * 1024 * 1024),
     check: z.object({ profile: z.string().max(80), browser: z.string().max(80) }).strict(),
     releaseRefs: z.record(z.string().regex(/^refs\/tags\/release-[a-f0-9]{16}$/), commit),
+    appliedStatuses: z.array(eventSchema).max(100).optional(),
     source: z.object({ announcement: eventSchema, state: eventSchema }).optional(),
     snapshot: eventSchema.optional(),
     current: eventSchema.optional(),

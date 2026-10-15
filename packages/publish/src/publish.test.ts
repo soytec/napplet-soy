@@ -1,3 +1,4 @@
+import { ProtocolClient } from '../../client/src/nostr';
 import { publicationDestinations } from '../../nostr/src/publication-copies';
 import {
   planLifecycle,
@@ -113,6 +114,7 @@ async function fixture() {
       )
       .reduce<SignedEvent | null>((best, e) => (!best || newer(e, best) ? e : best), null);
   const deps: NonNullable<PublishOptions['dependencies']> = {
+    proposalClient: Object.assign(new ProtocolClient(() => []), { query: async () => [] }),
     website: async () => ({ checkedAt: Date.now(), ready: false, reason: 'pending' }),
     relays: {
       latest,

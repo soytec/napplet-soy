@@ -380,8 +380,7 @@ test('collaboration: two creators publish, propose, review the exact Git tip, me
   const { checkpoint } = await import('../../packages/publish/src/git-source');
   const { writeBinding, readBinding } = await import('../../packages/publish/src/binding');
   const { loadRemix, createRemix } = await import('../../packages/remix/src');
-  const { propose, proposalAction, pushSource } =
-    await import('../../packages/collaboration/src/service');
+  const { propose, proposalAction } = await import('../../packages/collaboration/src/service');
   const { readRepository, readProposals, validatePreview, tag } =
     await import('../../packages/collaboration/src/protocol');
   const { ProtocolClient } = await import('../../packages/client/src/nostr');
@@ -532,15 +531,36 @@ test('collaboration: two creators publish, propose, review the exact Git tip, me
     expect(merged).toMatchObject({ state: 'merged_locally', released: false, pushed: false });
     expect(await sourceGit(original, ['log', '-1', '--format=%an'])).toBe(alice.pubkey);
     expect((await readProposals(client, repo))[0].status).toBe('open');
-    await pushSource({ directory: original, network: 'local', accounts: owner });
-    expect((await readProposals(client, repo))[0].status).toBe('merged');
+    await expect(
+      publishProject({
+        directory: original,
+        network: 'local',
+        accounts: owner,
+        check,
+        dependencies: {
+          source: async (input) => {
+            await publishSource(input);
+            throw new Error('fixture interruption after Git delivery');
+          },
+        },
+      }),
+    ).rejects.toThrow('fixture interruption after Git delivery');
+    expect((await readProposals(client, repo))[0].status).toBe('open');
+    const releaseJournal = new Journal(original, 'local', alice.pubkey);
+    const pendingRelease = await releaseJournal.load((await releaseJournal.index()).active!);
+    expect(pendingRelease.appliedStatuses).toHaveLength(1);
     const released = await publishProject({
       directory: original,
       network: 'local',
       accounts: owner,
       check,
+      resume: true,
     });
+    expect((await releaseJournal.load(pendingRelease.id)).appliedStatuses).toEqual(
+      pendingRelease.appliedStatuses,
+    );
     expect(released.status).toBe('announced_pending_index');
+    expect((await readProposals(client, repo))[0].status).toBe('merged');
     expect(await sourceGit(original, ['merge-base', '--is-ancestor', updated.head, 'HEAD'])).toBe(
       '',
     );
