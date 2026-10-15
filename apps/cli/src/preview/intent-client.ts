@@ -5,7 +5,7 @@ import {
   intentDefaultControls,
 } from '../../../../packages/runtime/src/intent-controls';
 import { preparePlayback } from '../../../../packages/runtime/src/playback';
-import { loadArtifact, PLAYER_SANDBOX } from '../../../../packages/runtime/src';
+import { loadArtifact, PLAYER_ALLOW, PLAYER_SANDBOX } from '../../../../packages/runtime/src';
 import { nappletPrelude } from '../../../../packages/runtime/src/prelude';
 import { declaredConfig } from '../../../../packages/runtime/src/config-schema';
 import { attachNappletHost, type HostOptions } from '../../../../packages/runtime/src/host';
@@ -95,7 +95,7 @@ export function previewIntents(options: {
       const frame = document.createElement('iframe');
       frame.title = entry.title ?? 'Intent target';
       frame.sandbox.value = PLAYER_SANDBOX;
-      frame.allow = 'fullscreen';
+      frame.allow = PLAYER_ALLOW;
       frame.referrerPolicy = 'no-referrer';
       frame.style.cssText = 'flex:1;width:100%;border:0';
       frame.srcdoc = html;

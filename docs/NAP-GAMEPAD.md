@@ -163,3 +163,29 @@ Physical controllers and Safari/Firefox behavior are not yet verified (see
   report no live focus when unavailable; observe frame focus changes immediately;
   honor unsubscribe after rate limiting; suppress helper release actions on blur.
 - Physical USB/Bluetooth controllers and Safari/Firefox remain unverified.
+
+
+### Iframe-boundary follow-up review — 2026-10-15
+
+The review found and fixed a CLI intent-launch path introduced by the main merge:
+intent targets now use `PLAYER_ALLOW`, including native gamepad denial, just like
+the website player, ordinary CLI preview, dynamic-backend demo and controller
+tester. The tester now creates the namespace before installing the standard NAP
+binding as well as the native compatibility shim.
+
+The real Chromium intent-launch regression saves the original native reader
+before the prelude executes and checks that it still throws `SecurityError`.
+Both `window.napplet.gamepad.getGamepads()` and the compatibility
+`navigator.getGamepads()` then receive the same host-brokered values, becoming
+neutral after focus loss. The tester regression checks its NAP binding and denied
+Permissions-Policy directly.
+
+The security boundary is browser-enforced Permissions-Policy, not the JavaScript
+shim. The shim preserves library access patterns over NAP snapshots; it cannot
+provide native-device isolation in a browser that ignores that policy. Such
+browsers remain outside the verified isolation claim.
+
+
+Follow-up verification: typecheck and all 18 targeted broker/helper and Chromium
+tests passed. `bun run check:nix` passed realization, forced rebuilds and x86_64
+Linux VM regressions again (TCG fallback; other architectures unchecked).

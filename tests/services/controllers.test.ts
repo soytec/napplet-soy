@@ -154,6 +154,12 @@ test('shipped controller helper and workshop tester operate inside the real opaq
     expect((await read()).players[0].actions.jump.down).toBe(false);
     // Isolation is enforced by the shell, not by the helper's own focus check.
     const tester = page.frames().find((f) => f !== game && f.parentFrame())!;
+    expect(
+      await tester.evaluate(() => ({
+        policy: (document as any).featurePolicy.allowsFeature('gamepad'),
+        binding: typeof (window as any).napplet?.gamepad?.getGamepads,
+      })),
+    ).toEqual({ policy: false, binding: 'function' });
     const raw = (frame: Frame) =>
       frame.evaluate(() => navigator.getGamepads()[0]?.buttons[0]?.value ?? null);
     await browserExpect.poll(() => raw(tester)).toBe(1);

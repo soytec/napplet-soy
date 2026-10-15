@@ -22,7 +22,11 @@ export function setupControllers(signal: AbortSignal) {
       if (!details.open || signal.aborted) return;
       const bytes = new TextEncoder().encode(SOYLI_CONTROLLER_TESTER);
       // The tester reads controllers exactly as a napplet does: through the shell's broker.
-      const doc = await verifiedDocument(bytes, await sha256(bytes), gamepadPrelude());
+      const doc = await verifiedDocument(
+        bytes,
+        await sha256(bytes),
+        'window.napplet = {};\n' + gamepadPrelude(),
+      );
       if (turn !== generation || !details.open || signal.aborted) return;
       const frame = document.createElement('iframe');
       frame.title = 'Controller bench';
