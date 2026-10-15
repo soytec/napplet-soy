@@ -1,5 +1,54 @@
 # NAP concepts and expansion review
 
+## OUTBOX integration — released 0.29.0
+
+The subsequent implementation completes the foundation below with a shared verified
+store, actual Applesauce network loaders, reactive live routing, per-event consent,
+exact signing and strict per-relay publication outcomes. PR 32 remains pinned at
+`8865f73d52a4864afee145f28d26520476273927`, audited against napplet-web
+`44d663a14af0f91a3797614c76e5c3d684cec52e` and the installed 0.31.0 shim's
+0.33.0 core/nap bindings. Applesauce loaders 6.2.0 joins unchanged core 6.2.0,
+relay 6.2.1 and signers 6.2.2. The NIP-5D authority is unchanged. Generic writes
+never bypass map/app-data namespace, ownership, revision or deletion checks.
+[Policy/limits](OUTBOX.md) and [verification evidence](NAP-OUTBOX-PLAN.md) distinguish
+implementation tests from independent-client conformance. The compatible shell
+was deployed and verified before soyLI 0.29.0 publication; see
+[release evidence](CLI-RELEASES.md) and [deployment record](DEPLOYMENT.md).
+
+## OUTBOX relay planning foundation — 2026-10-13 source
+
+Reviewed [NAP-OUTBOX PR 32 at 8865f73d](https://github.com/napplet/naps/blob/8865f73d52a4864afee145f28d26520476273927/naps/NAP-OUTBOX.md)
+against sibling napplet-web `44d663a14af0f91a3797614c76e5c3d684cec52e`
+OUTBOX types/shim and installed shim 0.31.0 / core/nap 0.33.0. No package or
+selected NIP-5D pin changes. Shared read planning now caches verified relay lists,
+preserves mixed-author fallback coverage and exposes truncation as incomplete.
+An independently tested publication planner resolves the requested target union
+and fails unresolved required inboxes or over-limit fanout before signing.
+It is not yet a general publishing host implementation or a conformance claim.
+See [scope, verification and remaining work](NAP-OUTBOX-PLAN.md).
+
+## Native map and INTENT review — 2026-10-13
+
+Source now uses published shim 0.31.0 and core/nap 0.33.0 for the canonical
+NAP-INTENT contract at `e5308ac`. The shared web/preview host implements exact
+queryless convention routing, verified author-qualified catalogs, user chooser
+and editable defaults, attested senders and retained cold-target deliveries.
+Acceptance means delivery responsibility, not a target handled acknowledgement.
+The selected NIP-5D authority is unchanged.
+
+Viewer-authorized OUTBOX/RELAY writes now also admit bounded native kind-35858
+Black Site map metadata and narrowly verified owner-map NIP-09 deletion.
+Configured destinations, consent, complete revision reads, exact signing and
+identity cancellation constrain writes. Admission is metadata-only: current host
+wiring does not validate linked JSON bytes or the map schema before signing.
+No publisher provenance gate or arbitrary signing surface is added.
+
+Actual source-host map create/update/reload/remix/play/delete and the game's
+EDIT-to-cold-editor INTENT path passed local browser integration. Native session
+tests passed 10/101 assertions; related runtime tests passed 83. Implemented and
+locally verified is distinct from release or public deployment; neither occurred
+for this update. See [policy, contract and limits](MAP-INTENTS.md).
+
 ## Stable publishing and historical gallery grouping — 2026-10-09 source
 
 Ordinary publication now writes the stable named listing; `publish --snapshot`

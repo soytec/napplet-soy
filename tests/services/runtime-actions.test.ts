@@ -186,19 +186,19 @@ test('real shim: file imports, lists, follows, reactions/reports and direct Blos
         await call('napplet.common.follow("' + nip19.npubEncode(manifest.pubkey) + '")'),
       ).toMatchObject({ ok: false, error: 'not-signed-in' });
       const pick = call('napplet.fs.pickFile({accept:[{extension:".txt"}]})');
-      await page
-        .getByLabel('Choose files for napplet')
-        .setInputFiles({
-          name: 'hello.txt',
-          mimeType: 'text/plain',
-          buffer: Buffer.from('user-selected bytes'),
-        });
+      await page.getByLabel('Choose files for napplet').setInputFiles({
+        name: 'hello.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('user-selected bytes'),
+      });
       const selected = await pick;
       expect(
         await call(`napplet.fs.read(${JSON.stringify(selected.entries[0].path)})`),
       ).toMatchObject({ data: btoa('user-selected bytes') });
-      if (mode === 'website')
+      if (mode === 'website') {
         await page.getByRole('button', { name: 'Connect', exact: true }).click();
+        await page.getByRole('button', { name: 'Extension', exact: true }).click();
+      }
       await page.getByRole('button', { name: 'Connect browser extension', exact: true }).click();
       await ui.poll(() => call('napplet.identity.getPublicKey()')).toBe(pubkey);
       // An explicit host cancellation has no side effects.

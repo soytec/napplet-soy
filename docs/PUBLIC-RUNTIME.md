@@ -1,8 +1,26 @@
 # Napplet playback profile
 
+2026-10-13 OUTBOX source update: web and preview share an account-scoped Applesauce
+store/loaders, verified NIP-65 planner, live route refresh and consented general
+event publication. Own write relays, required recipient read relays and explicit
+destinations form one deduplicated fanout; incomplete required routing fails before
+signing. Partial relay rejection returns the signed event and per-relay results.
+Map/app-data writes retain their specialized protections and configured destinations;
+generic deletion remains denied. Older publishing/lifetime descriptions below are
+superseded by [current OUTBOX behavior and limits](OUTBOX.md). Shipped in soyLI
+0.29.0 after compatible shell deployment; see [release evidence](CLI-RELEASES.md)
+and [implementation evidence](NAP-OUTBOX-PLAN.md).
+
+2026-10-13 source update: web and preview now implement NAP-INTENT handler
+discovery/chooser/defaults and retained cold-target delivery, using shim 0.31.0
+and core/nap 0.33.0. OUTBOX/RELAY additionally admit viewer-consented native
+kind-35858 map metadata and verified current-owner kind-5 deletion. Metadata
+admission does not validate linked map bytes. These capabilities ship in soyLI
+0.29.0 and the public shell. See [map writes and intent limits](MAP-INTENTS.md).
+
 2026-09-23 source update: `relay.publish` and `outbox.publish` now accept the
 bounded public kind-30078 application-data convention with viewer consent. Other
-event kinds and encryption remain denied. The optional shell-init `appData`
+event kinds and encryption remain denied except the native map subset described above. The optional shell-init `appData`
 policy hint describes scope/limits without introducing a new NAP domain. See
 [shared data](SHARED-DATA.md) for current-version records, tombstones, missing
 history guarantees and the explicit public NIP-78 relay-policy deviation. The local
@@ -29,7 +47,7 @@ Fixtures and relay-imported napplets use the same manifest validator, capability
 
 Named/root manifests retain their existing author/address/build storage and settings scopes across the old-to-new manifest migration, computed from verified HTML bytes. Legacy snapshots keep their validated own-address sharing. New standalone snapshots have an independent author/event/build scope; their optional ancestry never grants parent saves, account backend bindings or social identity. New soyLI pinned URLs use the exact named manifest revision so that the named app keeps its scope. See [migration details](NIP5D-MIGRATION.md). The new protocol artifact identity is the raw SHA-256; the physical legacy-derived save key is a compatibility detail. Old fixture-only prototype saves remain unmigrated.
 
-The browser injects the published **@napplet/shim 0.30.0** prelude, with transitive **@napplet/nap 0.32.0** and **@napplet/core 0.32.0** pinned in the lockfile. These are protocol bindings, not another catalog: discovery remains Applesauce queries against Nostr relays. The shim is loaded with the player route, not by executing an external script inside a napplet.
+The browser injects the published **@napplet/shim 0.31.0** prelude, with transitive **@napplet/nap 0.33.0** and **@napplet/core 0.33.0** pinned in the lockfile. These are protocol bindings, not another catalog: discovery remains Applesauce queries against Nostr relays. The shim is loaded with the player route, not by executing an external script inside a napplet.
 
 Space adds the [NAP-SHELL handshake](https://github.com/napplet/naps/blob/master/naps/NAP-SHELL.md), absent from that shim release. `shell.ready` establishes one frame session; `shell.init` replies once; `shell.ready()`, `onReady()`, `supports()` and `services` expose its environment. Unknown message types are silently ignored before quota accounting; recognized operations can still return policy errors. The host verifies `MessageEvent.source` and the opaque origin, and binds identity to the verified manifest before accepting requests. Messages cannot choose a different author, build, account, or storage namespace.
 
@@ -44,10 +62,11 @@ References: [NAP registry and web projection](https://github.com/napplet/naps), 
 | `keys`     | Named actions, default bindings, unregister and focused Escape forwarding                                            | Frame-scoped limits; reserved/conflicting hints unbound; see keyboard section below                                                                                        |
 | `identity` | Connected key, user NIP-65 relay preferences, profile, follows, public mute list                                     | Guest key is the empty string; extra list projections return explicit errors; no private lists or signer access                                                            |
 | `theme`    | Resolved shell colors; live `theme.changed` notifications                                                            | Light/Dark/Auto preference; napplets opt in to applying colors; no frame reload. See [appearance](APPEARANCE.md)                                                           |
-| `relay`    | Filtered query and live subscribe/close                                                                              | Guarded public WSS reads; signatures checked, duplicates removed, filters reapplied; scoped public app-data publishing with viewer consent; other writes/encryption denied |
-| `outbox`   | Query, getEvent, subscriptions, close, resolveRelays                                                                 | NIP-65 selection and public relay hints under the shared read policy, fallback when needed, partial results marked; scoped public app-data publishing with viewer consent  |
+| `relay`    | Filtered query and live subscribe/close                                                                              | Guarded public WSS reads; signatures checked, duplicates removed, filters reapplied; scoped app-data and native map metadata/deletion with viewer consent; other writes/encryption denied |
+| `outbox` | getEvent/query/subscribe/close/resolveRelays and consented templates | Shared verified Applesauce store/loaders, reactive NIP-65 routing, strict complete fanout and specialized protections; [bounds](OUTBOX.md), [evidence](NAP-OUTBOX-PLAN.md) |
 | `common`   | Public NIP-19 helpers including nrelay, profile/follows, follow/unfollow/react/report                                | Viewer signer and host approval for writes; signed native event targets only; no secret identifiers                                                                        |
 | `resource` | HTTPS and hash-verified Blossom bytes, ordered bulk responses, cancellation, scheme discovery                        | `data:` handled locally by upstream shim; no htree/nostr resolver; raw SVG/HTML/XML denied                                                                                 |
+| `intent` | Verified handler discovery, exact conventions, chooser/defaults, attested delivery and cold-target launch | Source implemented/local verified; session queue only; acceptance is not a handled acknowledgement. See [limits](MAP-INTENTS.md) |
 | `link`     | HTTPS links presented in a host-owned confirmation                                                                   | User clicks to open; no automatic navigation                                                                                                                               |
 | `config`   | Static/runtime schemas, validated settings UI, snapshots/subscriptions, focused settings opening                     | Browser-local values scoped to author/address/build/account; session-only secrets; see [configuration limits](CONFIGURATION.md). Deployed 2026-09-14                       |
 | `fs`       | Session files, native file/folder import copies, chunked reads/writes, metadata, move/remove/watch and export picker | 10 MiB aggregate, 256 KiB chunks, 128 entries, 16 watches; no live device paths                                                                                            |
@@ -61,7 +80,7 @@ including live streams and play/pause/stop/volume. It is deployed and available 
 unsupported ownership/source modes, limits and evidence. The runtime profile changes
 to `space-playback-2` so the index retries formerly unsupported media creations.
 
-Required unsupported domains still gate launch: for example `inc`, `intent`, and `connect`. Composability, napplet signing grants, extended identity projections and arbitrary backend execution remain separate additions. Older artifacts that omit required domains may still depend on unavailable APIs.
+Required unsupported domains still gate launch: for example `inc` and `connect`. Composability, napplet signing grants, extended identity projections and arbitrary backend execution remain separate additions. Older artifacts that omit required domains may still depend on unavailable APIs.
 
 The 2026-09-17 local source update adds NAP-CVM and NAP-WEBRTC under
 `space-playback-3`. Direct encrypted CVM requests/discovery/registry calls and

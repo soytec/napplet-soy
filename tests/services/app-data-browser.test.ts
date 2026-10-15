@@ -169,7 +169,10 @@ test('shipped app-data helper: independent viewers share, update, retry and unpu
     };
     const connect = async (page: Page, key: Uint8Array, website: boolean) => {
       if ((await call(page, 'napplet.identity.getPublicKey()')) === getPublicKey(key)) return;
-      if (website) await page.getByRole('button', { name: 'Connect', exact: true }).click();
+      if (website) {
+        await page.getByRole('button', { name: 'Connect', exact: true }).click();
+        await page.getByRole('button', { name: 'Extension', exact: true }).click();
+      }
       await page.getByRole('button', { name: 'Connect browser extension', exact: true }).click();
       await ui.poll(() => call(page, 'napplet.identity.getPublicKey()')).toBe(getPublicKey(key));
     };

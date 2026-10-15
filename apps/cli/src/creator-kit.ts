@@ -26,6 +26,7 @@ import minicraftHandler from '../../../packages/dynamic-backends/fixtures/minicr
 import minicraftManifest from '../../../packages/dynamic-backends/fixtures/minicraft/backend.json';
 import minicraftSchemas from '../../../packages/dynamic-backends/fixtures/minicraft/schemas.json';
 import sharedDataGuide from '../../../docs/SHARED-DATA.md' with { type: 'text' };
+import outboxGuide from '../../../docs/OUTBOX.md' with { type: 'text' };
 import appDataHelper from '../../../packages/app-data/src/app-data.ts?raw' with { type: 'text' };
 import appDataContract from '../../../packages/app-data/src/app-data-contract.ts?raw' with { type: 'text' };
 import multiplayerSync from '../templates/multiplayer-sync.ts.txt' with { type: 'text' };
@@ -106,6 +107,8 @@ and report missing coverage honestly. Never invent a portrait recording option.
   Large replay/media bytes belong on Blossom with a URL/hash reference in the data.
 - For player-created tracks, puzzles, drawings or presets shared independently of scores,
   read docs/napplet-data.md and use docs/examples/app-data.ts with app-data-contract.ts.
+  For ordinary Nostr event reads, live streams and consented publications, read
+  docs/napplet-outbox.md. Keep map/app-data specialized write protections intact.
   Default to the documented public NIP-78 convention, with a stable schema label/version
   and application payload validation. Keep drafts in local storage, large files on Blossom.
   Do not invent a CVM collection service or replace requested sharing with local-only saves.
@@ -552,6 +555,7 @@ export function creatorSkills() {
     'docs/napplet-data.md': sharedDataGuide,
     'docs/examples/app-data.ts': appDataHelper,
     'docs/examples/app-data-contract.ts': appDataContract,
+    'docs/napplet-outbox.md': outboxGuide,
     'docs/napplet-actions.md': actionsGuide,
     'docs/napplet-controllers.md': controllersGuide,
     'docs/napplet-mobile.md': mobileGuide,

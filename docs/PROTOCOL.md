@@ -1,5 +1,47 @@
 # Napplet interoperability and publishing contract
 
+## OUTBOX integration — released 0.29.0
+
+The shared host implements [NAP-OUTBOX at 8865f73d](https://github.com/napplet/naps/blob/8865f73d52a4864afee145f28d26520476273927/naps/NAP-OUTBOX.md)
+with account-scoped Applesauce stores/loaders, reactive NIP-65 routing and
+per-event viewer consent for general templates. Publication signs once, fans out
+the exact event to own write relays, required recipient read relays and validated
+explicit destinations, and reports partial delivery without false success.
+Specialized map/app-data/deletion policy cannot be bypassed through the general
+handler. The selected NIP-5D authority remains `4d0fb2e`; shim 0.31.0 and core/nap
+0.33.0 remain pinned. Applesauce loaders 6.2.0 is now explicit. No new domain,
+wire field, source/provenance requirement or iframe signing key is introduced.
+See [current policy and bounds](OUTBOX.md) and [verification](NAP-OUTBOX-PLAN.md).
+Released in soyLI **0.29.0**, after deployment and live verification of the
+compatible shell. See [release evidence](CLI-RELEASES.md) and
+[deployment record](DEPLOYMENT.md). Independent-client conformance remains separate.
+
+## Native map and INTENT integration — released 0.29.0
+
+Source now uses published shim 0.31.0 and core/nap 0.33.0 for the canonical
+NAP-INTENT contract at `e5308ac`. The shared web/preview host implements exact
+queryless convention routing, verified author-qualified catalogs, user chooser
+and editable defaults, attested senders and retained cold-target deliveries.
+Acceptance means delivery responsibility, not a target handled acknowledgement.
+The selected NIP-5D authority is unchanged.
+
+Viewer-authorized OUTBOX/RELAY writes now also admit bounded native kind-35858
+Black Site map metadata and narrowly verified owner-map NIP-09 deletion.
+Configured destinations, consent, complete revision reads, exact signing and
+identity cancellation constrain writes. Admission is metadata-only: current host
+wiring does not validate linked JSON bytes or the map schema before signing.
+No publisher provenance gate or arbitrary signing surface is added.
+
+Actual source-host map create/update/reload/remix/play/delete and the game's
+EDIT-to-cold-editor INTENT path passed local browser integration. Native session
+tests passed 10/101 assertions; related runtime tests passed 83. PR #21 added
+regressions for handler replacement, refreshed catalog contracts and structured
+payloads before the 0.29.0 rollout. The public Black Site version used for live
+verification did not expose its editor handoff, so that flow retains local browser
+evidence. See [policy, contract and limits](MAP-INTENTS.md).
+
+## Direct manifest presentation — released 0.28.0
+
 2026-10-06 source update: fresh soyLI publications attach optional screenshot/video
 hashes and MIME types directly to current manifests and explicitly requested snapshots under the documented
 downstream `soy.presentation/1` convention. They emit no new Zapstore kind-32267

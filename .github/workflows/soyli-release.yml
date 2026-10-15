@@ -46,6 +46,10 @@ jobs:
         id: release
         run: bun scripts/cli-release-check.ts
       - run: bun run check
+      - name: Verify INTENT through the real browser shim and relay discovery
+        run: |
+          bunx playwright install --with-deps chromium
+          bun test tests/services/intent-browser.test.ts
 
   build:
     needs: check

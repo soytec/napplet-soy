@@ -97,7 +97,12 @@ function fixture(key = alice, events: SignedEvent[] = []) {
     state,
     abort,
     host,
-    send: (event: DataTemplate) => session.handle({ type: 'outbox.publish', event }),
+    send: (event: DataTemplate) =>
+      session.handle({
+        type: 'outbox.publish',
+        event,
+        options: { toOutbox: false, relays: policy.relays },
+      }),
   };
 }
 const validate = (v: unknown) => {
@@ -191,7 +196,7 @@ test('scope is stable across releases, distinct across creators/preview, and enf
     await f.session.handle({
       type: 'outbox.publish',
       event: make(),
-      options: { relays: ['wss://other.example.com/'] },
+      options: { toOutbox: false, relays: ['wss://other.example.com/'] },
     }),
   ).toMatchObject({ ok: false, error: expect.stringContaining('relay-not-configured') });
   expect(f.state.sign).toBe(0);
@@ -328,4 +333,41 @@ test('malformed, oversized and unsafe JSON is rejected; unsupported hosts and in
   };
   await expect(collection(f.host)).rejects.toThrow('unavailable');
   f.session.close();
+});
+
+test('specialized OUTBOX requires explicit policy or a complete configured planner fanout', async () => {
+  const f = fixture();
+  expect(await f.session.handle({ type: 'outbox.publish', event: make() })).toMatchObject({
+    ok: false,
+    error: expect.stringContaining('policy-denied'),
+  });
+  expect(f.state.sign).toBe(0);
+  f.session.close();
+  let signatures = 0;
+  const create = (relays: string[]) =>
+    new NappletAppData({
+      policy,
+      pubkey: getPublicKey(alice),
+      signal: new AbortController().signal,
+      plan: async () => relays,
+      consent: async () => true,
+      sign: async (_, template) => {
+        signatures++;
+        return finalizeEvent(template, alice);
+      },
+      io: { query: async () => [], publish: async () => relays },
+    });
+  const valid = create(policy.relays);
+  expect((await valid.handle({ type: 'outbox.publish', event: make() })).ok).toBe(true);
+  valid.close();
+  const denied = create([...policy.relays, 'wss://recipient.example.com/']);
+  expect(
+    await denied.handle({
+      type: 'outbox.publish',
+      event: make(),
+      options: { toInboxes: [getPublicKey(bob)] },
+    }),
+  ).toMatchObject({ ok: false, error: expect.stringContaining('relay-not-configured') });
+  expect(signatures).toBe(1);
+  denied.close();
 });
