@@ -4,7 +4,7 @@ import { manifestIcon } from './manifest';
 import { iconSources } from './icon';
 import { manifestScreenshotSources } from './presentation';
 
-export const PREVIEW_PROFILE = 'manifest-presentation-and-legacy-descriptors-4';
+export const PREVIEW_PROFILE = 'manifest-presentation-and-legacy-descriptors-5';
 export const MAX_PREVIEW_BYTES = 5 * 1024 * 1024;
 export const MAX_CACHED_PREVIEW_BYTES = 4 * 1024 * 1024;
 export type AppReference = { kind: number; pubkey: string; identifier: string; relay?: string };

@@ -28,6 +28,15 @@ for (const format of ['legacy', 'manifest'] as const) {
       .png()
       .toBuffer();
     const imageHash = await sha256(image);
+    const screenshots = new Map<string, Buffer>([[imageHash, image]]);
+    for (let i = 1; i < 10; i++) {
+      const shot = await sharp({
+        create: { width: 120, height: 75, channels: 4, background: `rgb(${i * 20},70,180)` },
+      })
+        .png()
+        .toBuffer();
+      screenshots.set(await sha256(shot), shot);
+    }
     const at = Math.floor(Date.now() / 1000);
     const descriptor = finalizeEvent(
       {
@@ -53,7 +62,13 @@ for (const format of ['legacy', 'manifest'] as const) {
                 ['x', fixtures[0].artifactHash],
                 ['server', 'https://media.example'],
                 ['presentation', MANIFEST_PRESENTATION_PROFILE],
-                ['screenshot', imageHash, 'image/png'],
+                ...Array.from(screenshots.keys(), (hash, i) => [
+                  'screenshot',
+                  hash,
+                  'image/png',
+                  'dim 120x75',
+                  `alt Screenshot ${i + 1}`,
+                ]),
                 ['preview', hash, 'video/webm'],
               ]),
           ['d', 'video-demo'],
@@ -196,6 +211,17 @@ for (const format of ['legacy', 'manifest'] as const) {
       await page.route(url, (route) =>
         route.fulfill({ contentType: 'video/webm', body: Buffer.from(bytes) }),
       );
+      const screenshotRequests: string[] = [];
+      await page.route('https://media.example/*', async (route) => {
+        const hash = new URL(route.request().url()).pathname.slice(1);
+        if (!screenshots.has(hash)) return route.fallback();
+        screenshotRequests.push(hash);
+        await route.fulfill({
+          contentType: 'image/png',
+          headers: { 'access-control-allow-origin': '*' },
+          body: screenshots.get(hash)!,
+        });
+      });
       await page.goto(origin);
       const hero = page.locator('.featured-hero');
       const featuredVideo = hero.locator('video').first();
@@ -291,6 +317,49 @@ for (const format of ['legacy', 'manifest'] as const) {
         390,
       );
       await phone.close();
+      if (format === 'manifest') {
+        await page.setViewportSize({ width: 1365, height: 1000 });
+        await page.goto(`${origin}/r/${current.id}`);
+        const assets = page.getByRole('region', { name: 'Linked assets' });
+        await assets.scrollIntoViewIfNeeded();
+        await browserExpect(assets.locator('img')).toHaveCount(8);
+        await browserExpect
+          .poll(() =>
+            assets
+              .locator('img')
+              .evaluateAll((imgs) =>
+                imgs.every(
+                  (img) =>
+                    (img as HTMLImageElement).complete &&
+                    (img as HTMLImageElement).naturalWidth > 0,
+                ),
+              ),
+          )
+          .toBe(true);
+        await browserExpect(assets.getByAltText('Screenshot 8')).toBeVisible();
+        expect(
+          screenshotRequests.some((hash) => Array.from(screenshots.keys()).slice(8).includes(hash)),
+        ).toBe(false);
+        expect(
+          await assets
+            .locator('img')
+            .evaluateAll((imgs) =>
+              imgs.every(
+                (img) =>
+                  img.getAttribute('src')?.startsWith('blob:') ||
+                  img.getAttribute('src')?.startsWith('/api/previews/'),
+              ),
+            ),
+        ).toBe(true);
+        await page.screenshot({ path: '.local/video-preview/screenshots-eight.png' });
+        await page.setViewportSize({ width: 390, height: 844 });
+        await assets.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: '.local/video-preview/screenshots-eight-mobile.png' });
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+          390,
+        );
+      }
+
       // A failed decorative clip leaves a working static cover, without a dead replay control.
       await page.unroute(url);
       await page.route(playbackUrl, (route) => route.abort());

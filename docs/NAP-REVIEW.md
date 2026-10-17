@@ -1,5 +1,16 @@
 # NAP concepts and expansion review
 
+## Media/source amendment — local branch, 2026-10-17
+
+The selected NIP-5D pin remains `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d51`.
+The [prepared amendment](NIP5D-MEDIA-SOURCE-AMENDMENT.md) targets upstream PR 2303
+at `5560820fa4f37f45b8ab742a11aeb3001b17dc67`; it is not adopted or submitted.
+Current branch readers accept extensible `soy.presentation/2` and marker-free
+media tags, preserve version-1/legacy readers, and display eight screenshots,
+ignoring extras. Fresh jobs emit version 2; frozen jobs keep their original shape.
+[PREVIEWS.md](PREVIEWS.md) records attributes and client limits. No dependency pin,
+executable identity or playback requirement changes. Not deployed or released.
+
 ## OUTBOX integration — released 0.29.0
 
 The subsequent implementation completes the foundation below with a shared verified

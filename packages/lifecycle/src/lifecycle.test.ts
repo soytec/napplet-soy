@@ -335,7 +335,16 @@ test('direct manifest media is inventoried for deletion and shared hashes are re
   });
   const other = await f.sign({
     ...current,
-    tags: [['d', 'other'], ...tags.filter((t) => t[0] !== 'preview')],
+    tags: [
+      ['d', 'other'],
+      ...tags.filter((t) => !['preview', 'screenshot'].includes(t[0])),
+      ...Array.from({ length: 8 }, (_, i) => [
+        'screenshot',
+        (i + 1).toString(16).padStart(64, '0'),
+        'image/png',
+      ]),
+      ['screenshot', image, 'image/png'],
+    ],
   });
   for (const relay of f.relays) f.events.set(relay, [current, other]);
   const plan = await planLifecycle({ manifest: current, relays: f.relays, io: f.io });

@@ -8,12 +8,17 @@ after compatible napplet.soy readers were deployed and verified.
 no-companion decision. The profile below is an implemented Soy convention, not
 a settlement of the remaining upstream/media/source/rollout questions.
 
+The media/source branch adds `soy.presentation/2` with optional attributes and
+an eight-screenshot client display limit. This revision is local, not released or
+deployed. It retains version-1 and legacy descriptor readers and frozen retries.
+See [the prepared upstream proposal](NIP5D-MEDIA-SOURCE-AMENDMENT.md).
+
 Fresh soyLI publications attach presentation files directly to the signed
 current manifest and an explicitly requested `--snapshot` copy. No new kind-32267
 Zapstore descriptor, `app` reference or descriptor `imeta` is generated. Capture and local `preview.image` /
 `preview.video` configuration remain unchanged.
 
-This is the optional downstream **`soy.presentation/1`** convention, pending upstream
+This is the optional downstream **`soy.presentation/2`** convention, pending upstream
 agreement. The selected [NIP-5D revision](PROTOCOL.md) defines icons but no screenshot
 or video tags. [napplet/web PR 111](https://github.com/napplet/web/pull/111), reviewed
 at `6dd79febfa9807d5d3f51cabd77b793f5893d4b7`, uses the older path/aggregate shape
@@ -22,36 +27,54 @@ to implement a new upstream standard or change the authoritative pin.
 
 ```json
 [
-  ["presentation", "soy.presentation/1"],
-  ["screenshot", "<file-sha256>", "image/png"],
-  ["preview", "<file-sha256>", "video/webm"],
+  ["presentation", "soy.presentation/2"],
+  [
+    "screenshot",
+    "<file-sha256>",
+    "image/png",
+    "dim 1200x750",
+    "size 184320",
+    "alt A puzzle in progress"
+  ],
+  ["preview", "<file-sha256>", "video/webm", "dim 960x600", "duration 8.5"],
   ["server", "https://blossom.example"]
 ]
 ```
 
-Require exactly one profile marker, up to four screenshot claims and at most one
-preview claim. Each media tag has exactly three elements: type, lowercase SHA-256
-and MIME. Screenshots support PNG/JPEG/WebP; the clip uses the bounded silent VP8
-WebM profile below. The publisher currently captures one PNG and an optional clip.
-Readers try declared screenshots in order, then legacy descriptor covers, then the
-standard icon and generated art. Direct video takes precedence over legacy video.
+The reader accepts one recognized profile marker, or no marker for the proposed
+upstream format. Version 1 keeps exactly-three-field media tags. Version 2 and
+marker-free tags accept optional space-separated `dim`, `size`, `alt` and `duration`
+attributes after the hash and MIME. Unknown, malformed or duplicate attributes
+are ignored independently. Hints never replace actual byte/hash/decoder checks.
+Alt text is plain text, not HTML. Dimensions describe orientation without a forced
+mobile/desktop role.
+
+The proposed spec places no count limit on screenshots. Our display reader takes
+the first eight valid, distinct claims, ignoring extras instead of discarding all
+screenshots. It supports PNG/JPEG/WebP and at most one bounded silent VP8 WebM
+clip. Multiple video claims remain ambiguous and ignored. The publisher currently
+captures one PNG and an optional clip, now with measured size/dimensions/duration;
+it does not fabricate alternative descriptions. Screenshots are tried in order,
+then legacy covers, the standard icon and generated art. Clips precede legacy video.
 
 Fetch `/<hash>` only from declared origin-only Blossom `server` tags. Check SHA-256,
 declared MIME and actual image format or video container before rendering. Indexed
 images use the normalized verified PNG at `/api/previews/<manifest-event-id>`;
 indexed clips use `/api/previews/<manifest-event-id>/video` with byte-range support.
-Browser-only discoveries verify bytes before decoding a Blob URL. Additional files
-remain explicit links; unverified direct screenshots are not embedded as thumbnails.
+Browser-only discoveries verify bytes before decoding a Blob URL. The linked-assets list deduplicates mirrors and shows up to eight screenshot
+attachments. Additional thumbnails are downloaded and verified lazily when visible;
+unverified direct URLs are never embedded.
 Public HTTPS/network policy, redirect refusal, moderation and existing byte/dimension
 budgets still apply. A cache is optional and grants no publishing authority.
 
 The profile applies to any signed named, root or snapshot manifest, regardless of
-publisher or CLI. Invalid, ambiguous, excessive or unavailable optional claims are
+publisher or CLI. Invalid, ambiguous or unavailable optional claims are
 ignored without changing executable identity, capabilities, description or playback.
 Sharing, the files list and deletion inventory read the same signed associations.
-Shared blobs remain protected by the ordinary lifecycle inventory checks.
+The lifecycle inventory is not subject to the display cap: shared blobs referenced
+beyond the eighth screenshot remain protected.
 
-Old `app`/descriptor publications remain readable. Interrupted old jobs resume
+Old `soy.presentation/1` and `app`/descriptor publications remain readable. Interrupted old jobs resume
 their original frozen bytes, descriptor and signatures, even after an upgrade.
 The next ordinary publish of a completed older job produces direct references,
 including when the playable HTML is unchanged. Installing an update does not

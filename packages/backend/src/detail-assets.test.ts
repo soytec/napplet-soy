@@ -119,3 +119,44 @@ test('malformed or ambiguous source archive references do not become downloads',
   ])
     expect(detailAssets({ ...manifest, tags })).toEqual([]);
 });
+
+test('eight screenshot attachments are shown once each even with multiple mirrors and a cached secondary mirror', () => {
+  const manifest = finalizeEvent(
+    {
+      kind: 35129,
+      created_at: 2,
+      content: 'Many screenshots',
+      tags: [
+        ['d', 'gallery'],
+        ['x', 'f'.repeat(64)],
+        ['server', 'https://first.example'],
+        ['server', 'https://second.example'],
+        ...Array.from({ length: 12 }, (_, i) => [
+          'screenshot',
+          (i + 1).toString(16).padStart(64, '0'),
+          'image/png',
+          `alt Scene ${i + 1}`,
+        ]),
+      ],
+    },
+    key,
+  );
+  const image = {
+    descriptor: manifest,
+    url: `https://second.example/${'3'.padStart(64, '0')}`,
+    hash,
+    width: 120,
+    height: 75,
+    bytes: 100,
+  };
+  for (const cache of [undefined, image]) {
+    const assets = detailAssets(manifest, cache);
+    expect(assets).toHaveLength(8);
+    expect(new Set(assets.map((a) => a.screenshotHash)).size).toBe(8);
+    expect(assets.map((a) => a.alt)).toEqual(Array.from({ length: 8 }, (_, i) => `Scene ${i + 1}`));
+    expect(assets.filter((a) => a.title !== 'Screenshot 3').every((a) => !a.thumbnail)).toBe(true);
+    expect(assets.map((a) => a.title)).toEqual(
+      Array.from({ length: 8 }, (_, i) => `Screenshot ${i + 1}`),
+    );
+  }
+});

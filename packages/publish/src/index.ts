@@ -42,7 +42,11 @@ import {
   type SelectedRepository,
 } from './repository';
 
-import { MANIFEST_PRESENTATION_PROFILE } from '../../protocol/src/presentation';
+import {
+  MANIFEST_PRESENTATION_PROFILE,
+  isDirectPresentationProfile,
+} from '../../protocol/src/presentation';
+import { iconDimensions } from '../../protocol/src/icon';
 
 export { PublishError } from './config';
 type RelayOperations = Pick<PublicationRelays, 'latest' | 'ensure' | 'close'> &
@@ -204,6 +208,18 @@ async function verifyFrozen(journal: Journal, job: PublishJob) {
       'FROZEN_PREVIEW_CHANGED',
       'The saved preview is damaged. Restore its journal backup before resuming.',
     );
+  if (
+    preview &&
+    job.preview &&
+    (job.preview.width !== undefined || job.preview.height !== undefined)
+  ) {
+    const dimensions = iconDimensions(preview);
+    if (dimensions.width !== job.preview.width || dimensions.height !== job.preview.height)
+      throw new PublishError(
+        'FROZEN_PREVIEW_CHANGED',
+        'The saved screenshot metadata differs from its frozen bytes. Restore its journal backup.',
+      );
+  }
   const video = job.video
     ? await regularFile(directory, 'preview.webm', MAX_VIDEO_BYTES)
     : undefined;
@@ -590,7 +606,13 @@ export async function publishProject(options: PublishOptions) {
               ...frozen,
               check,
               ...(preview
-                ? { preview: { hash: await sha256(preview), bytes: preview.length } }
+                ? {
+                    preview: {
+                      hash: await sha256(preview),
+                      bytes: preview.length,
+                      ...iconDimensions(preview),
+                    },
+                  }
                 : {}),
               ...(video && videoInfo
                 ? { video: { hash: await sha256(video), bytes: video.length, ...videoInfo } }
@@ -710,7 +732,8 @@ export async function publishProject(options: PublishOptions) {
         // A prepared legacy journal keeps its original wire shape, even if signing was
         // interrupted. Fresh jobs always use the standalone NIP-5D manifest.
         const standalone = job.plan.manifestFormat === 'standalone';
-        const directPresentation = job.presentationProfile === MANIFEST_PRESENTATION_PROFILE;
+        const directPresentation = isDirectPresentationProfile(job.presentationProfile);
+        const extendedMedia = job.presentationProfile === MANIFEST_PRESENTATION_PROFILE;
         const tags = [
           ...(standalone
             ? [['x', job.plan.artifactHash]]
@@ -734,9 +757,36 @@ export async function publishProject(options: PublishOptions) {
             : []),
           ...(directPresentation && job.preview
             ? [
-                ['presentation', MANIFEST_PRESENTATION_PROFILE],
-                ['screenshot', job.preview.hash, 'image/png'],
-                ...(job.video ? [['preview', job.video.hash, 'video/webm']] : []),
+                ['presentation', job.presentationProfile!],
+                [
+                  'screenshot',
+                  job.preview.hash,
+                  'image/png',
+                  ...(extendedMedia
+                    ? [
+                        `size ${job.preview.bytes}`,
+                        ...(job.preview.width && job.preview.height
+                          ? [`dim ${job.preview.width}x${job.preview.height}`]
+                          : []),
+                      ]
+                    : []),
+                ],
+                ...(job.video
+                  ? [
+                      [
+                        'preview',
+                        job.video.hash,
+                        'video/webm',
+                        ...(extendedMedia
+                          ? [
+                              `size ${job.video.bytes}`,
+                              `dim ${job.video.width}x${job.video.height}`,
+                              `duration ${job.video.durationMs / 1000}`,
+                            ]
+                          : []),
+                      ],
+                    ]
+                  : []),
               ]
             : []),
           ...(job.plan.remix

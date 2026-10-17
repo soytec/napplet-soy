@@ -188,7 +188,7 @@ document are explanatory templates, not signed fixtures to import.
     ["source", "nostr://<author-npub>/wss%3A%2F%2Fgit.example%2F/little-island"],
     ["source-commit", "<git-commit>"],
     ["source-archive", "https://blossom.example/<archive-sha256>"],
-    ["presentation", "soy.presentation/1"],
+    ["presentation", "soy.presentation/2"],
     ["screenshot", "<cover-sha256>", "image/png"],
     ["preview", "<video-sha256>", "video/webm"]
   ]
@@ -201,7 +201,7 @@ document are explanatory templates, not signed fixtures to import.
 | `title`, `server`, `source`, `R`, `O`, `icon`, `z`, `i` | Defined by standalone NIP-5D. | Supported; `z` declares archetypes and `i` declares intents. Icon is a hash plus MIME type. |
 | Snapshot `a` / `A` | Parent / origin ancestry in standalone NIP-5D. | Emitted on optional snapshots where available, not used to impersonate a parent. |
 | `t` | Reused Nostr hashtag pattern. | Optional topics for discovery. |
-| `presentation`, `screenshot`, `preview` | **Optional Soy extensions**, not fields in the selected NIP-5D pin. | Direct hash/MIME media claims under `soy.presentation/1`; contract below. |
+| `presentation`, `screenshot`, `preview` | **Optional Soy extensions**, not fields in the selected NIP-5D pin. | Direct hash/MIME media claims under `soy.presentation/2`; contract below. |
 | `app` | **Legacy Soy extension on the standalone manifest**, inherited from NIP-5A-derived presentation. | Retained descriptor reader and frozen-job writer; omitted by fresh jobs. |
 | `source-commit` | **Soy extension.** | Exact Git revision; ordinary source URLs alone do not pin a revision. |
 | `source-archive` | **Soy extension.** | Hash-addressed archive fallback for the selected committed source tree. |
@@ -278,27 +278,47 @@ Fresh soyLI jobs use this optional versioned Soy convention:
 
 ```json
 [
-  ["presentation", "soy.presentation/1"],
-  ["screenshot", "<image-sha256>", "image/png"],
-  ["preview", "<video-sha256>", "video/webm"]
+  ["presentation", "soy.presentation/2"],
+  [
+    "screenshot",
+    "<image-sha256>",
+    "image/png",
+    "dim 1200x750",
+    "size 184320",
+    "alt The puzzle board"
+  ],
+  ["preview", "<video-sha256>", "video/webm", "dim 960x600", "duration 8.5"]
 ]
 ```
 
-These are **implemented Soy extensions**, not adopted NIP-5D fields. The parser
-accepts the profile on signed named, root and independent snapshot manifests from
-any publisher. Exactly one two-element `presentation` marker must name
-`soy.presentation/1`. Up to four `screenshot` tags and one `preview` tag are
-accepted; each has exactly three elements: tag name, lowercase SHA-256 and MIME.
-Screenshots support PNG/JPEG/WebP and the clip supports the bounded silent VP8 WebM
-profile in §4.2. The writer supplies one PNG and an optional clip, on the current
-manifest and the snapshot only when `--snapshot` was requested.
+These are **implemented Soy extensions**, not adopted NIP-5D fields. The reader
+accepts the current profile, the original `soy.presentation/1` three-field tags,
+and marker-free tags matching the proposed amendment, from any publisher.
+Multiple or unknown profile markers suppress the optional presentation profile.
 
-Readers try screenshots in signed order, then legacy descriptor images, the
-standard icon and generated art. Direct clips precede legacy clips. Identical
-image claims are deduplicated; conflicting MIME claims for the same hash are
-ignored. Unsupported/malformed entries are ignored; excess entries suppress that
-media type, and missing/ambiguous/unknown profile markers suppress the profile.
-None of these optional failures invalidates the playable manifest.
+Screenshot cardinality is unrestricted in the proposed specification. Our client
+selects up to **eight** valid, distinct screenshots in signed order and ignores
+extras. Unsupported/malformed entries do not discard the whole set. Conflicting
+MIME claims within the considered entries suppress that hash. Repeated mirrors
+are one screenshot. Cleanup inventories all supported claims, including those
+beyond the display limit, to protect shared blobs. One optional `preview` is
+supported; multiple preview tags are ambiguous and ignored.
+
+The first three media elements are name, lowercase SHA-256 and MIME. Version 2
+and marker-free tags allow optional `key value` attributes: `dim` (width x height),
+`size` (original bytes), `alt` (plain text) and `duration` (video seconds). Unknown,
+malformed or duplicate attributes are ignored independently. These are untrusted
+hints; actual verified bytes and decoding remain authoritative. Screenshots
+support PNG/JPEG/WebP; video uses our existing bounded silent VP8 WebM policy.
+The writer supplies one PNG with size/dimensions and an optional clip with
+size/dimensions/duration. It does not invent alt text. Both are attached to the
+current manifest and an explicitly requested snapshot. Frozen version-1 and
+legacy descriptor jobs retain their original wire format and signatures.
+
+Readers try screenshots in order, then legacy descriptor images, the standard
+icon and generated art. Direct clips precede legacy clips. The linked-assets UI
+shows up to eight screenshot attachments; additional thumbnails are verified
+lazily when visible. Optional failures never invalidate the playable manifest.
 
 Media bytes are separate Blossom objects, discovered at `/<hash>` on declared
 origin-only `server` hints. Readers verify hash, MIME and actual raster/container
@@ -309,11 +329,11 @@ Sharing, asset links, OG covers and deletion inventory use the same signed claim
 shared blobs remain protected by the existing lifecycle checks. Detailed budgets
 and cache behavior are in [PREVIEWS.md](docs/PREVIEWS.md).
 
-D1 settles placement, not a universal gallery schema. This initial contract has
-no mobile/desktop role, caption, alt-text or rich taxonomy schema. NIP-92 `imeta`
-remains a possible upstream convention, not another format emitted by this writer.
-Those extensions, longer-term historical presentation policy, source attestations
-and rollout remain open in D2, D3, D5 and D6. No new companion kind is allocated.
+D1 settles placement. The [prepared NIP-5D amendment](docs/NIP5D-MEDIA-SOURCE-AMENDMENT.md)
+proposes these media attributes, NIP-34 source URLs and exact revisions. It does
+not set a screenshot count or impose Soy's video budgets on other clients.
+Explicit roles, richer taxonomy, historical retention, source attestations and
+rollout remain open in D2, D3, D5 and D6. No new companion kind is allocated.
 
 ### 4.4 Publishing sequence and partial failure
 
@@ -669,8 +689,8 @@ remain retrievable: replacement alone does not guarantee retention. The legacy
 address-only `app` link can resolve newer media even for an old manifest, so
 legacy presentation also needs an explicit policy.
 
-The current bounded contract in §4.3 defines initial ordering and media checks.
-Still open: richer galleries, explicit landscape and portrait roles, captions/alt text, additional video formats and their budgets,
+The contract in §4.3 defines ordering, optional dimensions/alt text and media checks.
+Still open: richer galleries, explicit landscape and portrait roles, captions, additional video formats and their budgets,
 and upstream interoperability for these fields. Hash-addressed bytes do not by
 themselves identify a role. NIP-92 can supply media attributes, but the containing
 object still needs selection rules.

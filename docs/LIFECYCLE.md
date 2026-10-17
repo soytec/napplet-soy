@@ -87,7 +87,7 @@ the website flow; a private key alone cannot enumerate undiscoverable historical
 | Local source, keys, other people's comments/zaps/forks    | Keep                                                          | Keep                                                                                   |
 | Backend/CVM game state and scores                         | Provider retention applies                                    | No backend purge is requested; manage this with its provider                           |
 
-Direct `soy.presentation/1` screenshots and clips are inventoried from the signed
+Direct `soy.presentation/2` screenshots and clips are inventoried from the signed
 manifest's hashes and declared servers. They use the same Blossom deletion and
 shared-file protection rules; they have no separate descriptor event to delete.
 Older linked descriptors remain part of the compatibility inventory.

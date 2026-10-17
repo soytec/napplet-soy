@@ -13,7 +13,7 @@ This source targets [dskvr/nips PR 7 at `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d5
 | Icons                   | Optional hash plus PNG/JPEG/WebP MIME                                        | Existing linked covers remain supported                       |
 | Discovery               | `z` archetypes, queryless `i` intents and parameter names, `#R`/`#O` filters | Existing kinds, titles, descriptions and topic filters        |
 | Snapshot ancestry       | Optional `a` parent / `A` root on 5129 only                                  | Historical named ancestry and snapshot self-address semantics |
-| Source and presentation | Optional Git/source/archive and direct presentation extensions                   | Existing source and preview links remain valid                |
+| Source and presentation | Optional Git/source/archive and direct presentation extensions               | Existing source and preview links remain valid                |
 
 One shared validator handles web, indexer, local review, remix, moderation inputs and playback. Format selection is explicit; failure is not a reason to reinterpret a malformed new event as an old event. Nostr ordering still chooses the current event before package admission. An invalid newer event does not silently restore an older release as current.
 
@@ -46,7 +46,7 @@ The discovery helper also supports opt-in intersection queries from [NIP-91 PR 2
 The upstream announcement mentions screenshot tags and possible intent hints, but
 the pinned PR defines neither a screenshot-tag schema nor an intent dispatch
 operation. Fresh soyLI publications use the documented optional downstream
-[`soy.presentation/1` convention](PREVIEWS.md#direct-manifest-presentation--2026-10-06-source)
+[`soy.presentation/2` convention](PREVIEWS.md#direct-manifest-presentation--2026-10-06-source)
 for hash/MIME screenshot and video references on the existing manifest. This is
 not part of the selected NIP-5D pin. Existing signed application descriptors remain
 readable; old frozen jobs finish unchanged. There is no new event kind, runtime

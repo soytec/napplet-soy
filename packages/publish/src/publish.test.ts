@@ -9,6 +9,7 @@ import {
 import { migrationTemplate } from '../../migration/src';
 import {
   MANIFEST_PRESENTATION_PROFILE,
+  LEGACY_PRESENTATION_PROFILE,
   manifestScreenshotSources,
   manifestVideoSources,
 } from '../../protocol/src/presentation';
@@ -490,6 +491,13 @@ test('preview upload and direct manifest references survive interruption with id
       'presentation',
       MANIFEST_PRESENTATION_PROFILE,
     ]);
+    expect(interrupted.current!.tags.find((t) => t[0] === 'screenshot')).toEqual([
+      'screenshot',
+      interrupted.preview!.hash,
+      'image/png',
+      `size ${previewPng.length}`,
+      'dim 1x1',
+    ]);
     expect(manifestScreenshotSources(interrupted.current!).map((c) => c.url)).toEqual([
       `${interrupted.plan.targets.blossom}/${await sha256(previewPng)}`,
     ]);
@@ -549,6 +557,14 @@ for (const snapshot of [false, true]) {
           url: `${interrupted.plan.targets.blossom}/${interrupted.video!.hash}`,
           hash: interrupted.video!.hash,
         },
+      ]);
+      expect(interrupted.current!.tags.find((t) => t[0] === 'preview')).toEqual([
+        'preview',
+        interrupted.video!.hash,
+        'video/webm',
+        `size ${video.length}`,
+        `dim ${interrupted.video!.width}x${interrupted.video!.height}`,
+        `duration ${interrupted.video!.durationMs / 1000}`,
       ]);
       expect(appReferences(interrupted.current!)).toEqual([]);
       expect(interrupted.preview!.descriptor).toBeUndefined();
@@ -1895,3 +1911,35 @@ for (const withAliases of [false, true])
       await f.close();
     }
   }, 15000);
+
+test('frozen soy.presentation/1 jobs retain their three-field wire format and signatures on resume', async () => {
+  const f = await fixture();
+  try {
+    f.options.check = async () => ({ profile: 'test', browser: 'test', preview: previewPng });
+    f.deps.checkpoint = async (job) => {
+      if (!job.source) {
+        job.presentationProfile = LEGACY_PRESENTATION_PROFILE;
+        delete job.preview!.width;
+        delete job.preview!.height;
+        await f.journal.save(job);
+        throw new Error('Stopped old publisher before signing');
+      }
+    };
+    await expect(publishProject(f.options)).rejects.toMatchObject({ code: 'PUBLISH_FAILED' });
+    f.deps.checkpoint = async (job) => {
+      if (job.receipts.preview) throw new Error('Stopped after signing');
+    };
+    await expect(publishProject({ ...f.options, resume: true })).rejects.toMatchObject({
+      code: 'PUBLISH_FAILED',
+    });
+    const signed = await f.load();
+    expect(signed.current!.tags).toContainEqual(['presentation', LEGACY_PRESENTATION_PROFILE]);
+    expect(signed.current!.tags).toContainEqual(['screenshot', signed.preview!.hash, 'image/png']);
+    delete f.deps.checkpoint;
+    await publishProject({ ...f.options, resume: true });
+    expect((await f.load()).current).toEqual(signed.current);
+    expect((await f.load()).status).toBe('announced_pending_index');
+  } finally {
+    await f.close();
+  }
+});

@@ -15,7 +15,7 @@ across clients; they do not require registration in Napplet's index.
 
 ## Files and playback
 
-Direct manifest screenshots and clips under `soy.presentation/1` use verified
+Direct manifest screenshots and clips under `soy.presentation/2` use verified
 media: indexed previews come from the site's bounded cache; browser-only discoveries
 verify downloaded bytes before creating a Blob URL. The manifest supplies the
 expected hash and MIME. Missing optional media falls back without blocking playback.

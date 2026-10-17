@@ -1,5 +1,9 @@
 import { linkedMedia } from '../../protocol/src/linked-media';
-import { manifestScreenshotSources } from '../../protocol/src/presentation';
+import {
+  manifestScreenshots,
+  manifestScreenshotSources,
+  manifestVideoSources,
+} from '../../protocol/src/presentation';
 import type { SignedEvent } from '../../protocol/src';
 import { descriptorImages, validatedPreview, type CachedPreview } from '../../protocol/src/preview';
 import {
@@ -14,6 +18,8 @@ export type DetailAsset = {
   href: string;
   detail: string;
   thumbnail?: string;
+  screenshotHash?: string;
+  alt?: string;
 };
 
 const size = (bytes: number) =>
@@ -40,6 +46,7 @@ export function detailAssets(
   const preview = validatedPreview(manifest, image);
   const video = validatedVideo(manifest, clip);
   const assets: DetailAsset[] = [];
+  const screenshotSources = manifestScreenshotSources(manifest);
   const seen = new Set<string>();
   const imageUrl = preview && linkedUrl(preview.url);
   if (preview && imageUrl) {
@@ -53,6 +60,13 @@ export function detailAssets(
       detail: imageUrl.host,
     });
     seen.add(preview.url);
+    const claim = screenshotSources.find((c) => c.url === preview.url);
+    if (claim) {
+      assets[assets.length - 1].screenshotHash = claim.hash;
+      assets[assets.length - 1].alt = claim.alt;
+      for (const source of screenshotSources.filter((c) => c.hash === claim.hash))
+        seen.add(source.url);
+    }
   }
   const videoUrl = video && linkedUrl(video.url);
   if (video && videoUrl) {
@@ -63,6 +77,8 @@ export function detailAssets(
       detail: `${videoUrl.host} · ${(video.durationMs / 1000).toFixed(1)} sec · ${size(video.bytes)}`,
     });
     seen.add(video.url);
+    if (manifestVideoSources(manifest).some((source) => source.url === video.url))
+      for (const source of manifestVideoSources(manifest)) seen.add(source.url);
   }
   // The cache selects one cover/clip. Other declared files remain opt-in links
   // to the publisher's server, not unverified embeds or downloads at render time.
@@ -92,7 +108,7 @@ export function detailAssets(
     }
   }
   const links = linkedMedia(manifest, metadata);
-  const directImages = new Set(manifestScreenshotSources(manifest).map((c) => c.url));
+  const directImages = new Set(screenshotSources.map((c) => c.url));
   for (const [kind, urls] of [
     ['image', links.images],
     ['video', links.videos.map((v) => v.url)],
@@ -102,6 +118,8 @@ export function detailAssets(
       if (!url || seen.has(href)) continue;
       seen.add(href);
       const primary = !assets.some((asset) => asset.kind === kind);
+      const screenshot =
+        kind === 'image' ? screenshotSources.find((c) => c.url === href) : undefined;
       assets.push({
         kind,
         title:
@@ -114,6 +132,7 @@ export function detailAssets(
               : `Additional clip ${++videos}`,
         href,
         detail: url.host,
+        ...(screenshot ? { screenshotHash: screenshot.hash, alt: screenshot.alt } : {}),
         ...(kind === 'image' && primary && !directImages.has(href) ? { thumbnail: href } : {}),
       });
     }
@@ -132,5 +151,12 @@ export function detailAssets(
       /* A malformed optional reference does not become a download. */
     }
   }
-  return assets;
+  const order = new Map(manifestScreenshots(manifest).map((claim, i) => [claim.hash, i]));
+  for (const asset of assets) {
+    const index = asset.screenshotHash ? order.get(asset.screenshotHash) : undefined;
+    if (index !== undefined) asset.title = `Screenshot ${index + 1}`;
+  }
+  return assets.sort(
+    (a, b) => (order.get(a.screenshotHash ?? '') ?? 8) - (order.get(b.screenshotHash ?? '') ?? 8),
+  );
 }

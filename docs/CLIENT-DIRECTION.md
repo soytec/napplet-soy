@@ -30,7 +30,7 @@ Acceptance checks before adoption:
 ## Previews, screenshots, and video
 
 Current behavior is documented in [PREVIEWS.md](PREVIEWS.md): direct signed
-manifest screenshots/clips under the optional downstream `soy.presentation/1`
+manifest screenshots/clips under the optional downstream `soy.presentation/2`
 profile, legacy linked descriptor media and standard icons, with generated artwork
 as fallback. soyLI captures screenshots and short clips; the gallery supports
 bounded silent WebM playback. Images become verified cached PNGs for 1200 × 630
@@ -46,7 +46,7 @@ Recommended capture workflow:
    are separate from executable `x`, so changing a cover does not alter playable bytes.
 4. Later, an isolated operator worker can capture missing covers asynchronously, with no credentials, no writes, bounded networking and process resources. These are operator-generated presentation data. It cannot silently update an author's signed manifest; portable author-endorsed metadata requires the author's signed update.
 
-Video should be a short, bounded separate artifact with a static poster, validated/transcoded derivatives, lazy loading, reduced-motion handling, and only one active preview. Keep a PNG for OG and do not wait for video encoding before publication. [NIP-94](https://github.com/nostr-protocol/nips/blob/master/94.md) describes files; [NIP-92](https://github.com/nostr-protocol/nips/blob/master/92.md) describes media attached to content URLs. Neither alone defines “this video previews this napplet.” The optional direct association is specified in `soy.presentation/1`; test it with another client before claiming interoperability. It is not a mandatory napplet video tag.
+Video should be a short, bounded separate artifact with a static poster, validated/transcoded derivatives, lazy loading, reduced-motion handling, and only one active preview. Keep a PNG for OG and do not wait for video encoding before publication. [NIP-94](https://github.com/nostr-protocol/nips/blob/master/94.md) describes files; [NIP-92](https://github.com/nostr-protocol/nips/blob/master/92.md) describes media attached to content URLs. Neither alone defines “this video previews this napplet.” The optional direct association is specified in `soy.presentation/2`; test it with another client before claiming interoperability. It is not a mandatory napplet video tag.
 
 ## Flavors
 

@@ -11,6 +11,8 @@ import { PublishError, targetsSchema, intentSchema } from './config';
 import { MAX_SOURCE_FILES, MAX_PUBLICATION_JOURNAL_BYTES } from './limits';
 import {
   MANIFEST_PRESENTATION_PROFILE,
+  LEGACY_PRESENTATION_PROFILE,
+  isDirectPresentationProfile,
   manifestScreenshots,
   manifestPreviewVideo,
 } from '../../protocol/src/presentation';
@@ -80,7 +82,9 @@ export const jobSchema = z
   .object({
     version: z.literal(1),
     // Absent on previously frozen jobs: resume their original linked descriptor.
-    presentationProfile: z.literal(MANIFEST_PRESENTATION_PROFILE).optional(),
+    presentationProfile: z
+      .enum([LEGACY_PRESENTATION_PROFILE, MANIFEST_PRESENTATION_PROFILE])
+      .optional(),
     id: hash,
     fingerprint: hash,
     // Absent in older journals: preserve their automatically paired publication.
@@ -124,6 +128,8 @@ export const jobSchema = z
           .int()
           .positive()
           .max(5 * 1024 * 1024),
+        width: z.number().int().positive().optional(),
+        height: z.number().int().positive().optional(),
         descriptor: eventSchema.optional(),
       })
       .strict()
@@ -184,7 +190,7 @@ export const jobSchema = z
         (job.snapshotMode === 'none' || !!job.snapshot) &&
         (!job.preview ||
           (job.receipts.preview === true &&
-            (job.presentationProfile === MANIFEST_PRESENTATION_PROFILE
+            (isDirectPresentationProfile(job.presentationProfile)
               ? !job.preview.descriptor &&
                 [job.current, ...(job.snapshotMode === 'none' ? [] : [job.snapshot])].every(
                   (event) =>
@@ -195,7 +201,7 @@ export const jobSchema = z
                 )
               : !!job.preview.descriptor && job.receipts.descriptor === true))) &&
         (!job.video ||
-          job.presentationProfile !== MANIFEST_PRESENTATION_PROFILE ||
+          !isDirectPresentationProfile(job.presentationProfile) ||
           [job.current, ...(job.snapshotMode === 'none' ? [] : [job.snapshot])].every(
             (event) => !!event && manifestPreviewVideo(event)?.hash === job.video!.hash,
           )) &&

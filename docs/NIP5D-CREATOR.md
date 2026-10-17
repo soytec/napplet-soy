@@ -88,7 +88,7 @@ back without blocking playback. SVG icons are not supported.
 
 Fresh soyLI publications put screenshots and preview clips directly on the signed
 current manifest and, when `publish --snapshot` is requested, its snapshot. They
-use the optional downstream `soy.presentation/1` convention and no longer create
+use the optional downstream `soy.presentation/2` convention and no longer create
 Zapstore kind-32267 descriptors. The selected PR revision does not
 define these fields; they are explicitly a Soy extension pending upstream agreement,
 never a playback requirement. Existing descriptors remain readable. See the

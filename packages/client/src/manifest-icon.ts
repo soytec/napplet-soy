@@ -23,6 +23,16 @@ export async function resolveManifestIcon(event: SignedEvent, local: string[] = 
     local,
   );
 }
+/** Resolve one of the selected screenshots lazily, using every declared mirror. */
+export async function resolveScreenshot(event: SignedEvent, hash: string, local: string[] = []) {
+  const id = `screenshot:${event.id}:${hash}`;
+  await resolveRaster(
+    id,
+    manifestScreenshotSources(event).filter((c) => c.hash === hash),
+    local,
+  );
+  return cache.get(id)?.url ?? null;
+}
 export async function resolveManifestScreenshots(event: SignedEvent, local: string[] = []) {
   return resolveRaster(`screenshot:${event.id}`, manifestScreenshotSources(event), local);
 }

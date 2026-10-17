@@ -14,7 +14,7 @@ import {
 } from '../../protocol/src/manifest';
 import { appReferences, descriptorImages } from '../../protocol/src/preview';
 import { descriptorVideos } from '../../protocol/src/preview-video';
-import { manifestScreenshots, manifestPreviewVideo } from '../../protocol/src/presentation';
+import { inventoryScreenshots, manifestPreviewVideo } from '../../protocol/src/presentation';
 import { standalonePresentationKey } from '../../protocol/src/presentation-pairs';
 import { repositoryRef } from '../../collaboration/src/protocol';
 import { diagnose, DiagnosticError } from '../../diagnostics/src';
@@ -310,7 +310,7 @@ export async function planLifecycle(input: {
     for (const server of release.servers) {
       add(server, release.artifactHash, 'Build /index.html', other);
       if (release.icon) add(server, release.icon.hash, 'Icon', other);
-      for (const image of manifestScreenshots(m)) add(server, image.hash, 'Preview image', other);
+      for (const image of inventoryScreenshots(m)) add(server, image.hash, 'Preview image', other);
       const video = manifestPreviewVideo(m);
       if (video) add(server, video.hash, 'Preview video', other);
     }

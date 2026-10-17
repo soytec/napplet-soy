@@ -247,8 +247,13 @@ saved release destinations. Keep the publication journal to preserve that histor
 Publishing automatically captures a 1200 × 750 PNG from the sandbox when no
 preview.image is selected, using preview.delayMs (1500 by default, 250–10000).
 It uploads the PNG to the selected Blossom server and signs its hash/MIME in the
-napplet manifest. The optional soy.presentation/1 convention uses presentation,
-screenshot and preview tags; these are not established NIP-5D fields. Clients that
+napplet manifest. The optional soy.presentation/2 convention uses presentation,
+screenshot and preview tags with measured size, dimensions and video duration;
+these are proposed, not established NIP-5D fields. Optional alt text describes the
+actual scene in plain text. The schema has no screenshot-count limit; the shell
+shows up to eight and ignores extras. The CLI currently publishes one selected
+PNG and one optional clip; these are client choices, not restrictions on authors'
+visual styles or on other publishers. Clients that
 ignore them can still play the same napplet. No new Zapstore event is generated.
 This fallback prevents accidental
 imageless releases; an inspected screenshot is still the preferred finishing step.
