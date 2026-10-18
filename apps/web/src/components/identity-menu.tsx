@@ -11,6 +11,7 @@ import {
   Plus,
   ShieldCheck,
   Smartphone,
+  Settings2,
   X,
 } from 'lucide-react';
 import { Button } from './ui/button';
@@ -19,6 +20,8 @@ import { LightningCode } from './lightning-code';
 import { browserIdentity, type IdentityState } from '../lib/browser-identity';
 import { defaultSignerRelays } from '../../../../packages/identity/src/signer';
 import { CreateKeyPanel, KeyBackup } from './key-backup';
+import { useStudio } from './studio-provider';
+import { IntentHandlerSettings } from './intent-handler-settings';
 
 export function IdentityMenu({
   open,
@@ -35,6 +38,7 @@ export function IdentityMenu({
   adminAccess: AdminAccess;
   refreshAdminAccess: () => Promise<void>;
 }) {
+  const studio = useStudio();
   const titleId = useId(),
     descriptionId = useId();
   type Method = 'extension' | 'remote' | 'key' | 'create';
@@ -133,9 +137,7 @@ export function IdentityMenu({
         aria-describedby={method ? undefined : descriptionId}
       >
         <div className="identity-menu-heading">
-          <h2 id={titleId}>
-            {identity.pubkey ? 'Your Nostr identity' : 'Bring your Nostr identity'}
-          </h2>
+          <h2 id={titleId}>Account & settings</h2>
           <PopoverClose asChild>
             <Button variant="ghost" size="icon-xs" aria-label="Close">
               <X size={15} />
@@ -546,6 +548,23 @@ export function IdentityMenu({
           <p role="alert" className="error-message">
             {error}
           </p>
+        )}
+        {!busy && (
+          <section className="identity-settings" aria-label="App settings">
+            <h3>Settings</h3>
+            {studio.client && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  changeOpen(false);
+                  studio.openConnections();
+                }}
+              >
+                <Settings2 size={16} /> AI connections
+              </Button>
+            )}
+            <IntentHandlerSettings />
+          </section>
         )}
       </PopoverContent>
     </Popover>

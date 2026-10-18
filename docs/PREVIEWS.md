@@ -383,3 +383,14 @@ This view does not enumerate files inside executable packages, invent preview
 metadata, or expand the supported video profile. It renders in SSR, fits phone
 widths, and needs no website login. The focused browser fixture verifies actual
 image/clip responses and source-archive bytes without publishing any events.
+
+## Local studio captures
+
+[Quick Vibe](QUICK-VIBE.md#publish-from-the-studio) uses the existing sandbox capture
+helper for listing media and optional 360×640 portrait captures. The helper accepts
+a bounded viewport (200–1200 wide, 160–750 high); existing CLI default sizes remain
+unchanged. The studio shows actual media before publication. Landscape cover/clip
+use the existing manifest presentation format. Portrait files are promotional
+downloads included in the source, with no additional protocol fields. Capture
+recipes still need to demonstrate the app: idle animation alone is not evidence
+of gameplay or a successful interaction.

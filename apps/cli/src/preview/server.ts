@@ -75,6 +75,7 @@ export function startPreviewServer(
   assets?: PreviewAssets,
   listing: {
     network: Network;
+    readOnly?: boolean;
     backend?: BackendProvider;
     capture?: (interactive?: boolean) => Promise<unknown>;
     record?: (settings: Recording, interactive?: boolean) => Promise<unknown>;
@@ -146,6 +147,8 @@ export function startPreviewServer(
         (request.headers.has('Origin') && request.headers.get('Origin') !== url.origin)
       )
         return new Response('Forbidden', { status: 403, headers: noStore });
+      if (listing.readOnly && request.method !== 'GET')
+        return new Response('This frozen preview is read-only.', { status: 405, headers: noStore });
       try {
         if (url.pathname.startsWith('/workshop')) {
           if (!listing.workshop) return new Response('Not found', { status: 404 });

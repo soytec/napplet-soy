@@ -132,6 +132,8 @@ export async function propose(
     resume?: boolean;
     check: PublishOptions['check'];
     checkpoint?: (phase: 'source' | 'proposal') => Promise<void>;
+    /** Optional browser review boundary. CLI callers retain their ordinary workflow. */
+    expectedReview?: { commit: string; fingerprint: string; repository: string };
   },
 ) {
   if (!options.resume && (!options.description.trim() || options.description.length > 8000))
@@ -154,6 +156,18 @@ export async function propose(
     ).slice(0, 16);
     const path = join(options.directory, '.napplet-space', 'proposals', `${key}.json`);
     return await new Journal(options.directory, options.network).lock(async () => {
+      if (options.expectedReview) {
+        const expected = options.expectedReview;
+        if (
+          repository.address !== expected.repository ||
+          (await committedSource(options.directory)) !== expected.commit ||
+          (await inspectProject(options.directory, options.network, account.pubkey)).fingerprint !==
+            expected.fingerprint
+        )
+          throw new DiagnosticError('REVIEW_CHANGED', 'The proposal changed after review.', {
+            recovery: 'Prepare and review the proposal again before submitting.',
+          });
+      }
       let saved: any;
       try {
         saved = JSON.parse(await readFile(path, 'utf8'));
@@ -199,6 +213,14 @@ export async function propose(
           throw new Error('Saved proposal identity, network or source mismatch. Keep the journal.');
       }
       const previousJournal = saved;
+      if (
+        saved &&
+        options.resume &&
+        options.expectedReview &&
+        (saved.commit !== options.expectedReview.commit ||
+          saved.event.content !== options.description)
+      )
+        throw new DiagnosticError('REVIEW_CHANGED', 'The saved proposal differs from this review.');
       if (!options.resume) {
         const commit = await committedSource(options.directory);
         let adopted = false;
@@ -414,6 +436,15 @@ export async function propose(
       }
       if (saved.event.pubkey !== account.pubkey || saved.repository !== repository.address)
         throw new Error('Saved proposal identity mismatch.');
+      if (
+        options.expectedReview &&
+        (saved.commit !== options.expectedReview.commit ||
+          saved.event.content !== options.description)
+      )
+        throw new DiagnosticError(
+          'REVIEW_CHANGED',
+          'The signed proposal differs from this review.',
+        );
       // The signed event and real commit survive retries; no duplicate PR or changed preview.
       await deliverProposal({
         directory: join(saved.folder, 'source'),

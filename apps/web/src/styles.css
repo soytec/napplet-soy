@@ -37,10 +37,7 @@
   --radius-md: 6px;
   --radius-lg: 9px;
   --radius-xl: 12px;
-  --font-sans: 'DM Sans', sans-serif;
-}
-:root {
-  --mono: 'DM Mono', monospace;
+  --font-sans: var(--font-body);
 }
 * {
   box-sizing: border-box;
@@ -54,7 +51,7 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
 }
 button,
@@ -90,8 +87,8 @@ pre:focus-visible {
   color: #272921;
 }
 .site-shell {
-  max-width: 1440px;
-  padding: 0 64px;
+  max-width: var(--shell-width);
+  padding: 0 var(--shell-gutter);
   margin: auto;
 }
 .site-header {
@@ -128,7 +125,7 @@ pre:focus-visible {
 }
 .brand-wordmark {
   display: block;
-  font: 700 34px/1 'Fredoka', 'DM Sans', sans-serif;
+  font: 700 34px/1 var(--font-display);
   letter-spacing: -0.035em;
   white-space: nowrap;
   color: #fff2d5;
@@ -228,12 +225,12 @@ pre:focus-visible {
   position: absolute;
   left: 0;
   top: -4px;
-  font: 26px Georgia, serif;
+  font: 26px var(--font-editorial);
   color: var(--coral);
 }
 .hero .hero-intro p {
   margin: 0 0 10px;
-  font: italic 16px/1.4 Georgia, 'Times New Roman', serif;
+  font: italic 16px/1.4 var(--font-editorial);
   color: var(--muted-foreground);
   text-wrap: pretty;
 }
@@ -965,8 +962,7 @@ pre:focus-visible {
 .linked-assets h2 > span {
   color: var(--muted-foreground);
   font:
-    11px "DM Mono",
-    monospace;
+    11px var(--font-code);
 }
 .linked-assets ul {
   display: grid;
@@ -1418,9 +1414,6 @@ pre:focus-visible {
   }
 }
 @media (max-width: 1100px) {
-  .site-shell {
-    padding: 0 35px;
-  }
   .site-header {
     gap: 35px;
   }
@@ -1455,9 +1448,6 @@ pre:focus-visible {
   }
 }
 @media (max-width: 760px) {
-  .site-shell {
-    padding: 0 22px;
-  }
   .site-header {
     height: 77px;
     gap: 15px;
@@ -1644,9 +1634,6 @@ pre:focus-visible {
   }
 }
 @media (max-width: 410px) {
-  .site-shell {
-    padding: 0 17px;
-  }
   .hero h1 {
     font-size: 61px;
   }
@@ -1976,7 +1963,7 @@ pre:focus-visible {
 .social-connect { padding: 1.5rem; background: var(--secondary); border-radius: .75rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
 .comment-list { max-width: 900px; }
 .comment { display: flex; gap: .85rem; padding: 1.5rem 0; }
-.comment-avatar { width: 2rem; height: 2rem; flex-shrink: 0; border-radius: 50%; background: var(--avatar-background); display: grid; place-items: center; font-family: 'DM Mono', monospace; font-size: .8rem; }
+.comment-avatar { width: 2rem; height: 2rem; flex-shrink: 0; border-radius: 50%; background: var(--avatar-background); display: grid; place-items: center; font-family: var(--font-code); font-size: .8rem; }
 .comment-body { min-width: 0; flex: 1; }
 .comment-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: .75rem; font-size: .85rem; }
 .comment-meta span { font-weight: 600; overflow-wrap: anywhere; }
@@ -1986,7 +1973,7 @@ pre:focus-visible {
 .reply-reference { font-size: .75rem; color: var(--muted-foreground); }
 .social-footnote { color: var(--muted-foreground); max-width: 750px; font-size: .75rem; margin-top: 1.5rem; line-height: 1.6; }
 .zap-invoice { display: grid; gap: .8rem; min-width: 0; }
-.zap-invoice textarea { width: 100%; height: 100px; padding: .75rem; border: 1px solid var(--border); border-radius: .5rem; font-family: 'DM Mono', monospace; font-size: .7rem; resize: vertical; }
+.zap-invoice textarea { width: 100%; height: 100px; padding: .75rem; border: 1px solid var(--border); border-radius: .5rem; font-family: var(--font-code); font-size: .7rem; resize: vertical; }
 @media(max-width: 620px) { .social-heading { align-items: flex-start; } .comment-submit,.social-connect { flex-direction: column; align-items: flex-start; } .detail-actions { flex-wrap: wrap; } }
 
 /* The same player stays mounted while a gallery creation expands. */
@@ -2267,7 +2254,7 @@ pre:focus-visible {
   font: inherit;
 }
 .identity-pairing textarea {
-  font-family: monospace;
+  font-family: var(--font-code);
   font-size: 0.7rem;
   overflow-wrap: anywhere;
 }
@@ -2316,7 +2303,7 @@ pre:focus-visible {
   border-radius: 12px;
   background: #2b3226;
   color: #e9ebda;
-  font: 12px/1.8 'DM Mono', monospace;
+  font: 12px/1.8 var(--font-code);
 }
 .readme-terminal-heading {
   display: flex;
@@ -3362,3 +3349,125 @@ input::placeholder, textarea::placeholder { color: var(--muted-foreground); opac
 
 /* Shell-owned cross-napplet routing controls. */
 .intent-choice{position:fixed;z-index:10050;inset:auto 1rem 1rem auto;max-width:min(500px,calc(100vw - 2rem));padding:20px;background:var(--background,#fff);color:var(--foreground,#222);border:1px solid currentColor;box-shadow:0 12px 40px #0004;max-height:80vh;overflow:auto}.intent-choice button{display:block;min-height:44px;padding:8px 12px;margin-top:8px}.intent-target{position:fixed;inset:0;z-index:10000;background:var(--background,#fff);padding-top:44px;overflow:auto}.intent-target .player-slot,.intent-target .player-wrap{height:calc(100dvh - 44px);width:100%}.intent-close{position:absolute;right:8px;top:4px;min-height:36px;z-index:1}
+
+/* Browser Studio and local soyLI share the existing creation entry points. */
+.creation-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin: 36px 0 48px;
+}
+.creation-choices article,
+.remix-browser-choice {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  background: var(--card);
+}
+.creation-choices h2 {
+  font-size: 25px;
+  margin: 12px 0;
+}
+.creation-choices p {
+  line-height: 1.7;
+}
+.creation-choices article > span:last-child,
+.creation-choices article > a:last-child {
+  display: block;
+  font-size: 13px;
+  margin-top: 14px;
+}
+.creation-choice-action {
+  display: inline-flex;
+  padding: 11px 16px;
+  margin-top: 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.remix-browser-choice {
+  padding: 16px;
+}
+#local-soyli {
+  scroll-margin-top: 24px;
+}
+@media (max-width: 700px) {
+  .creation-choices {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Both creation paths stay visible, including on phones. */
+.site-header { gap: 24px; }
+.site-header nav { gap: 20px; white-space: nowrap; }
+.header-create-actions { display: flex; gap: 8px; margin-left: auto; }
+.header-create-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 12px; min-height: 42px; border: 1px solid var(--header-border);
+  border-radius: 7px; font-size: 12px; white-space: nowrap;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.header-create-button.browser { background: #d8f585; color: #243225; border-color: #d8f585; font-weight: 600; }
+.header-create-button:hover { background: #ffffff18; border-color: var(--hover-gold); }
+.header-create-button.browser:hover { background: #e8ffb2; }
+.site-header .header-actions { margin-left: 0; gap: 10px; }
+@media (max-width: 1200px) {
+  .site-header { height: auto; min-height: 96px; flex-wrap: wrap; padding: 16px 0; gap: 12px 24px; }
+  .site-header .header-actions { margin-left: auto; }
+  .header-create-actions { order: 4; width: 100%; margin-left: 0; }
+  .header-create-button { flex: 1; }
+}
+@media (max-width: 760px) {
+  .site-header nav { display: flex; order: 3; width: 100%; justify-content: center; font-size: 12px; }
+  .site-header { gap: 12px 8px; }
+  .header-create-button { padding: 10px 7px; font-size: 11px; gap: 5px; }
+}
+
+.header-create-button {
+  border-radius: 10px; border-bottom-width: 3px;
+  background: linear-gradient(120deg, #f3e8ff, #dfd2ff); color: #49316f;
+  border-color: #b6a0dc; font-weight: 600;
+  transition: transform 150ms, box-shadow 150ms, background 150ms;
+}
+.header-create-button.browser {
+  background: linear-gradient(120deg, #e5ffa7, #c8eda2); border-color: #88a75c; color: #25351f;
+}
+.header-create-button:is(:hover, :focus-visible) { background: var(--hover-fill); color: var(--hover-ink); }
+@media (prefers-reduced-motion: reduce) { .header-create-button { transition: none; } }
+
+/* Studio uses the same header/account tree, with a full-width editing surface. */
+.site-shell.studio-shell {max-width:none;padding:0}
+.studio-shell > .site-header {
+  width: calc(100% - 2 * var(--shell-gutter));
+  max-width: calc(var(--shell-width) - 2 * var(--shell-gutter));
+  margin-inline: auto;
+  flex-shrink: 0;
+}
+.studio-shell > #main {min-width:0;min-height:0}
+.site-shell.studio-workspace-shell {height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+.studio-workspace-shell > #main {flex:1;display:flex;flex-direction:column;overflow:hidden}
+.studio-workspace-shell > #main > .studio-surface {flex:1;min-height:0}
+
+@media (max-height: 500px) and (min-width: 701px) {
+  .site-header {min-height:56px;height:56px;padding-block:6px;gap:12px;flex-wrap:nowrap}
+  .site-header .brand-mark {width:32px;height:32px}
+  .site-header .brand-wordmark {font-size:24px}
+  .site-header nav {order:0;width:auto;font-size:12px;gap:12px}
+  .header-create-actions {order:0;width:auto;margin-left:auto}
+  .header-create-button {font-size:0;padding:8px;gap:0;min-width:40px;min-height:38px}
+  .site-header .header-actions {margin-left:0}
+  .studio-workspace-shell .studio-surface .workspace-heading {min-height:42px}
+  .studio-workspace-shell .studio-surface .preview-toolbar {min-height:38px}
+}
+
+/* Account settings are shared by browsing and creation, independent of sign-in. */
+.identity-settings { border-top: 1px solid var(--subtle-border); margin-top: 18px; padding-top: 14px; display: grid; gap: 12px; }
+.identity-settings h3 { font: 12px var(--font-code); color: var(--muted-foreground); margin: 0; }
+.identity-settings > button { justify-content: flex-start; }
+.intent-handler-settings { font-size: 13px; }
+.intent-handler-settings summary { cursor: pointer; padding: 10px 0; }
+.intent-handler-settings p { color: var(--muted-foreground); line-height: 1.6; }
+.intent-handler-settings label { display: grid; gap: 8px; margin-block: 12px; }
+.intent-handler-settings select { max-width: 100%; padding: 8px; background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: 6px; }
+.studio-settings-loading { position: fixed; z-index: 60; inset: auto 20px 20px auto; background: var(--card); padding: 16px; border: 1px solid var(--border); border-radius: 8px; }

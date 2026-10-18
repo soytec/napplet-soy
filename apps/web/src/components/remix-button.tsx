@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { GitFork, Copy, Check } from 'lucide-react';
 import { Button } from './ui/button';
 import { remixCommand } from '@/lib/creator-commands';
+import { StudioLink } from './studio-link';
+import { studioCreatePath } from '../../../studio/navigation';
 import {
   Dialog,
   DialogTrigger,
@@ -44,6 +46,20 @@ export function RemixButton({ revision, title }: { revision: string; title: stri
             original.
           </DialogDescription>
         </DialogHeader>
+        <div className="remix-browser-choice">
+          <h3>Remix in your browser</h3>
+          <p className="muted">
+            Open this version in the local Studio, describe your changes and try the preview.
+            Nothing starts until you send your first prompt.
+          </p>
+          <StudioLink
+            path={studioCreatePath(source, `Remix of ${title}`)}
+            className="creation-choice-action"
+          >
+            Remix in browser →
+          </StudioLink>
+        </div>
+        <h3>Or use soyLI locally</h3>
         {commands.map(({ id, label, command }) => (
           <div key={id}>
             <p className="muted">{label}</p>

@@ -5,14 +5,15 @@ import release from '../../../cli/distribution/version.json';
 import { creatorSearch } from '@/lib/creator-search';
 import { SoyliIdentity } from '@/components/soyli-intro';
 import { siteHead } from '@/lib/site-head';
+import { StudioLink } from '@/components/studio-link';
 export const Route = createFileRoute('/create')({
   validateSearch: creatorSearch,
   head: ({ match }) =>
     siteHead(
       match.context.clientPolicy.siteOrigin,
       '/create',
-      'Create with napplet soyLI — napplet.soy',
-      'Install napplet soyLI, create with your own AI tools, preview and publish. Setup, skills and downloads in one guide. No website account needed.',
+      'Create a napplet — napplet.soy',
+      'Create with the local browser Studio or soyLI and your own coding tools. Preview, remix and publish your napplet.',
     ),
   component: Create,
 });
@@ -26,11 +27,36 @@ function Create() {
         <br />
         something<span className="coral">.</span>
       </h1>
-      <p className="create-intro">
-        An idea is enough. Start with a working creation,
-        <br />
-        open your favorite coding agent, and follow your curiosity.
-      </p>
+      <p className="create-intro">An idea is enough. Choose where you want to make it real.</p>
+      <div className="creation-choices">
+        <article>
+          <span className="eyebrow">CHAT & PLAY · LOCAL PREVIEW</span>
+          <h2>In your browser</h2>
+          <p>
+            Describe your idea, play the preview and keep shaping it. Your drafts are saved by the
+            local Studio on this computer.
+          </p>
+          <StudioLink path="/create" className="creation-choice-action">
+            Create in browser →
+          </StudioLink>
+          <StudioLink>Continue a creation ↗</StudioLink>
+        </article>
+        <article>
+          <span className="eyebrow">YOUR EDITOR & AI TOOLS</span>
+          <h2>On your computer</h2>
+          <p>
+            Start a real Git project with soyLI. Use the coding agent you already like, with skills
+            and publishing tools included.
+          </p>
+          <a href="#local-soyli" className="creation-choice-action">
+            Use soyLI locally ↓
+          </a>
+          <span>No website account needed.</span>
+        </article>
+      </div>
+      <h2 id="local-soyli" className="guide-heading">
+        Make it with soyLI
+      </h2>
       <SoyliIdentity compact />
       <p className="account-free-note">Create, remix and publish. No website account needed.</p>
       <p>

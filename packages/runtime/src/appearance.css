@@ -1,5 +1,19 @@
-/* Shared shell and local workshop palette. Artwork and iframe contents are independent. */
+/* Shared theme: edit colors, type families and shell geometry here.
+   Used by the website, Studio and the local soyLI workshop. Napplet iframe artwork
+   stays independent. Web font files are loaded in apps/web/src/styles.css. */
 :root {
+  --font-body: 'DM Sans', sans-serif;
+  --font-display: 'Fredoka', var(--font-body);
+  --font-editorial: Georgia, 'Times New Roman', serif;
+  --font-code: 'DM Mono', monospace;
+  --mono: var(--font-code);
+  --font-mono: var(--font-code);
+  --shell-width: 1440px;
+  --shell-gutter: 64px;
+  --code-background: #202b25;
+  --code-foreground: #f5f1e5;
+  --overlay: #101a16a8;
+
   color-scheme: light;
   --background: #f5f1e4;
   --foreground: #1e261c;
@@ -152,4 +166,20 @@
 
 [data-tone]:not(:disabled):is(:hover, :focus-visible) .text-muted-foreground {
   color: inherit;
+}
+
+@media (max-width: 1100px) {
+  :root {
+    --shell-gutter: 35px;
+  }
+}
+@media (max-width: 760px) {
+  :root {
+    --shell-gutter: 22px;
+  }
+}
+@media (max-width: 410px) {
+  :root {
+    --shell-gutter: 17px;
+  }
 }

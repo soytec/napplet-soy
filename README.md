@@ -189,6 +189,11 @@ Want to improve napplet.soy itself? This repository is the shell, soyLI and the
 supporting services. Bug reports, docs, fixes and new ideas are welcome.
 Making a napplet does **not** require checking out this repository.
 
+The shell and Studio share their color, font-family and layout tokens in
+[`packages/runtime/src/appearance.css`](packages/runtime/src/appearance.css).
+Web font files are loaded in `apps/web/src/styles.css`; component layouts stay
+with their components. These styles do not constrain napplet artwork.
+
 <details>
 <summary><strong>Local development and verification</strong></summary>
 
@@ -221,6 +226,7 @@ Service changes also have focused `test:relay`, `test:blossom`, `test:grasp`,
 browser; see the guides below for setup and toolchain details.
 
 [Local development](docs/LOCAL-DEVELOPMENT.md) ·
+[Local creation studio (experimental)](docs/QUICK-VIBE.md) ·
 [Public discovery in development](docs/PUBLIC-DEVELOPMENT.md) ·
 [Web architecture](docs/WEB-ARCHITECTURE.md) ·
 [CLI builds and releases](docs/CLI.md#building-and-releasing)

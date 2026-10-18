@@ -9,9 +9,7 @@
   margin-bottom: 20px;
 }
 .story-heading h2 {
-  font:
-    600 33px Fredoka,
-    sans-serif;
+  font: 600 33px var(--font-display);
   margin: 7px 0 0;
   letter-spacing: -0.6px;
 }

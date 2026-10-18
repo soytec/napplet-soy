@@ -8,13 +8,15 @@
     "packages/*"
   ],
   "scripts": {
+    "studio": "bun scripts/quick-vibe.ts",
+    "test:studio": "bun test apps/studio",
     "dev": "bun scripts/dev.ts development",
     "demo:minicraft": "bun scripts/minicraft.ts",
     "test:minicraft": "bun test tests/services/minicraft-browser.test.ts",
     "build": "bun run --cwd apps/web build",
     "start": "bun run --cwd apps/web start",
     "typecheck": "tsc --noEmit",
-    "test": "bun test packages apps/cli scripts",
+    "test": "bun test packages apps/cli apps/studio scripts",
     "test:browser": "bunx playwright test",
     "check": "bun run typecheck && bun run test",
     "check:nix": "bash scripts/nix-check.sh",
