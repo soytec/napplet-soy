@@ -31,4 +31,7 @@ export type StudioSurface = Pick<
   | 'fixPublication'
   | 'publicationMedia'
   | 'close'
-> & { signing: AsyncMethods<Pick<BrowserSigning, 'connect' | 'next' | 'reply'>> };
+> & {
+  signing: AsyncMethods<Pick<BrowserSigning, 'connect' | 'next' | 'reply'>>;
+  browserBuilds: AsyncMethods<Pick<Studio['browserBuilds'], 'next' | 'reply'>>;
+};

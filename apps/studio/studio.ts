@@ -39,6 +39,8 @@ import {
 } from './publication';
 import { prepareProposal, proposeReviewed } from './proposal';
 import { publicationStatus, type PublishOptions } from '../../packages/publish/src';
+import { BrowserBuilds, browserBuildInput } from './browser-build';
+import { builtConfiguration } from '../../packages/publish/src/artifact';
 
 export type StudioOptions = {
   directory: string;
@@ -72,6 +74,7 @@ const exists = (path: string) =>
   );
 export class Studio {
   readonly signing = new BrowserSigning();
+  readonly browserBuilds = new BrowserBuilds();
   private projects: Project[] = [];
   private mutating = false;
   private active?: { id: string; controller: AbortController; promise: Promise<void> };
@@ -153,6 +156,7 @@ export class Studio {
     return structuredClone({
       projects: this.projects,
       model: this.options.agent.model,
+      browserBuilds: !this.options.projectCommand,
       connections: this.options.connections?.state(),
       busy: this.active?.id ?? (this.mutating ? 'settings' : undefined),
       jobs: this.store!.jobs(),
@@ -306,7 +310,7 @@ export class Studio {
     this.launch(p, (signal) => this.turn(p, prompt, signal));
     return p.id;
   }
-  async send(id: string, prompt: string) {
+  async send(id: string, prompt: string, browserSession?: string) {
     this.available();
     const p = this.project(id);
     this.message(p, 'user', prompt);
@@ -329,7 +333,7 @@ export class Studio {
     p.error = undefined;
     p.phase = 'preparing';
     p.stage = 'Resuming your workspace';
-    this.launch(p, (signal) => this.turn(p, prompt, signal));
+    this.launch(p, (signal) => this.turn(p, prompt, signal, browserSession));
   }
   async stop(id: string) {
     this.project(id);
@@ -445,8 +449,10 @@ export class Studio {
       )
     ).trim();
   }
-  private async invoke(p: Project, prompt: string, signal: AbortSignal) {
-    const connection = this.options.agent.sessionKey;
+  private async invoke(p: Project, prompt: string, signal: AbortSignal, browserSession?: string) {
+    const connection = this.options.agent.sessionKey
+      ? this.options.agent.sessionKey + (browserSession ? ':browser' : '')
+      : undefined;
     if (connection && p.connectionKey !== connection) {
       delete p.session;
       p.connectionKey = connection;
@@ -497,7 +503,12 @@ export class Studio {
     };
     await this.options.agent.run(
       this.workspace(p.id),
-      taskInstructions +
+      (browserSession
+        ? taskInstructions.replace(
+            'Use soyli run verify, soyli check and soyli run test:conformance. Repair failures rather than weakening checks. The controller independently repeats verification and owns previews: do not start a dev server.',
+            'This turn uses the experimental browser compiler. Do not run soyli, package scripts, build tools, tests or a dev server. Edit the source and finish your reply; Studio then runs TypeScript and compilation in the browser and sends failures back for one repair pass. Full soyLI/conformance verification is deferred to Publish. Never claim those full checks passed.',
+          )
+        : taskInstructions) +
         (connection && !p.session
           ? 'Recent conversation for continuity (the working files are authoritative):\n' +
             p.messages
@@ -510,26 +521,38 @@ export class Studio {
       p.session,
       signal,
       emit,
+      { browserBuild: !!browserSession },
     );
     if (saveError) throw saveError;
   }
-  private async turn(p: Project, prompt: string, signal: AbortSignal) {
+  private async turn(p: Project, prompt: string, signal: AbortSignal, browserSession?: string) {
     await this.prepare(p, signal);
+    if (browserSession) {
+      if (this.options.projectCommand)
+        throw new DiagnosticError(
+          'STUDIO_BROWSER_PROFILE',
+          'Browser builds are currently a local Studio experiment.',
+        );
+      await browserBuildInput(this.workspace(p.id), false);
+    }
     // Local checkpoint includes prior unfinished work so inspection/recovery is lossless.
     await this.checkpoint(p, 'Before studio turn', signal);
-    await this.invoke(p, prompt, signal);
+    await this.invoke(p, prompt, signal, browserSession);
     try {
-      await this.verify(p, signal);
+      await this.verify(p, signal, browserSession);
     } catch (error) {
       signal.throwIfAborted();
       if ((error as DiagnosticError).code === 'STUDIO_GUARDRAIL') throw error;
+      if (browserSession && (error as DiagnosticError).code !== 'STUDIO_BROWSER_DIAGNOSTICS')
+        throw error;
       this.message(p, 'system', 'The independent checks found a problem. Trying one repair pass.');
       await this.invoke(
         p,
         `Repair the failure from the independent verification below. Preserve the requested features. Do not weaken tests or change protected configuration.\n${formatDiagnostic(diagnose(error))}`,
         signal,
+        browserSession,
       );
-      await this.verify(p, signal);
+      await this.verify(p, signal, browserSession);
     }
   }
   private async checkpoint(p: Project, label: string, signal: AbortSignal) {
@@ -552,7 +575,7 @@ export class Studio {
     );
     return (await this.git(p, ['rev-parse', 'HEAD'], signal)).trim();
   }
-  private async verify(p: Project, signal: AbortSignal) {
+  private async verify(p: Project, signal: AbortSignal, browserSession?: string) {
     await this.stage(p, 'checking', 'Checking the build and sandbox');
     p.checks = [];
     if (await this.protectedFiles(p, signal))
@@ -564,6 +587,53 @@ export class Studio {
             'Inspect Changes and restore the affected files before continuing. No preview was promoted.',
         },
       );
+    if (browserSession) {
+      if (this.options.projectCommand)
+        throw new DiagnosticError(
+          'STUDIO_BROWSER_PROFILE',
+          'Browser builds are currently a local Studio experiment.',
+        );
+      const input = await browserBuildInput(this.workspace(p.id));
+      const check: Check = { name: 'Browser TypeScript & build', state: 'running' };
+      p.checks.push(check);
+      await this.stage(p, 'checking', 'Building in your browser — keep this tab open');
+      try {
+        const result = await this.browserBuilds.run(browserSession, input, signal);
+        signal.throwIfAborted();
+        if (result.errorKind === 'worker')
+          throw new DiagnosticError(
+            'STUDIO_BROWSER_WORKER',
+            'The browser compiler could not run.',
+            {
+              detail: result.error,
+              operation: 'browser compiler worker',
+              recovery:
+                'Retry with the tab open, or turn off Browser builds to use soyLI. No inference was retried automatically.',
+            },
+          );
+        if ((await browserBuildInput(this.workspace(p.id), false)).revision !== input.revision)
+          throw new DiagnosticError(
+            'STUDIO_BROWSER_STALE',
+            'Source changed while the browser was building. Run checks again.',
+          );
+        if (result.error)
+          throw new DiagnosticError(
+            'STUDIO_BROWSER_DIAGNOSTICS',
+            'The browser found a build or type error.',
+            { detail: result.error, operation: 'browser TypeScript/build' },
+          );
+        await builtConfiguration(new TextEncoder().encode(result.html!));
+        check.state = 'passed';
+        check.detail = `TypeScript: ${Math.round(result.typecheckMs)} ms; bundle: ${Math.round(result.buildMs)} ms. Source ${input.revision.slice(0, 12)}. Full soyLI/conformance checks run when preparing publication.`;
+        return await this.promotePreview(p, signal, result.html);
+      } catch (error) {
+        check.state = 'failed';
+        check.detail = formatDiagnostic(diagnose(error));
+        throw error;
+      } finally {
+        await this.save();
+      }
+    }
     for (const [name, args] of [
       ['Build & project checks', ['run', 'verify']],
       ['soyLI sandbox', ['check']],
@@ -591,8 +661,17 @@ export class Studio {
         await this.save();
       }
     }
+    await this.promotePreview(p, signal);
+  }
+  private async promotePreview(p: Project, signal: AbortSignal, browserHtml?: string) {
     signal.throwIfAborted();
-    const commit = await this.checkpoint(p, 'Studio: verified preview', signal);
+    const commit = await this.checkpoint(
+      p,
+      browserHtml === undefined
+        ? 'Studio: verified preview'
+        : 'Studio: browser preview (full checks pending)',
+      signal,
+    );
     const destination = join(this.options.directory, 'projects', p.id, 'previews', commit);
     const root = this.workspace(p.id);
     const configBytes = await regularFile(root, 'napplet.json', 16384);
@@ -608,7 +687,12 @@ export class Studio {
       );
     const contents = new Map<string, Uint8Array>([
       ['napplet.json', configBytes],
-      [config.entry, await regularFile(root, config.entry, 25 * 1024 * 1024)],
+      [
+        config.entry,
+        browserHtml === undefined
+          ? await regularFile(root, config.entry, 25 * 1024 * 1024)
+          : new TextEncoder().encode(browserHtml),
+      ],
     ]);
     if (await exists(join(root, ASSET_LOCK))) {
       contents.set(ASSET_LOCK, await regularFile(root, ASSET_LOCK, 1024 * 1024));
@@ -636,21 +720,28 @@ export class Studio {
     }
     this.previews.set(p.id, { ...preview, revision: commit });
     p.preview = commit;
+    p.previewValidation = browserHtml === undefined ? 'full' : 'browser';
     p.previewUrl = preview.url;
     p.checkpoints.push({
       commit,
       at: new Date().toISOString(),
-      label: `Preview ${p.checkpoints.length + 1}`,
+      label: `${browserHtml === undefined ? 'Preview' : 'Browser preview'} ${p.checkpoints.length + 1}`,
     });
     p.error = undefined;
     this.message(
       p,
       'system',
-      p.budgetReached
-        ? 'Studio’s independent build, sandbox and conformance commands passed; skipped cases are listed below. The agent reached its step limit, so some requested work may remain. Play the preview and send a follow-up to continue. No additional inference starts automatically.'
-        : 'Studio’s independent build, sandbox and conformance commands passed; skipped cases are listed below. Your preview is ready to play. Media capture and publication are separate steps in Publish.',
+      browserHtml !== undefined
+        ? 'Your browser compiled and type-checked this preview. Full soyLI, guidance and conformance checks have not run; Publish runs them before release review. Try the controls and report any problems.'
+        : p.budgetReached
+          ? 'Studio’s independent build, sandbox and conformance commands passed; skipped cases are listed below. The agent reached its step limit, so some requested work may remain. Play the preview and send a follow-up to continue. No additional inference starts automatically.'
+          : 'Studio’s independent build, sandbox and conformance commands passed; skipped cases are listed below. Your preview is ready to play. Media capture and publication are separate steps in Publish.',
     );
-    await this.stage(p, 'ready', 'Ready to play');
+    await this.stage(
+      p,
+      'ready',
+      browserHtml === undefined ? 'Ready to play' : 'Browser preview ready · full checks pending',
+    );
   }
   private async openPreview(directory: string) {
     if (this.options.preview) return this.options.preview(directory);
@@ -695,7 +786,7 @@ export class Studio {
     this.previewOpening.set(key, opening);
     return opening;
   }
-  async check(id: string) {
+  async check(id: string, browserSession?: string) {
     this.available();
     const p = this.project(id);
     if (p.publication) delete p.publication.review;
@@ -704,7 +795,7 @@ export class Studio {
     p.phase = 'checking';
     this.launch(p, async (signal) => {
       await this.prepare(p, signal);
-      await this.verify(p, signal);
+      await this.verify(p, signal, browserSession);
     });
   }
   async restore(id: string, commit: string) {

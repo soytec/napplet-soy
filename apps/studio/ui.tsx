@@ -27,6 +27,7 @@ import { ActivityPanel, ChatText, ReasoningPanel } from './activity-ui';
 import { AssetsPanel } from './assets-ui';
 import { Dashboard } from './dashboard';
 import { validSource } from './navigation';
+import { useBrowserBuild } from './browser-build-client';
 
 import type { StudioClient } from './local-client';
 import type { PublicationAccount } from './publication-ui';
@@ -61,6 +62,7 @@ export function StudioApp({
 }) {
   const { api, media } = client;
   const [state, setState] = useState<StudioState>({ projects: [], model: '' });
+  const browserBuild = useBrowserBuild(client, !!state.browserBuilds);
   const id = route.view === 'project' ? route.id : '';
   const [loaded, setLoaded] = useState(false);
   const setId = (id: string) => navigate(id ? '/studio/' + id : '/studio');
@@ -224,7 +226,8 @@ export function StudioApp({
       return;
     }
     await action(async () => {
-      if (p) await api(`projects/${p.id}/messages`, { prompt });
+      if (p)
+        await api(`projects/${p.id}/messages`, { prompt, browserSession: browserBuild.session });
       else {
         const result = await api<{ id: string }>('projects', {
           title: title.trim() || prompt.trim().split('\n')[0].slice(0, 60),
@@ -758,16 +761,36 @@ export function StudioApp({
               )}
               <div className="preview-footer">
                 <span>
-                  {p.preview
-                    ? `${p.checkpoints.length} saved preview${p.checkpoints.length === 1 ? '' : 's'}${active || p.phase !== 'ready' ? ' · Showing last passing build' : ' · Try the controls'}`
-                    : 'A preview you can actually play.'}
+                  {p.previewValidation === 'browser'
+                    ? 'Browser preview · full checks pending'
+                    : p.preview
+                      ? `${p.checkpoints.length} saved preview${p.checkpoints.length === 1 ? '' : 's'}${active || p.phase !== 'ready' ? ' · Showing last passing build' : ' · Try the controls'}`
+                      : 'A preview you can actually play.'}
                 </span>
+                {state.browserBuilds && (
+                  <label title="Experimental: standard TypeScript starter only. Keep this tab open. Publish still runs full soyLI checks.">
+                    <input
+                      type="checkbox"
+                      checked={browserBuild.enabled}
+                      disabled={busy}
+                      onChange={(event) => browserBuild.setEnabled(event.target.checked)}
+                    />
+                    Browser builds
+                  </label>
+                )}
+                {browserBuild.enabled && (
+                  <small role="status">{browserBuild.status || 'Keep this tab open'}</small>
+                )}
                 <button
                   disabled={busy || !p.initialized}
-                  onClick={() => void action(() => api(`projects/${p.id}/check`, {}))}
+                  onClick={() =>
+                    void action(() =>
+                      api(`projects/${p.id}/check`, { browserSession: browserBuild.session }),
+                    )
+                  }
                 >
                   <Check size={14} />
-                  Run checks
+                  {browserBuild.enabled ? 'Build in browser' : 'Run checks'}
                 </button>
               </div>
             </section>

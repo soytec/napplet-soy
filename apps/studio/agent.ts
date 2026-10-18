@@ -24,6 +24,7 @@ export type Agent = {
     session: string | undefined,
     signal: AbortSignal,
     emit: (event: AgentEvent) => void,
+    execution?: { browserBuild: boolean },
   ) => Promise<void>;
 };
 
@@ -102,6 +103,7 @@ export async function openCodeAgent(options: {
   provider?: Provider;
   endpoint?: string;
   steps?: number;
+  browserBuild?: boolean;
   env: NodeJS.ProcessEnv;
 }): Promise<Agent> {
   const { directory, executable, model, key } = options;
@@ -184,7 +186,9 @@ export async function openCodeAgent(options: {
                 'soyli run test:guidance',
                 'soyli run test:conformance',
                 'soyli check',
-              ].map((pattern) => [pattern, 'allow']),
+              ]
+                .filter((pattern) => !options.browserBuild || !pattern.startsWith('soyli '))
+                .map((pattern) => [pattern, 'allow']),
             ),
           },
           external_directory: 'deny',

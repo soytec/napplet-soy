@@ -137,7 +137,7 @@ or change the creative defaults shipped to developers.
    The model can inspect and edit application files and run selected build checks.
    Project dependencies, build configuration, existing tests and installed guidance
    are protected; the controller checks them against the initial source revision.
-3. **Verify.** Independently run `soyli run verify`, `soyli check`, and
+3. **Verify.** By default, independently run `soyli run verify`, `soyli check`, and
    `soyli run test:conformance`. Capture failures and skipped cases from both output
    streams. A failure gets one agent repair pass, then another independent check.
    An agent's success claim or step-limit exit does not bypass these commands.
@@ -153,6 +153,64 @@ or change the creative defaults shipped to developers.
    current job. Controller restarts mark interrupted jobs stopped, without retrying
    inference automatically. History can restore a passing checkpoint after saving
    current source to a backup commit; it does not reset or rewrite Git history.
+
+## Experimental browser builds
+
+For an existing standard TypeScript draft, enable **Browser builds** below the
+preview (on a phone, first open **Preview & code**). **Build in browser** and
+subsequent chat turns then run TypeScript 5.9.3 and esbuild WASM in a browser Web
+Worker. The worker receives a bounded source snapshot and the installed SDK files;
+it does not execute package scripts or Vite configuration. The resulting HTML
+uses the same soyLI sandbox, SDK bridge and immutable preview snapshots.
+The tab reuses its compiler and cached SDK/type libraries. After the first build,
+only changed files and removals cross to the browser. The cache holds one bounded
+snapshot in memory; it is cleared when the compiler is disabled, the page closes,
+or a worker fails. A missing cache causes a fresh snapshot on the next requested
+build. Neither source nor credentials are added to persistent browser storage.
+Restart the local Studio service after updating; older workers do not advertise
+browser-build support, so the new UI hides the option until they are updated.
+
+This is an opt-in local experiment, not the default verification path. Its toggle
+lasts for the current Studio page session. Keep that tab open while building;
+reloading or navigating away interrupts its compiler. Stop and retry explicitly
+if necessary. Worker/startup failure, source changes during a build and the
+two-minute deadline retain the previous preview without automatically spending
+another inference turn. Source diagnostics receive the existing one repair pass.
+
+The first profile supports the unchanged soyLI TypeScript starter configuration
+and dependencies, TypeScript/JavaScript/CSS/JSON under `src`,
+`config.schema.json`, and assets imported through **Assets** or `soyli assets`.
+Use the generated `assetUrl`/`assetBlob` helpers. Embedded assets become data URLs;
+registered embedded paths also work in HTML media attributes and CSS `url()`.
+External assets retain the sandbox resource bridge and are served from the
+immutable local preview, without a Blossom upload. All assets retain soyLI's
+hash, MIME, size, source-content and regular-file checks. No arbitrary filesystem
+or network resolver is added to the compiler.
+
+Custom configurations/dependencies, dynamic backends, `public/`,
+`napplet.config.ts`/`.js`, `srcset` and unregistered HTML media references remain
+unsupported. Limits are 2 MiB of project text source, 12 MiB of complete compiler
+input (including libraries and base64 embedded assets), 512 input files, and
+8 MiB of output. Delta transfers do not bypass these limits. The existing managed
+asset limits remain 10 MiB each / 32 MiB total; larger embedded collections may
+need external delivery or normal soyLI checks to fit the browser profile.
+
+Only preview type-checking/bundling moves to the browser. Workspace preparation,
+the OpenCode process, inference-provider connection, source/Git storage and preview
+serving still use the local service. In this mode the agent is instructed to edit
+and return; its soyLI build commands are removed from the tool allowlist so it
+does not repeat those builds on the host. These permissions are workflow controls,
+not an OS sandbox. Browser-preview success is labelled **full checks pending**.
+Publication and proposal preparation always run the normal independent soyLI
+checks; browser output never replaces their native release build. Initial project
+creation and History restore also retain the normal flow.
+
+The compiler worker and WASM add roughly 16 MB of uncompressed assets, requested
+only when the compiler is used and retained for subsequent builds in that tab.
+Initial project creation, broader package support and real-device performance
+remain follow-up work. See the
+[experiment results](experiments/STUDIO-BROWSER-BUILD.md) for measurements and
+verification boundaries.
 
 ## Activity and assets
 

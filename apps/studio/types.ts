@@ -49,6 +49,7 @@ export type Project = {
   baseline?: string;
   preview?: string;
   previewUrl?: string;
+  previewValidation?: 'full' | 'browser';
   error?: Diagnostic;
   publication?: PublicationState;
   proposal?: ProposalState;
@@ -59,6 +60,7 @@ export type Project = {
 export type StudioState = {
   projects: Project[];
   model: string;
+  browserBuilds?: boolean;
   connections?: ConnectionState;
   busy?: string;
   jobs?: StudioJob[];

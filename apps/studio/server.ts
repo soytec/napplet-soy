@@ -6,6 +6,7 @@ import type { StudioSurface } from './surface';
 import { proposalInput } from './proposal';
 import { listingSchema } from './publication';
 import { localHost, studioRoute, validSource } from './navigation';
+import { browserBuildLimits } from './browser-build-contract';
 
 const promptSchema = z.object({ prompt: z.string().trim().min(1).max(10000) }).strict();
 const createSchema = promptSchema.extend({
@@ -91,6 +92,14 @@ export async function serveStudio(
             return json({ error: 'Reload the studio to reconnect.' }, 403);
           if (request.method === 'GET') {
             if (url.pathname === '/api/state') return json(await studio.state());
+            const browserBuild = /^\/api\/browser-builds\/([a-f0-9-]{36})$/.exec(url.pathname);
+            if (browserBuild)
+              return json(
+                await studio.browserBuilds.next(
+                  browserBuild[1],
+                  url.searchParams.get('base') ?? undefined,
+                ),
+              );
             const signing = /^\/api\/signers\/([a-f0-9-]{36})$/.exec(url.pathname);
             if (signing) return json(await studio.signing.next(signing[1]));
             const match =
@@ -153,7 +162,11 @@ export async function serveStudio(
               new TextDecoder().decode(
                 await readBytes(
                   new Response(request.body),
-                  /^\/api\/signers\/[a-f0-9-]{36}$/.test(url.pathname) ? 128 * 1024 : 16384,
+                  /^\/api\/browser-builds\/[a-f0-9-]{36}$/.test(url.pathname)
+                    ? browserBuildLimits.outputBytes + 1024 * 1024
+                    : /^\/api\/signers\/[a-f0-9-]{36}$/.test(url.pathname)
+                      ? 128 * 1024
+                      : 16384,
                 ),
               ),
             );
@@ -170,7 +183,10 @@ export async function serveStudio(
                 : json({ error: 'Request ID already used.' }, 409);
             const response = (async () => {
               let result: unknown;
-              if (/^\/api\/connections\/(save|select|remove|test)$/.test(url.pathname)) {
+              if (/^\/api\/browser-builds\/[a-f0-9-]{36}$/.test(url.pathname)) {
+                await studio.browserBuilds.reply(url.pathname.split('/').pop()!, body);
+                result = { ok: true };
+              } else if (/^\/api\/connections\/(save|select|remove|test)$/.test(url.pathname)) {
                 result = await studio.connectionAction(url.pathname.split('/').pop()!, body);
               } else if (url.pathname === '/api/signers') {
                 result = await studio.signing.connect(
@@ -200,7 +216,12 @@ export async function serveStudio(
                   );
                 if (!match) return json({ error: 'Not found.' }, 404);
                 const [, id, action] = match;
-                if (action === 'messages') await studio.send(id, promptSchema.parse(body).prompt);
+                if (action === 'messages') {
+                  const input = promptSchema
+                    .extend({ browserSession: z.uuid().optional() })
+                    .parse(body);
+                  await studio.send(id, input.prompt, input.browserSession);
+                }
                 if (action === 'prepare-publication') {
                   const input = z
                     .object({ session: z.uuid(), listing: listingSchema })
@@ -239,8 +260,11 @@ export async function serveStudio(
                   await studio.stop(id);
                 }
                 if (action === 'check') {
-                  z.object({}).strict().parse(body);
-                  await studio.check(id);
+                  const input = z
+                    .object({ browserSession: z.uuid().optional() })
+                    .strict()
+                    .parse(body);
+                  await studio.check(id, input.browserSession);
                 }
                 if (action === 'restore')
                   await studio.restore(

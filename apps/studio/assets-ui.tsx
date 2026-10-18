@@ -219,7 +219,7 @@ export function AssetsPanel({
             Asset name
             <input
               required
-              pattern="[a-z][a-z0-9-]{0,47}"
+              pattern={'[a-z][a-z0-9\\-]{0,47}'}
               value={id}
               onChange={(e) => setId(e.target.value)}
               placeholder="player-sprite"

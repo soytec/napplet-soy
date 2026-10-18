@@ -81,6 +81,7 @@
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "entities": "7.0.0",
+    "esbuild-wasm": "0.25.12",
     "highlight.js": "11.11.1",
     "ipaddr.js": "2.5.0",
     "lowlight": "3.3.0",
@@ -88,6 +89,7 @@
     "nostr-idb": "5.1.0",
     "nostr-tools": "2.25.2",
     "nostr-wasm": "0.1.0",
+    "parse5": "7.3.0",
     "qrcode": "1.5.4",
     "quickjs-emscripten": "0.31.0",
     "react": "19.2.4",
@@ -95,6 +97,7 @@
     "rxjs": "7.8.2",
     "sharp": "0.35.4",
     "tailwind-merge": "3.6.0",
+    "typescript-browser": "npm:typescript@5.9.3",
     "ws": "8.21.3",
     "zod": "4.6.2"
   },

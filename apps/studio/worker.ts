@@ -73,6 +73,7 @@ process.on('message', async (value: any) => {
             key: c.key,
             model: providerId + '/' + c.model,
             steps: c.steps,
+            browserBuild: args[5]?.browserBuild,
           });
           try {
             return await runner.run(...args);
@@ -104,6 +105,10 @@ process.on('message', async (value: any) => {
       if (!studio) throw new Error('Worker is not initialized.');
       const methods = {
         state: () => studio!.state(),
+        browserBuildNext: (session: string, base?: string) =>
+          studio!.browserBuilds.next(session, base),
+        browserBuildReply: (session: string, input: unknown) =>
+          studio!.browserBuilds.reply(session, input),
         connectionAction: studio.connectionAction.bind(studio),
         assets: studio.assets.bind(studio),
         importAsset: studio.importAsset.bind(studio),

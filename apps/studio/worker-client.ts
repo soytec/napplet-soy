@@ -89,6 +89,10 @@ export class StudioWorker {
     const call = (method: string, ...args: unknown[]) => this.call(method, args);
     this.client = {
       state: () => call('state'),
+      browserBuilds: {
+        next: (...args) => call('browserBuildNext', ...args),
+        reply: (...args) => call('browserBuildReply', ...args),
+      },
       connectionAction: (...args) => call('connectionAction', ...args),
       assets: (...args) => call('assets', ...args),
       importAsset: (...args) => call('importAsset', ...args),

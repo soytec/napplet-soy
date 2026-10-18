@@ -734,6 +734,7 @@
   .preview-footer {
     min-height: 42px;
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
     gap: 10px;
@@ -745,6 +746,19 @@
   .preview-footer button {
     font-size: 10px;
     color: var(--muted-foreground);
+  }
+  .preview-footer label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    font-size: 10px;
+    cursor: pointer;
+  }
+  .preview-footer input[type='checkbox'] {
+    width: auto;
+    margin: 0;
+    accent-color: var(--primary);
   }
   .source-panel {
     flex: 1;
