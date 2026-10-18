@@ -286,8 +286,16 @@ export class Studio {
       console.error(formatDiagnostic(diagnose(error, 'save studio state'))),
     );
   }
-  async create(title: string, prompt: string, source?: string) {
+  async create(title: string, prompt: string, source?: string, browserSession?: string) {
     this.available();
+    if (browserSession) {
+      z.uuid().parse(browserSession);
+      if (this.options.projectCommand)
+        throw new DiagnosticError(
+          'STUDIO_BROWSER_PROFILE',
+          'Browser builds are currently a local Studio experiment.',
+        );
+    }
     if (source) this.options.sourcePolicy?.(source);
     if (this.projects.length >= 20) throw new Error('This local studio is limited to 20 drafts.');
     const p: Project = {
@@ -307,7 +315,7 @@ export class Studio {
     };
     this.message(p, 'user', prompt);
     this.projects.unshift(p);
-    this.launch(p, (signal) => this.turn(p, prompt, signal));
+    this.launch(p, (signal) => this.turn(p, prompt, signal, browserSession));
     return p.id;
   }
   async send(id: string, prompt: string, browserSession?: string) {

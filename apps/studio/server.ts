@@ -10,6 +10,7 @@ import { browserBuildLimits } from './browser-build-contract';
 
 const promptSchema = z.object({ prompt: z.string().trim().min(1).max(10000) }).strict();
 const createSchema = promptSchema.extend({
+  browserSession: z.uuid().optional(),
   title: z.string().trim().min(1).max(80),
   source: z
     .string()
@@ -208,7 +209,14 @@ export async function serveStudio(
                 result = { ok: true };
               } else if (url.pathname === '/api/projects') {
                 const input = createSchema.parse(body);
-                result = { id: await studio.create(input.title, input.prompt, input.source) };
+                result = {
+                  id: await studio.create(
+                    input.title,
+                    input.prompt,
+                    input.source,
+                    input.browserSession,
+                  ),
+                };
               } else {
                 const match =
                   /^\/api\/projects\/([a-f0-9-]{36})\/(messages|stop|check|restore|prepare-publication|publish|prepare-proposal|propose|refresh-publication|fix-publication)$/.exec(

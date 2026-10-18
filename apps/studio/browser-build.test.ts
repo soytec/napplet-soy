@@ -374,9 +374,14 @@ async function studioFixture(agent: Agent) {
   const tool = join(f.directory, 'soyli.ts');
   await writeFile(
     tool,
-    `import { appendFile, mkdir, writeFile } from 'node:fs/promises';
+    `import { appendFile, mkdir, writeFile, cp } from 'node:fs/promises';
 await appendFile(${JSON.stringify(join(f.directory, 'commands.log'))}, process.argv.slice(2).join(' ')+'\\n');
-await mkdir('dist', {recursive:true}); await writeFile('dist/index.html','<html><body>Host verified output</body></html>');`,
+const [command, ...args] = process.argv.slice(2);
+if (command === 'new' || command === 'remix') {
+  await cp(${JSON.stringify(f.root)}, command === 'new' ? args[0] : args[1], {recursive:true});
+} else if (command !== 'setup') {
+  await mkdir('dist', {recursive:true}); await writeFile('dist/index.html','<html><body>Host verified output</body></html>');
+}`,
   );
   const studio = new Studio({
     directory: f.directory,
@@ -402,6 +407,78 @@ const settle = (studio: Studio) =>
     () => studio.state(),
     (state) => !state.busy,
   );
+
+test('new and remix requests carry the initiating browser session through setup and first preview', async () => {
+  const executions: boolean[] = [];
+  const { studio, directory } = await studioFixture({
+    model: 'fixture',
+    async run(root, prompt, _session, _signal, _emit, execution) {
+      executions.push(!!execution?.browserBuild);
+      if (execution?.browserBuild) expect(prompt).toContain('experimental browser compiler');
+      await writeFile(
+        join(root, 'src/main.ts'),
+        'document.body.textContent = "First browser preview";',
+      );
+    },
+  });
+  const server = await serveStudio(studio, 0);
+  cleanup.push(() => server.stop(true));
+  const { token } = await (await fetch(server.url + 'api/session')).json();
+  const create = (body: unknown, requestId = crypto.randomUUID()) =>
+    fetch(server.url + 'api/projects', {
+      method: 'POST',
+      headers: {
+        Origin: server.url.origin,
+        'Content-Type': 'application/json',
+        'X-Studio-Token': token,
+        'X-Request-ID': requestId,
+      },
+      body: JSON.stringify(body),
+    });
+  expect(
+    (await create({ title: 'Bad session', prompt: 'Create', browserSession: 'bad' })).status,
+  ).toBe(400);
+  expect((await studio.state()).projects).toHaveLength(1);
+  const browserSession = crypto.randomUUID();
+  for (const source of [undefined, 'http://127.0.0.1:9999/n/test']) {
+    const requestId = crypto.randomUUID();
+    const body = { title: 'New browser draft', prompt: 'Create a toy', source, browserSession };
+    const response = await create(body, requestId);
+    expect(response.status).toBe(200);
+    const { id } = await response.json();
+    expect(await (await create(body, requestId)).json()).toEqual({ id });
+    const next = (await waitFor(
+      () => studio.browserBuilds.next(browserSession),
+      (v) => !!v,
+    ))!;
+    expect(studio.browserBuilds.next(crypto.randomUUID())).toBeNull();
+    const result = await compileBrowserProject(next);
+    expect(result.error).toBeUndefined();
+    studio.browserBuilds.reply(browserSession, result);
+    const project = (await settle(studio)).projects.find((p) => p.id === id)!;
+    expect(project.phase).toBe('ready');
+    expect(project.previewValidation).toBe('browser');
+    expect(project.source).toBe(source);
+    expect(project.baseline).toBeTruthy();
+    expect(project.checkpoints.length).toBeGreaterThan(0);
+    expect(
+      await Bun.file(join(directory, 'projects', id, 'workspace/dist/index.html')).exists(),
+    ).toBe(false);
+  }
+  expect(executions).toEqual([true, true]);
+  expect(await readFile(join(directory, 'commands.log'), 'utf8')).toBe(
+    'new workspace --identity later --no-install\nsetup\nremix http://127.0.0.1:9999/n/test workspace --network local --identity later --no-install\nsetup\n',
+  );
+  // The ordinary create request keeps its native verification sequence.
+  const native = await (await create({ title: 'Native draft', prompt: 'Create a toy' })).json();
+  expect((await settle(studio)).projects.find((p) => p.id === native.id)?.previewValidation).toBe(
+    'full',
+  );
+  expect(executions).toEqual([true, true, false]);
+  expect(await readFile(join(directory, 'commands.log'), 'utf8')).toEndWith(
+    'new workspace --identity later --no-install\nsetup\nrun verify\ncheck\nrun test:conformance\n',
+  );
+}, 30000);
 
 test('browser failure preserves preview, feeds one repair pass, avoids host builds; publication reruns host checks', async () => {
   let calls = 0;

@@ -27,7 +27,7 @@ import { ActivityPanel, ChatText, ReasoningPanel } from './activity-ui';
 import { AssetsPanel } from './assets-ui';
 import { Dashboard } from './dashboard';
 import { validSource } from './navigation';
-import { useBrowserBuild } from './browser-build-client';
+import type { BrowserBuildController } from './browser-build-client';
 
 import type { StudioClient } from './local-client';
 import type { PublicationAccount } from './publication-ui';
@@ -53,18 +53,26 @@ export function StudioApp({
   route,
   navigate,
   openConnections,
+  browserBuild,
+  setBrowserBuildAvailable,
 }: {
   client: StudioClient;
   account: PublicationAccount;
   route: StudioRoute;
   navigate: (path: string) => void;
   openConnections: () => void;
+  browserBuild: BrowserBuildController;
+  setBrowserBuildAvailable: (available: boolean) => void;
 }) {
   const { api, media } = client;
   const [state, setState] = useState<StudioState>({ projects: [], model: '' });
-  const browserBuild = useBrowserBuild(client, !!state.browserBuilds);
   const id = route.view === 'project' ? route.id : '';
   const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    // Route remounts start with empty state. Do not tear down an in-flight
+    // creation compiler before the new page has read the service capabilities.
+    if (loaded) setBrowserBuildAvailable(!!state.browserBuilds);
+  }, [loaded, state.browserBuilds, setBrowserBuildAvailable]);
   const setId = (id: string) => navigate(id ? '/studio/' + id : '/studio');
   const [prompt, setPrompt] = useState('');
   const [title, setTitle] = useState('');
@@ -232,6 +240,7 @@ export function StudioApp({
         const result = await api<{ id: string }>('projects', {
           title: title.trim() || prompt.trim().split('\n')[0].slice(0, 60),
           prompt,
+          browserSession: browserBuild.session,
           ...(remix && source.trim() ? { source: source.trim() } : {}),
         });
         setId(result.id);
@@ -241,6 +250,20 @@ export function StudioApp({
       setPrompt('');
     });
   }
+  const browserBuildChoice = state.browserBuilds && (
+    <label
+      className="browser-build-choice"
+      title="Experimental: standard TypeScript starter only. Keep this tab open. Publish still runs full soyLI checks."
+    >
+      <input
+        type="checkbox"
+        checked={browserBuild.enabled}
+        disabled={busy}
+        onChange={(event) => browserBuild.setEnabled(event.target.checked)}
+      />
+      Browser builds
+    </label>
+  );
   const composer = (initial = false) => (
     <form
       className={`composer ${initial ? 'initial' : ''}`}
@@ -417,6 +440,14 @@ export function StudioApp({
               />
             </label>
             {composer(true)}
+            {state.browserBuilds && (
+              <div className="creation-build-choice">
+                {browserBuildChoice}
+                <small>
+                  Build previews in this browser. Keep this tab open while your maker works.
+                </small>
+              </div>
+            )}
           </div>
           <div className="suggestions">
             {examples.map(([label, text]) => (
@@ -767,17 +798,7 @@ export function StudioApp({
                       ? `${p.checkpoints.length} saved preview${p.checkpoints.length === 1 ? '' : 's'}${active || p.phase !== 'ready' ? ' · Showing last passing build' : ' · Try the controls'}`
                       : 'A preview you can actually play.'}
                 </span>
-                {state.browserBuilds && (
-                  <label title="Experimental: standard TypeScript starter only. Keep this tab open. Publish still runs full soyLI checks.">
-                    <input
-                      type="checkbox"
-                      checked={browserBuild.enabled}
-                      disabled={busy}
-                      onChange={(event) => browserBuild.setEnabled(event.target.checked)}
-                    />
-                    Browser builds
-                  </label>
-                )}
+                {browserBuildChoice}
                 {browserBuild.enabled && (
                   <small role="status">{browserBuild.status || 'Keep this tab open'}</small>
                 )}

@@ -10,13 +10,13 @@ export function StudioPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const identity = useNostr();
-  const { client, mounted, openConnections } = useStudio();
+  const { client, mounted, openConnections, browserBuild, setBrowserBuildAvailable } = useStudio();
   const route = useMemo(
     () => studioRoute(new URL(location.href, 'http://shell.local')),
     [location.href],
   );
   if (!mounted) return <p role="status">Opening Studio…</p>;
-  if (!client)
+  if (!client || !browserBuild)
     return (
       <section className="create-page">
         <span className="eyebrow">YOUR IDEAS, A PLACE TO GROW</span>
@@ -36,6 +36,8 @@ export function StudioPage() {
   return (
     <StudioApp
       client={client}
+      browserBuild={browserBuild}
+      setBrowserBuildAvailable={setBrowserBuildAvailable}
       openConnections={openConnections}
       route={route}
       navigate={(href) => {

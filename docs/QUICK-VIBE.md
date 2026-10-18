@@ -156,24 +156,27 @@ or change the creative defaults shipped to developers.
 
 ## Experimental browser builds
 
-For an existing standard TypeScript draft, enable **Browser builds** below the
-preview (on a phone, first open **Preview & code**). **Build in browser** and
-subsequent chat turns then run TypeScript 5.9.3 and esbuild WASM in a browser Web
-Worker. The worker receives a bounded source snapshot and the installed SDK files;
+Enable **Browser builds** on the create/remix form or below an existing standard
+TypeScript draft’s preview (on a phone, first open **Preview & code**). New drafts,
+compatible remixes, **Build in browser** and subsequent chat turns then run
+TypeScript 5.9.3 and esbuild WASM in a browser Web Worker. The initial create/remix
+still uses soyLI to prepare the repository and install its pinned dependencies.
+The worker receives a bounded source snapshot and the installed SDK files;
 it does not execute package scripts or Vite configuration. The resulting HTML
 uses the same soyLI sandbox, SDK bridge and immutable preview snapshots.
 The tab reuses its compiler and cached SDK/type libraries. After the first build,
 only changed files and removals cross to the browser. The cache holds one bounded
-snapshot in memory; it is cleared when the compiler is disabled, the page closes,
-or a worker fails. A missing cache causes a fresh snapshot on the next requested
-build. Neither source nor credentials are added to persistent browser storage.
+snapshot in memory; it is cleared when the compiler is disabled, the tab closes,
+you leave Studio, or a worker fails. A missing cache causes a fresh snapshot on
+the next requested build. Neither source nor credentials are added to persistent browser storage.
 Restart the local Studio service after updating; older workers do not advertise
 browser-build support, so the new UI hides the option until they are updated.
 
 This is an opt-in local experiment, not the default verification path. Its toggle
-lasts for the current Studio page session. Keep that tab open while building;
-reloading or navigating away interrupts its compiler. Stop and retry explicitly
-if necessary. Worker/startup failure, source changes during a build and the
+lasts while you stay within Studio in that tab, including the transition from
+the create form to the new editor. Keep that tab open while building; reloading
+or leaving Studio interrupts its compiler and resets the option. Stop and retry
+explicitly if necessary. Worker/startup failure, source changes during a build and the
 two-minute deadline retain the previous preview without automatically spending
 another inference turn. Source diagnostics receive the existing one repair pass.
 
@@ -202,13 +205,14 @@ and return; its soyLI build commands are removed from the tool allowlist so it
 does not repeat those builds on the host. These permissions are workflow controls,
 not an OS sandbox. Browser-preview success is labelled **full checks pending**.
 Publication and proposal preparation always run the normal independent soyLI
-checks; browser output never replaces their native release build. Initial project
-creation and History restore also retain the normal flow.
+checks; browser output never replaces their native release build. History restore
+and creation without the browser option retain their normal verification flow.
+An incompatible remix fails its browser-profile check before inference; its
+imported workspace remains available to continue with normal soyLI checks.
 
 The compiler worker and WASM add roughly 16 MB of uncompressed assets, requested
 only when the compiler is used and retained for subsequent builds in that tab.
-Initial project creation, broader package support and real-device performance
-remain follow-up work. See the
+Broader package support and real-device performance remain follow-up work. See the
 [experiment results](experiments/STUDIO-BROWSER-BUILD.md) for measurements and
 verification boundaries.
 

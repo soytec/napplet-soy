@@ -3,14 +3,14 @@ import type { StudioClient } from './local-client';
 import { type BrowserBuildTransfer, type BrowserBuildResult } from './browser-build-contract';
 import { BrowserBuildRunner } from './browser-build-runner';
 
-/** Session-local opt-in: reopening Studio never silently switches execution location. */
-export function useBrowserBuild(client: StudioClient, available: boolean) {
+/** Shell-owned tab session: survives Studio routes, never persisted across reloads. */
+export function useBrowserBuild(client: StudioClient | undefined, available: boolean) {
   const [enabled, setEnabled] = useState(false);
-  const active = enabled && available;
+  const active = enabled && available && !!client;
   const [session] = useState(() => crypto.randomUUID());
   const [status, setStatus] = useState('');
   useEffect(() => {
-    if (!active) return;
+    if (!active || !client) return;
     let live = true,
       timer: ReturnType<typeof setTimeout>;
     const runner = new BrowserBuildRunner(
@@ -69,3 +69,4 @@ export function useBrowserBuild(client: StudioClient, available: boolean) {
   }, [active, session, client]);
   return { enabled: active, setEnabled, session: active ? session : undefined, status };
 }
+export type BrowserBuildController = ReturnType<typeof useBrowserBuild>;

@@ -1,7 +1,8 @@
 # Studio browser compilation experiment
 
-Status: implemented and tested locally, 2026-10-18. Opt-in on existing drafts;
-not enabled as a hosted service or the default build path. No new Nostr event,
+Status: implemented and tested locally, 2026-10-18. Opt-in on new drafts,
+compatible remixes and existing drafts; not enabled as a hosted service or the
+default build path. No new Nostr event,
 CVM tool or GRASP wrapper is involved.
 
 ## Question and result
@@ -89,6 +90,30 @@ counts cover the private job response, not the compiled HTML returned to the
 host. The host still collects and validates the current source/assets and computes
 the diff; this is not a claim that all host work is eliminated.
 
+## Initial creation and navigation
+
+The create/remix form can opt into the same browser compiler. soyLI still creates
+or imports the real Git workspace and installs pinned dependencies on the local
+service. The browser-profile check runs before inference; incompatible source
+keeps an imported draft with an actionable error rather than silently building
+on the host. The agent receives the same browser-mode instructions as later edits.
+
+The shared shell owns the compiler session so the create-to-editor transition
+keeps the initiating tab ID, pending job and worker. Navigation between Studio
+pages preserves the option/cache. Leaving Studio, reloading or disabling the option
+releases the compiler; re-entering starts with browser builds disabled.
+
+A separate Chromium acceptance run used real soyLI `new` and `setup`, followed
+by a deterministic source edit (no inference). The first preview compiled in
+670 ms, retained the same session through navigation, and its button responded
+inside the sandbox. Only `new` and `setup` were invoked on the host. Installed
+agent guidance and local Git were present. Studio navigation retained one compiler;
+leaving Studio left zero workers. The create form had no horizontal overflow at
+390 × 844. Automated HTTP regressions cover new/remix session forwarding,
+idempotent create requests, wrong-tab isolation and the ordinary native flow.
+The real browser acceptance covered fresh creation; remote remix import was not
+retested in that run.
+
 ## Managed assets
 
 The existing Assets upload form and soyLI asset lock/helper are reused. Embedded
@@ -130,7 +155,7 @@ unsupported profiles and symlinks, wrong-tab/stale replies, cancellation/deadlin
 agent repair, worker failure without paid retry, previous-preview retention,
 asset/helper validation, file removals and cache resets, worker reuse, and
 the native publication verification boundary. The full source gate passes
-785 tests and 6,207 assertions, plus type-checking and production packaging.
+786 tests and 6,236 assertions, plus type-checking and production packaging.
 Physical phones and Safari/Firefox are not yet verified. Nix
 validation remains required before pushing dependency changes; Nix is unavailable
 on the development Mac, so its dependency hash/package check has not been updated
@@ -139,8 +164,10 @@ or validated for this experiment.
 ## Reproduce
 
 1. Start local Studio and the shell as described in [Quick Vibe](../QUICK-VIBE.md).
-2. Use a disposable copy of a standard TypeScript draft. Enable **Browser builds**,
-   then choose **Build in browser**. Play its controls and inspect the check details.
+2. Enable **Browser builds** on the create form to test a fresh draft. Alternatively,
+   use a disposable copy of a standard TypeScript draft, enable the option below
+   its preview, then choose **Build in browser**. Play the controls and inspect the
+   check details; navigating from create to the editor must preserve the compiler.
 3. Introduce a type error in that copy and send a small edit request. Confirm the
    diagnostic reaches the repair pass and only a passing build replaces the preview.
 4. Turn the option off and run the normal checks; verify they still execute.
