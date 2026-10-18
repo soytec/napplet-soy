@@ -9,9 +9,9 @@ import { publishProject } from '../../packages/publish/src';
 import { sourceGit } from '../../packages/grasp/src/client';
 import { ProtocolClient } from '../../packages/client/src/nostr';
 import { readProposals, readRepository } from '../../packages/collaboration/src/protocol';
-import { prepareProposal, proposeReviewed } from './proposal';
-import { BrowserSigning } from './signing';
-import { stack } from '../../tests/services/publish-stack';
+import { prepareProposal, proposeReviewed } from '../../apps/studio/proposal';
+import { BrowserSigning } from '../../apps/studio/signing';
+import { stack } from './publish-stack';
 
 test('Studio prepares unsigned proposals, shares exact reviewed source through GRASP and resumes without a new listing', async () => {
   const services = await stack();

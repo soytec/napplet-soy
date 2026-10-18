@@ -1,0 +1,52 @@
+name: Studio services
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/studio-services.yml'
+      - 'apps/studio/**'
+      - 'apps/cli/**'
+      - 'packages/**'
+      - 'services/**'
+      - 'scripts/grasp*'
+      - 'scripts/relay*'
+      - 'tests/services/publish-stack.ts'
+      - 'tests/services/studio-proposal.test.ts'
+      - 'package.json'
+      - 'bun.lock'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: studio-services-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proposals:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GOTOOLCHAIN: go1.25.0
+      CARGO_BUILD_JOBS: '2'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.3.11'
+      - run: bun install --frozen-lockfile
+      - name: Install native service prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libssl-dev
+          studio_rust="$(bun -e 'import pin from "./services/grasp/upstream.json"; process.stdout.write(pin.rust)')"
+          rustup toolchain install "$studio_rust" --profile minimal
+          printf 'RUSTUP_TOOLCHAIN=%s\n' "$studio_rust" >> "$GITHUB_ENV"
+          go version
+      - name: Build pinned services and verify reviewed proposals
+        run: bun run test:studio:services

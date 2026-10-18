@@ -417,6 +417,14 @@ signing-session expiry, hard worker termination, supervisor death and process-gr
 cleanup. Store tests cover exact legacy backup/import, ownership, exclusive writers,
 atomic job/state transitions and invalid input. The suite needs loopback binding.
 
+`bun run test:studio:services` separately exercises reviewed proposals against real
+GRASP, relay and Blossom services. It builds the native servers before starting
+the test timeout. This requires the Rust version pinned in
+`services/grasp/upstream.json`, Go and a C compiler; Linux also needs `pkg-config`
+and OpenSSL development headers. The **Studio services** CI workflow provisions
+these prerequisites on a fresh runner. Regular `bun run check` and `test:studio`
+do not compile native servers or depend on a developer's cached GRASP binary.
+
 `bun test apps/cli/src/creator-kit.test.ts` checks the assembled guidance, including
 removal of stale Paja/standalone-scaffold instructions from the entry skill.
 

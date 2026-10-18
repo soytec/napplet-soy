@@ -10,6 +10,7 @@
   "scripts": {
     "studio": "bun scripts/quick-vibe.ts",
     "test:studio": "bun test apps/studio",
+    "test:studio:services": "bun run grasp:build && bun run relay:build && bun test tests/services/studio-proposal.test.ts",
     "dev": "bun scripts/dev.ts development",
     "demo:minicraft": "bun scripts/minicraft.ts",
     "test:minicraft": "bun test tests/services/minicraft-browser.test.ts",
