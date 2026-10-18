@@ -31,7 +31,7 @@
   margin-left: calc((100% - var(--story-width, 100%)) / 2);
   height: clamp(281.6px, calc(45vw + 25.6px), 73.6svh);
   min-height: 281.6px;
-  background: #122725;
+  background: var(--code-background);
 }
 .story-cinema iframe {
   display: block;
@@ -59,8 +59,8 @@
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  color: #f6ecd2;
-  background: #122725e6;
+  color: var(--code-foreground);
+  background: color-mix(in srgb, var(--code-background) 90%, transparent);
   padding: 9px 15px;
   font: 12px var(--mono);
   text-align: center;

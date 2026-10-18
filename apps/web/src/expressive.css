@@ -1,12 +1,13 @@
 @import '../../../packages/runtime/src/action-effects.css';
 
-/* Little ink-and-paper accents; creator artwork keeps its own colors. */
+/* Playful color accents; creator artwork keeps its own colors. */
 .hero .hero-main > .eyebrow {
   width: fit-content;
   padding: 6px 10px;
   border-radius: 4px;
   background: var(--accent);
   color: var(--mint);
+  box-shadow: 3px 3px 0 var(--shadow);
 }
 .hero .hero-heading h1 {
   --headline-accent: var(--coral);
@@ -16,16 +17,21 @@
 }
 .hero .soyli-benefits > li {
   --benefit-color: var(--blue);
+  --benefit-surface: var(--tint-blue);
   padding: 12px;
-  border-top: 3px solid var(--benefit-color);
+  border: 1px solid color-mix(in srgb, var(--benefit-color) 40%, transparent);
+  border-top: 4px solid var(--benefit-color);
   border-radius: 3px 3px 8px 8px;
-  background: color-mix(in srgb, var(--benefit-color) 7%, var(--background));
+  background: var(--benefit-surface);
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--benefit-color) 25%, transparent);
 }
 .hero .soyli-benefits > li:nth-child(2) {
   --benefit-color: var(--coral);
+  --benefit-surface: var(--tint-coral);
 }
 .hero .soyli-benefits > li:nth-child(3) {
   --benefit-color: var(--mint);
+  --benefit-surface: var(--tint-mint);
 }
 .hero .soyli-benefits > li > svg {
   color: var(--benefit-color);
@@ -34,7 +40,9 @@
   padding: 9px 12px;
   border: 1px solid var(--blue);
   border-radius: 6px;
-  color: var(--blue);
+  background: var(--blue);
+  color: var(--primary-foreground);
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--blue) 65%, var(--foreground));
 }
 .hero .featured-heading .eyebrow {
   color: var(--gold);
@@ -60,7 +68,7 @@
 /* The command is selectable from first paint. Only its frame and caret move,
    once, for less than five seconds; no fake typing or endless attention loop. */
 .hero .starter-command .terminal-box {
-  border: 1px solid #8ba980;
+  border: 1px solid var(--header-border);
   box-shadow: 0 4px 0 color-mix(in srgb, var(--mint) 20%, transparent);
   animation: terminal-arrival 2.8s ease-out both;
 }
@@ -69,7 +77,12 @@
   position: absolute;
   inset: 0 0 auto;
   height: 3px;
-  background: linear-gradient(90deg, #afd9b7 0% 58%, #f0cf70 58% 80%, #f5a082 80%);
+  background: linear-gradient(
+    90deg,
+    var(--hover-mint) 0% 58%,
+    var(--hover-blue) 58% 80%,
+    var(--hover-coral) 80%
+  );
   pointer-events: none;
 }
 .hero .starter-command .terminal-box::after {
@@ -81,8 +94,8 @@
   background: linear-gradient(
     110deg,
     transparent 35%,
-    #afd9b724 47%,
-    #f0cf7024 50%,
+    color-mix(in srgb, var(--hover-mint) 14%, transparent) 47%,
+    color-mix(in srgb, var(--hover-blue) 14%, transparent) 50%,
     transparent 62%
   );
   background-size: 300% 100%;
@@ -90,7 +103,7 @@
   animation: terminal-sweep 2.4s 0.15s ease-out both;
 }
 .hero .starter-command .terminal-heading > svg:first-child {
-  color: #afd9b7;
+  color: var(--hover-mint);
 }
 .hero .starter-command summary > code::after {
   content: '';
@@ -99,7 +112,7 @@
   height: 1em;
   margin-left: 7px;
   vertical-align: -0.15em;
-  background: #afd9b7;
+  background: var(--hover-mint);
   opacity: 0;
   animation: terminal-caret 0.7s step-end 4;
 }

@@ -102,13 +102,20 @@ but removes workshop chrome, padding and frame borders. Open preview still opens
 full workshop separately. The workspace fills the viewport below the header, with
 scrolling retained for long chat/source content and no extra visible scroll tracks.
 This does not choose a hosted REST API or change GRASP/Nostr publication protocols.
-Rename/archive/export and proposal submission remain separate follow-up work.
+Rename/archive/export remain separate follow-up work. Remix proposals use the
+reviewed submission flow described below.
 
 ## Shared visual theme
 
 `packages/runtime/src/appearance.css` is the central theme for shell colors, light/dark
 variants, font families and header width/gutters. The shell and Studio consume those
-same variables; Studio has no separate palette or font stack. Font files are loaded
+same variables; Studio has no separate palette or font stack. The shared palette uses
+near-white/slate surfaces and deep teal actions, with soft coral,
+mint and lilac accents. Darker text, clearer borders and solid selected controls
+retain strong contrast. Shared `--tint-*` colors provide subtle card and toolbar
+surfaces in both light and dark mode. Light mode uses forest charcoal for its
+header, dark text and code panels, echoing the landing-page film's green backdrop;
+dark mode retains its slate palette. Font files are loaded
 once by `apps/web/src/styles.css` (add a matching font import there if choosing a new
 web font). `apps/studio/style.css` holds workspace layout and component rules.
 

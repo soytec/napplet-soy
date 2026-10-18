@@ -146,6 +146,9 @@
   .welcome-copy {
     text-align: center;
   }
+  .welcome-copy > .eyebrow {
+    color: var(--lilac);
+  }
   .eyebrow,
   .section-label {
     font-family: var(--font-code);
@@ -176,10 +179,13 @@
   .start-card {
     max-width: 690px;
     margin: auto;
-    border: 1px solid var(--subtle-border);
+    border: 1px solid var(--primary);
+    border-top-width: 4px;
     border-radius: 16px;
     background: var(--card);
-    box-shadow: 0 12px 50px var(--shadow);
+    box-shadow:
+      0 5px 0 var(--accent),
+      0 12px 35px var(--shadow);
     overflow: hidden;
   }
   .start-options {
@@ -194,8 +200,8 @@
     color: var(--muted-foreground);
   }
   .start-options button.selected {
-    background: var(--accent);
-    color: var(--primary);
+    background: var(--primary);
+    color: var(--primary-foreground);
     font-weight: 650;
   }
   .field {
@@ -303,15 +309,27 @@
     flex-wrap: wrap;
   }
   .suggestions button {
-    background: var(--secondary);
-    border: 1px solid var(--subtle-border);
+    background: var(--tint-coral);
+    border: 1px solid color-mix(in srgb, var(--coral) 45%, transparent);
     border-radius: 20px;
     font-size: 11px;
     padding: 8px 12px;
-    color: var(--muted-foreground);
+    color: var(--coral);
   }
-  .suggestions button:hover {
-    background: var(--accent);
+  .suggestions button:nth-child(2) {
+    background: var(--tint-mint);
+    color: var(--mint);
+    border-color: color-mix(in srgb, var(--mint) 45%, transparent);
+  }
+  .suggestions button:nth-child(3) {
+    background: var(--tint-lilac);
+    color: var(--lilac);
+    border-color: color-mix(in srgb, var(--lilac) 45%, transparent);
+  }
+  .suggestions button:hover:not(:disabled) {
+    color: var(--foreground);
+    border-color: currentColor;
+    box-shadow: 0 2px 0 var(--shadow);
   }
   .local-note {
     text-align: center;
@@ -375,7 +393,7 @@
     flex-shrink: 0;
   }
   .draft-mark.ready {
-    background: var(--note-background);
+    background: var(--tint-mint);
     color: var(--mint);
   }
   .draft-arrow {
@@ -451,6 +469,7 @@
     overflow: hidden;
   }
   .chat-heading {
+    background: var(--tint-lilac);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -468,7 +487,7 @@
     color: var(--muted-foreground);
   }
   .chat-heading svg {
-    color: var(--primary);
+    color: var(--lilac);
   }
   .stop {
     font-size: 11px;
@@ -614,6 +633,7 @@
     background: var(--card);
   }
   .preview-toolbar {
+    background: var(--tint-blue);
     min-height: 56px;
     display: flex;
     align-items: center;
@@ -634,8 +654,8 @@
     gap: 6px;
   }
   .view-tabs .selected {
-    color: var(--primary);
-    background: var(--accent);
+    color: var(--primary-foreground);
+    background: var(--primary);
   }
   .preview-actions {
     display: flex;
@@ -1356,9 +1376,9 @@
     opacity: 0.75;
   }
   .creation-filters button.selected {
-    background: var(--foreground);
+    background: var(--primary);
     color: var(--primary-foreground);
-    border-color: var(--foreground);
+    border-color: var(--primary);
   }
   .creation-search {
     display: flex;
@@ -1412,7 +1432,7 @@
     box-shadow: 0 12px 25px var(--shadow);
   }
   .creation-art {
-    background: var(--accent);
+    background: var(--tint-lilac);
     height: 150px;
     position: relative;
     overflow: hidden;
@@ -1421,15 +1441,15 @@
     color: var(--lilac);
   }
   .color-1 .creation-art {
-    background: var(--note-background);
-    color: var(--primary);
+    background: var(--tint-mint);
+    color: var(--mint);
   }
   .color-2 .creation-art {
-    background: var(--warning-surface);
-    color: var(--warning);
+    background: var(--tint-gold);
+    color: var(--gold);
   }
   .color-3 .creation-art {
-    background: color-mix(in srgb, var(--blue) 14%, var(--card));
+    background: var(--tint-blue);
     color: var(--blue);
   }
   .creation-orbit {
