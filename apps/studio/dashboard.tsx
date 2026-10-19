@@ -48,7 +48,7 @@ export function Dashboard({
         <span>
           <strong>{projects.filter((p) => p.preview).length}</strong> playable previews
         </span>
-        <span className="storage-note">Saved on this computer · You choose when to publish</span>
+        <span className="storage-note">Private drafts · You choose when to publish</span>
       </div>
       {busy && (
         <button className="running-project" onClick={() => navigate('/studio/' + busy)}>
