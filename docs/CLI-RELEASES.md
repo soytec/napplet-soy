@@ -1,11 +1,11 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The current published version is **0.30.0**.
+The current published version is **0.31.0**.
 
-**0.31.0 candidate — hosted BYOK Studio:**
+**0.31.0 — hosted BYOK Studio:**
 
-The release candidate enables Studio in the shared shell with a user's own cloud
+This release enables Studio in the shared shell with a user's own cloud
 provider key. Browser builds use the tab's Web Worker; server builds and the maker
 run in a bounded, offline container with a private inference broker. Both paths
 retain account-owned drafts, Git history, reviewed publication and GRASP proposals.
@@ -19,8 +19,19 @@ local model connections and soyLI commands remain supported. The experimental
 browser Git path is not authoritative for publication. See [hosted limits and
 operation](STUDIO-HOSTING.md) and [local Studio](QUICK-VIBE.md).
 
-Publication and deployment are pending; the current published version above
-remains unchanged until the release gates complete.
+Published **2026-10-19 (Europe/Vienna)** from source
+`c05b6fc7b7975e30cc31ad792e3efe7d7fc7ecc7`, the squash merge of
+[PR #25](https://github.com/zeSchlausKwab/napplet-soy/pull/25).
+[GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.31.0),
+[native release CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39275681961),
+[Nix package/VM CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39275671629)
+and [Studio service CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39275672088)
+passed for the released source. All four native packages and 11 public assets
+have verified checksums; the manifest and installer match the tagged source.
+A fresh isolated macOS ARM64 install reports 0.31.0. GitHub rate-limited the
+unauthenticated doctor/update lookup with HTTP 403; its actionable diagnostic was
+preserved, and the latest release was independently verified through GitHub's
+authenticated API. No upgrade was falsely reported successful.
 
 **0.30.0 — local Studio beta and publication feedback:**
 

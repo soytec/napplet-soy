@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/studio-services.yml'
       - 'apps/studio/**'
+      - 'apps/web/**'
       - 'apps/cli/**'
       - 'packages/**'
       - 'services/**'
@@ -13,6 +14,7 @@ on:
       - 'tests/services/publish-stack.ts'
       - 'tests/services/studio-proposal.test.ts'
       - 'tests/services/studio-browser-git.test.ts'
+      - 'tests/services/studio-shell.test.ts'
       - 'tests/services/fixtures/studio-browser-git.worker.ts'
       - 'package.json'
       - 'bun.lock'
@@ -56,3 +58,5 @@ jobs:
         # Keep Chromium and Bun's embedded service servers in separate processes;
         # combining the suites can stall service teardown on Linux.
         run: bun run test:studio:services
+      - name: Verify production shell and Studio account composition
+        run: bun run build && bun test tests/services/studio-shell.test.ts

@@ -4,7 +4,6 @@ import { createRootRoute, HeadContent, Link, Outlet, Scripts } from '@tanstack/r
 import { NostrProvider } from '@/components/nostr-provider';
 import { IntentLauncher } from '@/components/intent-launcher';
 import { Shell } from '@/components/shell';
-import { StudioProvider } from '@/components/studio-provider';
 import styles from '@/styles.css?url';
 import { ProfilesProvider } from '@/lib/profiles';
 import { appearanceBootstrap } from '../../../../packages/runtime/src/appearance';
@@ -66,14 +65,12 @@ function Root() {
       </head>
       <body>
         <ProfilesProvider>
-          <StudioProvider>
-            <NostrProvider>
-              <Shell>
-                <Outlet />
-                <IntentLauncher />
-              </Shell>
-            </NostrProvider>
-          </StudioProvider>
+          <NostrProvider>
+            <Shell>
+              <Outlet />
+              <IntentLauncher />
+            </Shell>
+          </NostrProvider>
         </ProfilesProvider>
         <Scripts />
       </body>

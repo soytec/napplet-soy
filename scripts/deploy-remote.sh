@@ -405,6 +405,11 @@ for attempt in {1..30}; do
   sleep 1
 done
 [[ "$healthy" == 1 ]]
+# API health alone cannot catch a broken server-rendered provider tree.
+for endpoint in / /studio /studio/create; do
+  code=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$smoke_port$endpoint")
+  [[ "$code" == 200 ]] || { echo "Candidate page $endpoint failed to render ($code)." >&2; exit 1; }
+done
 # These transports now run in the browser. Do not reactivate a protocol proxy.
 for endpoint in media resources relay-read; do
   code=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' -H "Origin: https://$domain" -H 'X-Space-Host: 1' -H 'Content-Type: application/json' --data '{' "http://127.0.0.1:$smoke_port/api/$endpoint")

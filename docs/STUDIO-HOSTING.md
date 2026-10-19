@@ -9,6 +9,24 @@ inference credit, payment flow or platform-funded model access. Provider charges
 apply. Studio supports its listed cloud providers at their default HTTPS endpoints;
 Ollama, LM Studio, llama.cpp and custom endpoints remain local-Studio options.
 
+## Start creating
+
+Open [Studio](https://napplet.soy/studio), connect your Nostr account, then open
+**Account & settings → AI connections**. Add a supported cloud provider, your API
+key and a model with tool calling. The connection's model catalogue can help you
+choose; testing that catalogue does not run an agent turn.
+
+Choose **Create in browser** or open a draft from **My creations**. Describe your
+idea and send it. Enable **Browser builds** to compile the supported starter in
+this tab; leave it off for server builds. Keep the tab open during browser builds.
+Both modes run the maker on the host and retain the last passing playable preview.
+
+Use **Publish** to prepare and review the listing, screenshots and gameplay clip.
+The active shell account signs the reviewed events. Relay delivery and website
+availability are reported separately. To contribute to an existing napplet, use
+its **Remix this** entry point and the Studio proposal flow. Existing proposals are
+listed in that napplet's source section; review and merging still use soyLI/Git.
+
 ## Responsibilities
 
 | Work                                                        | Browser build                                    | Server build                                |
