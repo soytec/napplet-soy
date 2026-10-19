@@ -1,0 +1,117 @@
+// Bundled into the image. Project code and its commands only execute in the container.
+import { cp, mkdir, readFile } from 'node:fs/promises';
+import { openCodeAgent, type AgentEvent } from '../agent';
+import { providers, type Provider } from '../connections-model';
+import { run } from '../process';
+
+import { diagnose, formatDiagnostic } from '../../../packages/diagnostics/src';
+
+async function main() {
+  const { context } = await Bun.file('/input/input.json').json();
+  const signal = AbortSignal.timeout(550000);
+  const profile = await Bun.file('/opt/profile/package.json').json();
+  const project = await Bun.file('/workspace/package.json').json();
+  const stable = (value: Record<string, unknown>) =>
+    JSON.stringify(Object.entries(value ?? {}).sort());
+  for (const key of ['dependencies', 'devDependencies', 'optionalDependencies', 'overrides'])
+    if (stable(profile[key]) !== stable(project[key]))
+      throw new Error(
+        'STUDIO_PROFILE: This project needs a different installed toolchain profile. Continue locally or ask the operator to add its dependencies.',
+      );
+  if (
+    profile.packageManager !== project.packageManager ||
+    !Buffer.from(await readFile('/opt/profile/pnpm-lock.yaml')).equals(
+      await readFile('/workspace/pnpm-lock.yaml'),
+    )
+  )
+    throw new Error(
+      'STUDIO_PROFILE: The project lockfile does not match this installed toolchain profile.',
+    );
+  await cp('/opt/profile/node_modules', '/workspace/node_modules', { recursive: true });
+  // A throwaway Git repository supports soyLI inspection. It never replaces the real history.
+  const env = { ...process.env, PATH: '/usr/local/bin:/usr/bin:/bin' };
+  await mkdir('/tmp/home', { recursive: true });
+  await run(['git', 'init', '-q'], {
+    cwd: '/workspace',
+    env,
+    signal,
+    operation: 'initialize isolated source inspection',
+  });
+  for (const args of [
+    ['add', '.'],
+    [
+      '-c',
+      'user.name=Studio job',
+      '-c',
+      'user.email=studio@localhost',
+      'commit',
+      '-qm',
+      'Isolated job input',
+    ],
+  ])
+    await run(['git', ...args], {
+      cwd: '/workspace',
+      env,
+      signal,
+      operation: 'prepare isolated source inspection',
+    });
+
+  if (context.operation === 'agent') {
+    const connection = context.connection as { provider: Provider; model: string; steps: number };
+    // HTTP is loopback inside the network-disabled namespace; only the mounted socket
+    // can reach the controller. No DNS, generic proxy or arbitrary upstream URL exists.
+    const proxy = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      maxRequestBodySize: 2 * 1024 * 1024,
+      idleTimeout: 120,
+      async fetch(req) {
+        const url = new URL(req.url);
+        return fetch('http://inference' + url.pathname + url.search, {
+          unix: '/input/inference.sock',
+          method: req.method,
+          body: req.body,
+          headers: { 'Content-Type': 'application/json' },
+          signal: req.signal,
+          redirect: 'error',
+        });
+      },
+    });
+    const provider = providers[connection.provider].native ? connection.provider : 'studio';
+    try {
+      const agent = await openCodeAgent({
+        directory: '/tmp/agent',
+        executable: '/usr/local/bin/opencode',
+        provider: connection.provider,
+        model: provider + '/' + connection.model,
+        key: '',
+        steps: connection.steps,
+        endpoint: proxy.url.origin,
+        env,
+      });
+      await agent.run('/workspace', context.prompt, undefined, signal, (event: AgentEvent) => {
+        if (event.type !== 'session') console.log('SOY_AGENT:' + JSON.stringify(event));
+      });
+    } finally {
+      await proxy.stop(true);
+    }
+  } else if (context.operation === 'setup') {
+    console.log('Pinned dependencies available in the isolated workspace.');
+  } else if (context.operation === 'command') {
+    const allowed = [['run', 'verify'], ['check'], ['run', 'test:conformance'], ['build']];
+    if (!allowed.some((args) => JSON.stringify(args) === JSON.stringify(context.args)))
+      throw new Error('Unsupported toolchain action.');
+    const output = await run(['soyli', ...context.args], {
+      cwd: '/workspace',
+      env,
+      signal,
+      operation: 'check isolated project',
+      includeStderr: true,
+    });
+    console.log(output);
+  } else throw new Error('Unsupported isolated job.');
+}
+await main().catch((error) => {
+  console.error(formatDiagnostic(diagnose(error, 'execute isolated project')));
+  process.exitCode = 1;
+});

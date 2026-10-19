@@ -18,6 +18,8 @@ import { Route as CreateRouteImport } from './routes/create'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as ManageRouteImport } from './routes/manage'
 import { Route as NetworkRouteImport } from './routes/network'
+import { Route as StudioRouteImport } from './routes/studio'
+import { Route as StudioConnectRouteImport } from './routes/studio-connect'
 import { Route as CreatorSlugRouteImport } from './routes/$creator.$slug'
 import { Route as DotwellKnownNappletDotjsonRouteImport } from './routes/[.]well-known.napplet[.]json'
 import { Route as ApiAdminRouteImport } from './routes/api.admin'
@@ -32,6 +34,9 @@ import { Route as NNaddrRouteImport } from './routes/n.$naddr'
 import { Route as PPubkeyRouteImport } from './routes/p.$pubkey'
 import { Route as ProposalsProposalRouteImport } from './routes/proposals.$proposal'
 import { Route as RSnapshotRouteImport } from './routes/r.$snapshot'
+import { Route as StudioIndexRouteImport } from './routes/studio.index'
+import { Route as StudioIdRouteImport } from './routes/studio.$id'
+import { Route as StudioCreateRouteImport } from './routes/studio.create'
 import { Route as CreatorSlugPlayRouteImport } from './routes/$creator.$slug.play'
 import { Route as ApiOgIdRouteImport } from './routes/api.og.$id'
 import { Route as ApiPreviewsIdRouteImport } from './routes/api.previews.$id'
@@ -84,6 +89,16 @@ const ManageRoute = ManageRouteImport.update({
 const NetworkRoute = NetworkRouteImport.update({
   id: '/network',
   path: '/network',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudioRoute = StudioRouteImport.update({
+  id: '/studio',
+  path: '/studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudioConnectRoute = StudioConnectRouteImport.update({
+  id: '/studio-connect',
+  path: '/studio-connect',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CreatorSlugRoute = CreatorSlugRouteImport.update({
@@ -157,6 +172,21 @@ const RSnapshotRoute = RSnapshotRouteImport.update({
   path: '/r/$snapshot',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StudioIndexRoute = StudioIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => StudioRoute,
+} as any)
+const StudioIdRoute = StudioIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => StudioRoute,
+} as any)
+const StudioCreateRoute = StudioCreateRouteImport.update({
+  id: '/create',
+  path: '/create',
+  getParentRoute: () => StudioRoute,
+} as any)
 const CreatorSlugPlayRoute = CreatorSlugPlayRouteImport.update({
   id: '/play',
   path: '/play',
@@ -208,6 +238,8 @@ export interface FileRoutesByFullPath {
   '/docs': typeof DocsRoute
   '/manage': typeof ManageRoute
   '/network': typeof NetworkRoute
+  '/studio': typeof StudioRouteWithChildren
+  '/studio-connect': typeof StudioConnectRoute
   '/$creator/$slug': typeof CreatorSlugRouteWithChildren
   '/.well-known/napplet.json': typeof DotwellKnownNappletDotjsonRoute
   '/api/admin': typeof ApiAdminRoute
@@ -222,6 +254,9 @@ export interface FileRoutesByFullPath {
   '/p/$pubkey': typeof PPubkeyRoute
   '/proposals/$proposal': typeof ProposalsProposalRoute
   '/r/$snapshot': typeof RSnapshotRouteWithChildren
+  '/studio/$id': typeof StudioIdRoute
+  '/studio/create': typeof StudioCreateRoute
+  '/studio/': typeof StudioIndexRoute
   '/$creator/$slug/play': typeof CreatorSlugPlayRoute
   '/api/og/$id': typeof ApiOgIdRoute
   '/api/previews/$id': typeof ApiPreviewsIdRouteWithChildren
@@ -241,6 +276,7 @@ export interface FileRoutesByTo {
   '/docs': typeof DocsRoute
   '/manage': typeof ManageRoute
   '/network': typeof NetworkRoute
+  '/studio-connect': typeof StudioConnectRoute
   '/$creator/$slug': typeof CreatorSlugRouteWithChildren
   '/.well-known/napplet.json': typeof DotwellKnownNappletDotjsonRoute
   '/api/admin': typeof ApiAdminRoute
@@ -255,6 +291,9 @@ export interface FileRoutesByTo {
   '/p/$pubkey': typeof PPubkeyRoute
   '/proposals/$proposal': typeof ProposalsProposalRoute
   '/r/$snapshot': typeof RSnapshotRouteWithChildren
+  '/studio/$id': typeof StudioIdRoute
+  '/studio/create': typeof StudioCreateRoute
+  '/studio': typeof StudioIndexRoute
   '/$creator/$slug/play': typeof CreatorSlugPlayRoute
   '/api/og/$id': typeof ApiOgIdRoute
   '/api/previews/$id': typeof ApiPreviewsIdRouteWithChildren
@@ -275,6 +314,8 @@ export interface FileRoutesById {
   '/docs': typeof DocsRoute
   '/manage': typeof ManageRoute
   '/network': typeof NetworkRoute
+  '/studio': typeof StudioRouteWithChildren
+  '/studio-connect': typeof StudioConnectRoute
   '/$creator/$slug': typeof CreatorSlugRouteWithChildren
   '/.well-known/napplet.json': typeof DotwellKnownNappletDotjsonRoute
   '/api/admin': typeof ApiAdminRoute
@@ -289,6 +330,9 @@ export interface FileRoutesById {
   '/p/$pubkey': typeof PPubkeyRoute
   '/proposals/$proposal': typeof ProposalsProposalRoute
   '/r/$snapshot': typeof RSnapshotRouteWithChildren
+  '/studio/$id': typeof StudioIdRoute
+  '/studio/create': typeof StudioCreateRoute
+  '/studio/': typeof StudioIndexRoute
   '/$creator/$slug/play': typeof CreatorSlugPlayRoute
   '/api/og/$id': typeof ApiOgIdRoute
   '/api/previews/$id': typeof ApiPreviewsIdRouteWithChildren
@@ -310,6 +354,8 @@ export interface FileRouteTypes {
     | '/docs'
     | '/manage'
     | '/network'
+    | '/studio'
+    | '/studio-connect'
     | '/$creator/$slug'
     | '/.well-known/napplet.json'
     | '/api/admin'
@@ -324,6 +370,9 @@ export interface FileRouteTypes {
     | '/p/$pubkey'
     | '/proposals/$proposal'
     | '/r/$snapshot'
+    | '/studio/$id'
+    | '/studio/create'
+    | '/studio/'
     | '/$creator/$slug/play'
     | '/api/og/$id'
     | '/api/previews/$id'
@@ -343,6 +392,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/manage'
     | '/network'
+    | '/studio-connect'
     | '/$creator/$slug'
     | '/.well-known/napplet.json'
     | '/api/admin'
@@ -357,6 +407,9 @@ export interface FileRouteTypes {
     | '/p/$pubkey'
     | '/proposals/$proposal'
     | '/r/$snapshot'
+    | '/studio/$id'
+    | '/studio/create'
+    | '/studio'
     | '/$creator/$slug/play'
     | '/api/og/$id'
     | '/api/previews/$id'
@@ -376,6 +429,8 @@ export interface FileRouteTypes {
     | '/docs'
     | '/manage'
     | '/network'
+    | '/studio'
+    | '/studio-connect'
     | '/$creator/$slug'
     | '/.well-known/napplet.json'
     | '/api/admin'
@@ -390,6 +445,9 @@ export interface FileRouteTypes {
     | '/p/$pubkey'
     | '/proposals/$proposal'
     | '/r/$snapshot'
+    | '/studio/$id'
+    | '/studio/create'
+    | '/studio/'
     | '/$creator/$slug/play'
     | '/api/og/$id'
     | '/api/previews/$id'
@@ -410,6 +468,8 @@ export interface RootRouteChildren {
   DocsRoute: typeof DocsRoute
   ManageRoute: typeof ManageRoute
   NetworkRoute: typeof NetworkRoute
+  StudioRoute: typeof StudioRouteWithChildren
+  StudioConnectRoute: typeof StudioConnectRoute
   DotwellKnownNappletDotjsonRoute: typeof DotwellKnownNappletDotjsonRoute
   ApiAdminRoute: typeof ApiAdminRoute
   ApiAdminAccessRoute: typeof ApiAdminAccessRoute
@@ -490,6 +550,20 @@ declare module '@tanstack/react-router' {
       path: '/network'
       fullPath: '/network'
       preLoaderRoute: typeof NetworkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/studio': {
+      id: '/studio'
+      path: '/studio'
+      fullPath: '/studio'
+      preLoaderRoute: typeof StudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/studio-connect': {
+      id: '/studio-connect'
+      path: '/studio-connect'
+      fullPath: '/studio-connect'
+      preLoaderRoute: typeof StudioConnectRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$creator/$slug': {
@@ -590,6 +664,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RSnapshotRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/studio/': {
+      id: '/studio/'
+      path: '/'
+      fullPath: '/studio/'
+      preLoaderRoute: typeof StudioIndexRouteImport
+      parentRoute: typeof StudioRoute
+    }
+    '/studio/$id': {
+      id: '/studio/$id'
+      path: '/$id'
+      fullPath: '/studio/$id'
+      preLoaderRoute: typeof StudioIdRouteImport
+      parentRoute: typeof StudioRoute
+    }
+    '/studio/create': {
+      id: '/studio/create'
+      path: '/create'
+      fullPath: '/studio/create'
+      preLoaderRoute: typeof StudioCreateRouteImport
+      parentRoute: typeof StudioRoute
+    }
     '/$creator/$slug/play': {
       id: '/$creator/$slug/play'
       path: '/play'
@@ -682,6 +777,21 @@ const CliRouteChildren: CliRouteChildren = {
 
 const CliRouteWithChildren = CliRoute._addFileChildren(CliRouteChildren)
 
+interface StudioRouteChildren {
+  StudioIdRoute: typeof StudioIdRoute
+  StudioCreateRoute: typeof StudioCreateRoute
+  StudioIndexRoute: typeof StudioIndexRoute
+}
+
+const StudioRouteChildren: StudioRouteChildren = {
+  StudioIdRoute: StudioIdRoute,
+  StudioCreateRoute: StudioCreateRoute,
+  StudioIndexRoute: StudioIndexRoute,
+}
+
+const StudioRouteWithChildren =
+  StudioRoute._addFileChildren(StudioRouteChildren)
+
 interface NNaddrRouteChildren {
   NNaddrPlayRoute: typeof NNaddrPlayRoute
 }
@@ -729,6 +839,8 @@ const rootRouteChildren: RootRouteChildren = {
   DocsRoute: DocsRoute,
   ManageRoute: ManageRoute,
   NetworkRoute: NetworkRoute,
+  StudioRoute: StudioRouteWithChildren,
+  StudioConnectRoute: StudioConnectRoute,
   DotwellKnownNappletDotjsonRoute: DotwellKnownNappletDotjsonRoute,
   ApiAdminRoute: ApiAdminRoute,
   ApiAdminAccessRoute: ApiAdminAccessRoute,

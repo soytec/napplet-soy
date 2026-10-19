@@ -21,6 +21,8 @@ export const publishingKinds = [5, 30617, 30618, 24242, 32267, 35129, 15129, 512
 export const websiteKinds = [
   0, 1, 3, 5, 7, 1111, 1984, 9734, 10000, 10001, 10002, 10003, 10006, 10007, 10015, 10063, 24242,
   27235, 30000, 30002, 30003, 30015, 30078, 35129, 15129, 35858,
+  // Explicit Studio publication/contribution consent; not an iframe permission.
+  5129, 30617, 30618, 1618, 1619,
 ];
 export const defaultSignerRelays = ['wss://relay.napplet.soy'];
 // A client connection budget, not a NIP-46 protocol limit. Keep saved sessions

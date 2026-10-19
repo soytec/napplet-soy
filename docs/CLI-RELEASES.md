@@ -3,6 +3,29 @@
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
 The current published version is **0.29.0**.
 
+**0.30.0 — local Studio beta and publication feedback (release candidate):**
+
+Studio brings chat, playable previews, assets, Git checkpoints and reviewed
+publication/proposals into the shared shell. It runs from a local checkout with
+the user's inference connection and shell account. Hosted Studio is not enabled;
+production entry points link to the local setup. Browser compilation and Git
+experiments remain opt-in, with native source and release checks authoritative.
+See [Studio setup and limits](QUICK-VIBE.md).
+
+The soyLI capture path focuses keyboard input on the napplet, scales recording
+coordinates to the capture viewport, and takes the listing cover during gameplay.
+Publication feedback distinguishes relay delivery from website verification;
+an unrelated relay outage no longer prevents a fresh, verified creation from
+being reported ready. Studio shows publication milestones and checks availability
+without republishing. Recording requests return to review after the agent finishes.
+
+Model discovery and a quick model picker, streamed activity, bounded agent repair
+and the shared visual theme round out the local beta. Proposal submission uses
+ordinary GRASP/NIP-34 and links to the shell's existing review page; diff review
+and merging remain in soyLI/Git. Existing local drafts and soyLI workflows remain.
+
+Release and deployment verification will be recorded after the candidate gates pass.
+
 **0.29.0 — OUTBOX, intent handlers and native maps:**
 
 Published **2026-10-14 (Europe/Vienna)** from source

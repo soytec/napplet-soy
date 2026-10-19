@@ -138,6 +138,14 @@ test('assembled authoring guidance chooses scene and UI direction without confli
 
 test('shipped tooling guidance follows soyLI setup and allows backend and scenario source', () => {
   const files = { ...boilerplateFiles('tooling'), ...creatorSkills() };
+  for (const root of ['.agents', '.claude']) {
+    const make = files[`${root}/skills/napplet-make/SKILL.md`];
+    expect(make).not.toContain('napplet create <dir>');
+    expect(make).not.toContain('command -v paja');
+    expect(make).not.toContain('Paja preview URL reported');
+    expect(make).toContain('surrounding studio owns the preview');
+    expect(make).toContain('soyli run test:conformance');
+  }
   const build = files['.agents/skills/napplet-build/SKILL.md'];
   expect(build).not.toContain('napplet create my-napplet');
   expect(build).not.toContain('napplet paja --');

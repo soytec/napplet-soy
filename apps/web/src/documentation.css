@@ -127,18 +127,18 @@
 .doc-command {
   margin: 22px 0;
   border-radius: 8px;
-  background: #292f25;
-  color: #f5f3e6;
+  background: var(--code-background);
+  color: var(--code-foreground);
   overflow: hidden;
 }
 .doc-command-heading {
   padding: 8px 12px 8px 20px;
-  border-bottom: 1px solid #424a39;
+  border-bottom: 1px solid color-mix(in srgb, var(--code-muted) 20%, var(--code-background));
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  color: #c0c6a8;
+  color: var(--code-muted);
   font: 11px var(--mono);
 }
 .doc-command-heading > span {
@@ -156,8 +156,8 @@
   font: inherit;
 }
 .doc-command-heading button:hover {
-  color: #fffaf2;
-  background: #424a39;
+  color: var(--code-foreground);
+  background: color-mix(in srgb, var(--code-muted) 20%, var(--code-background));
 }
 .doc-command pre {
   padding: 20px;

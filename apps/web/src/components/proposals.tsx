@@ -149,8 +149,9 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
       </div>
       {!rows.length && !loading && !error && (
         <p className="muted">
-          No proposals yet. Remix the source, make a change, then use{' '}
-          <code>soyli propose "Description"</code>. No website account needed.
+          No proposals yet. Remix the source and make a change, then choose{' '}
+          <strong>Propose changes</strong> in local Studio or run{' '}
+          <code>soyli propose "Description"</code> with soyLI.
         </p>
       )}
       <div className="proposal-list">

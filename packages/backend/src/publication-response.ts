@@ -34,7 +34,8 @@ export async function publicationResponse(request: Request) {
   if (
     status !== 'superseded' &&
     !health.stale &&
-    !health.errors?.length &&
+    // An unrelated relay outage does not invalidate this verified publication.
+    // Freshness, deletion/moderation policy and exact artifact bytes still apply.
     entry?.availability === 'ready' &&
     (!snapshotId || snapshot?.availability === 'ready') &&
     current?.id === currentId

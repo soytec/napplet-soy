@@ -68,6 +68,10 @@ export type PublishOptions = {
   resume?: boolean;
   /** Opt in to an additional independent immutable manifest. */
   snapshot?: boolean;
+  /** UI approval binds to exact source, metadata, media and destination bytes. */
+  expectedFingerprint?: string;
+  /** Reviewed NIP-34 repository address; null selects soyLI-hosted source. */
+  expectedRepository?: string | null;
   accounts?: Pick<Accounts, 'current' | 'signer'>;
   check: (
     contents: Map<string, Uint8Array>,
@@ -148,6 +152,7 @@ export async function publicationStatus(
     refresh?: boolean;
     signal?: AbortSignal;
     creator?: string;
+    waitForWebsite?: boolean;
   } = {},
 ) {
   const journal = new Journal(await realpath(directory), network, options.creator);
@@ -157,7 +162,11 @@ export async function publicationStatus(
     if (!id) return { status: 'not_started' as const };
     const job = await journal.load(id);
     if (options.refresh && job.status === 'announced_pending_index') {
-      job.website = await confirmWebsite(job, { signal: options.signal });
+      job.website = await confirmWebsite(job, {
+        signal: options.signal,
+        wait: options.waitForWebsite,
+        ...(options.waitForWebsite === false ? { timeoutMs: 5000 } : {}),
+      });
       await journal.save(job);
     }
     return result(job);
@@ -373,7 +382,12 @@ export async function publishProject(options: PublishOptions) {
             account.pubkey,
             options.targets,
           );
-          // Fail before remote lookups/sandbox startup; freeze repeats against its exact commit.
+          // Bind UI approval before source availability checks or sandbox startup.
+          if (options.expectedFingerprint && inspected.fingerprint !== options.expectedFingerprint)
+            throw new PublishError(
+              'REVIEW_CHANGED',
+              'The project changed after review. Prepare and review the release again.',
+            );
           await inspectHistory(root, inspected.plan.sourceCommit);
           const selected = await selectRepository({
             directory: root,
@@ -382,6 +396,14 @@ export async function publishProject(options: PublishOptions) {
             fetch: deps.fetch,
             signal: options.signal,
           });
+          if (
+            options.expectedRepository !== undefined &&
+            options.expectedRepository !== (selected?.address ?? null)
+          )
+            throw new PublishError(
+              'REVIEW_CHANGED',
+              'The source repository changed after review. Prepare and review the release again.',
+            );
           if (job && job.fingerprint !== inspected.fingerprint)
             throw new PublishError(
               'PUBLISH_PENDING',
@@ -619,6 +641,19 @@ export async function publishProject(options: PublishOptions) {
           throw new PublishError(
             'PUBLISH_OPTIONS',
             'This frozen release was prepared without a snapshot. Finish it with publish --resume, then run publish --snapshot to request an immutable copy.',
+          );
+        if (options.expectedFingerprint && job.fingerprint !== options.expectedFingerprint)
+          throw new PublishError(
+            'REVIEW_CHANGED',
+            'This saved publication does not match the reviewed release. Review the pending release before resuming.',
+          );
+        if (
+          options.expectedRepository !== undefined &&
+          options.expectedRepository !== (job.repository?.address ?? null)
+        )
+          throw new PublishError(
+            'REVIEW_CHANGED',
+            'This saved source repository does not match the reviewed release.',
           );
         if (job.plan.pubkey !== account.pubkey)
           throw new PublishError(

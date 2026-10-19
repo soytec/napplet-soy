@@ -4,6 +4,7 @@ import { createRootRoute, HeadContent, Link, Outlet, Scripts } from '@tanstack/r
 import { NostrProvider } from '@/components/nostr-provider';
 import { IntentLauncher } from '@/components/intent-launcher';
 import { Shell } from '@/components/shell';
+import { StudioProvider } from '@/components/studio-provider';
 import styles from '@/styles.css?url';
 import { ProfilesProvider } from '@/lib/profiles';
 import { appearanceBootstrap } from '../../../../packages/runtime/src/appearance';
@@ -24,7 +25,7 @@ export const Route = createRootRoute({
         : [{ title: 'napplet.soy' }]),
       {
         httpEquiv: 'Content-Security-Policy',
-        content: "frame-src 'self' blob:; object-src 'none'; base-uri 'self'",
+        content: `frame-src 'self' blob:${import.meta.env.DEV ? ' http://127.0.0.1:*' : ''}; object-src 'none'; base-uri 'self'`,
       },
     ],
     links: [
@@ -65,12 +66,14 @@ function Root() {
       </head>
       <body>
         <ProfilesProvider>
-          <NostrProvider>
-            <Shell>
-              <Outlet />
-              <IntentLauncher />
-            </Shell>
-          </NostrProvider>
+          <StudioProvider>
+            <NostrProvider>
+              <Shell>
+                <Outlet />
+                <IntentLauncher />
+              </Shell>
+            </NostrProvider>
+          </StudioProvider>
         </ProfilesProvider>
         <Scripts />
       </body>
