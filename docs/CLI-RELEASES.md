@@ -33,6 +33,9 @@ unauthenticated doctor/update lookup with HTTP 403; its actionable diagnostic wa
 preserved, and the latest release was independently verified through GitHub's
 authenticated API. No upgrade was falsely reported successful.
 
+Hosted Studio is deployed with the subsequent web-only account-provider and
+storage-label corrections. See the [live rollout evidence](DEPLOYMENT.md).
+
 **0.30.0 — local Studio beta and publication feedback:**
 
 Published **2026-10-19 (Europe/Vienna)** from source

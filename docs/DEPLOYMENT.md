@@ -5,7 +5,66 @@ do not deploy or upload releases unless the user explicitly requests deployment.
 
 Updated 2026-10-19. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-Latest verified website release: **`20261019120616384-43901`**, source
+Latest verified website release: **`20261019161500000-2714`**, source
+`bb271c4aa15980a36a8d825d126defc62691dc7e`, installer pinned to **soyLI 0.31.0**.
+[PR #25](https://github.com/zeSchlausKwab/napplet-soy/pull/25) adds hosted BYOK Studio,
+with browser compilation and isolated server builds under the shared shell account.
+Provider keys are encrypted outside projects. Native Git remains authoritative;
+existing local drafts, repositories and the local soyLI flow are preserved.
+See [hosted setup, architecture and limits](STUDIO-HOSTING.md).
+
+The tagged source passed [all four native platforms](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39275681961),
+[Nix/VM checks](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39275671629)
+and [Studio service CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39275672088).
+An initial candidate was refused before activation: Studio's new identity consumer
+was outside the identity provider, so server rendering failed despite API health.
+Correction `904b6f4` passed a real production HTTP regression, then
+[Nix CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39280022578) and
+[service CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39280022575).
+The regression is now part of CI, and deployment explicitly checks the landing and
+Studio pages before activation. The final follow-up only corrects the dashboard's
+local-only storage wording and passed [service CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39283306368).
+Both full deployments passed 827 application tests,
+relay/Go race checks, 18 Blossom tests, nine GRASP tests, three Linux backend checks,
+production builds, candidate rendering and service activation checks.
+
+The accepted legacy worker image is
+`sha256:8f07b5e4eb34a29eef982889dc799f66eddf0dcd2a2bac6fde1c7e3b1d514bae`.
+Its scripted OpenCode acceptance covers guidance loading, build failure/repair,
+the agent-to-browser compiler bridge, landscape/portrait captures, recoverable
+failures and cancellation. A dedicated Linux controller under the service
+restrictions passes private credentials, scaffold/setup, server checks, a real
+browser compiler round trip, private previews and logout revocation. This caught a
+0077-umask input-permission bug; the subprocess regression fails before the fix and
+passes after explicit child modes while the private parent stays 0700.
+
+Public HTTPS acceptance repeats owner authorization, encrypted connection storage,
+private draft setup, server checks, actual Chromium compilation, private preview
+and artifact access, and logout revocation. The test's file-copy handoff was made
+atomic after a partial gzip read; application code and timeouts were unchanged.
+Live UI checks cover extension sign-in, My creations, AI connections, cloud provider
+choices, the browser-build switch, a 390px create layout without horizontal overflow,
+and sign-out. Existing Blockfall playback reaches a verified canvas at mobile and
+desktop sizes. The three disposable private workspaces were removed. No paid
+inference or public napplet/proposal test publication was performed.
+
+The website installer matches the tagged source. All 11 release assets have
+verified checksums; a fresh isolated macOS ARM64 install reports 0.31.0.
+GitHub rate-limited the local
+unauthenticated doctor/update lookup; the authenticated release API independently
+confirmed the latest tag. Deployed source fingerprints, public service endpoints,
+fresh index heartbeat, all five PM2 services, Caddy/CVM/TURN and Studio are checked.
+The parent Caddy configuration is unchanged, and the other hosted site remains
+available. Studio uses its dedicated one-GiB volume and UID-scoped egress policy;
+the controller has zero restarts. The previous working releases are retained.
+
+Platform-paid inference, broader storage retention/recovery, authoritative browser
+Git and an aggregate proposal inbox/browser merge remain deferred. Physical phones,
+long-term uptime and reboot recovery were not verified in this rollout.
+
+### Previous verified rollout — local Studio beta, 2026-10-19
+
+Website release: **`20261019120616384-43901`**, source
 `14e9343dff5eb27815eaa9fe64f50490f01c0ffb`, installer pinned to **soyLI 0.30.0**.
 Merged [PR #24](https://github.com/zeSchlausKwab/napplet-soy/pull/24) adds the local
 Studio beta, reliable publication feedback, gameplay capture and the shared theme.

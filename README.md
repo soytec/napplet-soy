@@ -226,7 +226,8 @@ Service changes also have focused `test:relay`, `test:blossom`, `test:grasp`,
 browser; see the guides below for setup and toolchain details.
 
 [Local development](docs/LOCAL-DEVELOPMENT.md) ·
-[Local creation studio (experimental)](docs/QUICK-VIBE.md) ·
+[Hosted Studio (BYOK)](docs/STUDIO-HOSTING.md) ·
+[Local creation studio](docs/QUICK-VIBE.md) ·
 [Public discovery in development](docs/PUBLIC-DEVELOPMENT.md) ·
 [Web architecture](docs/WEB-ARCHITECTURE.md) ·
 [CLI builds and releases](docs/CLI.md#building-and-releasing)

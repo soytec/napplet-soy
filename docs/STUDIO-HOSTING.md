@@ -1,8 +1,9 @@
 # Hosted Studio
 
-Status: release candidate; worker image acceptance has passed on the legacy VPS.
-Deployment and live verification are still pending. The local `bun run studio` listener remains a trusted
-local development service and must not be exposed to the internet.
+Status: **deployed and live-verified on 2026-10-19**, alongside soyLI 0.31.0.
+Open [Studio](https://napplet.soy/studio) with your shell account. The local
+`bun run studio` listener remains a trusted local development service and must
+not be exposed to the internet. See the [deployment evidence](DEPLOYMENT.md).
 
 The first hosted release uses **your own provider API key**. There is no bundled
 inference credit, payment flow or platform-funded model access. Provider charges
