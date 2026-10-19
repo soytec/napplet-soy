@@ -1,7 +1,7 @@
 # Hosted Studio
 
-Status: implemented on the hosted-Studio branch; deployment and complete image
-acceptance are still pending. The local `bun run studio` listener remains a trusted
+Status: release candidate; worker image acceptance has passed on the legacy VPS.
+Deployment and live verification are still pending. The local `bun run studio` listener remains a trusted
 local development service and must not be exposed to the internet.
 
 The first hosted release uses **your own provider API key**. There is no bundled

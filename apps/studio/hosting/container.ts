@@ -141,6 +141,10 @@ export class ContainerJobs {
     try {
       await chmod(parent, 0o700);
       await mkdir(staging, { mode: 0o755 });
+      // The controller uses umask 0077. Docker mounts only this child directory,
+      // so give its different UID read/traverse access while keeping the host
+      // parent private. Creation modes alone are reduced by the process umask.
+      await chmod(staging, 0o755);
       const input = JSON.stringify({ files, command, context: options.context });
       if (input.length > 48 * 1024 * 1024)
         throw new Error('Job input exceeds its transfer budget.');
@@ -149,6 +153,8 @@ export class ContainerJobs {
       });
       await writeFile(join(staging, 'check-cpu.sh'), cpuCheck, { mode: 0o644 });
       await writeFile(join(staging, 'job.js'), worker, { mode: 0o644 });
+      for (const file of ['input.json', 'check-cpu.sh', 'job.js'])
+        await chmod(join(staging, file), 0o644);
       dispose = await options.prepare?.(staging);
       let exitCode = 0;
       let result: JobFiles | undefined,

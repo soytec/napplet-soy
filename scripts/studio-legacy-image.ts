@@ -111,15 +111,16 @@ RUN cd /opt && soyli new profile --identity later --no-install && cd profile && 
     ln -s /opt/toolchains/node-v24.21.0-linux-x64/bin/node /usr/local/bin/node && \\
     node /opt/studio/lib/playwright-core/cli.js install --with-deps chromium-headless-shell ffmpeg && \\
     for cli in /opt/profile/node_modules/.pnpm/playwright@*/node_modules/playwright/cli.js; do node "$cli" install chromium-headless-shell || exit; done && \\
-    rm -rf /opt/profile/.git /opt/profile/.napplet-space /var/lib/apt/lists/* /root/.cache /root/.bun/install/cache
+    rm -rf /opt/profile/.git /opt/profile/.napplet-space /var/lib/apt/lists/* /root/.cache /root/.bun/install/cache && \\
+    chmod -R a+rX /opt/profile /opt/toolchains /opt/browsers
 COPY opencode-source.tar.gz /tmp/opencode.tar.gz
 RUN \\
     echo '8395f12e26df2d16610760ae224daf87da1d253a9883bf230be2c53984fe99ea  /tmp/opencode.tar.gz' | sha256sum -c - && \\
     mkdir /opt/opencode && tar -xzf /tmp/opencode.tar.gz --strip-components=1 -C /opt/opencode && \\
     cd /opt/opencode && bun install --filter './packages/opencode' --frozen-lockfile --ignore-scripts && \\
-    rm -rf /tmp/opencode.tar.gz /root/.bun/install/cache
+    rm -rf /tmp/opencode.tar.gz /root/.bun/install/cache && chmod -R a+rX /opt/opencode
 RUN printf '#!/bin/sh\\nexport OPENCODE_DISABLE_MODELS_FETCH=true OPENCODE_MODELS_PATH=/opt/studio/models.json\\nexec /usr/local/bin/bun --no-env-file /opt/opencode/packages/opencode/src/index.ts "$@"\\n' > /usr/local/bin/opencode && \\
-    chmod 755 /usr/local/bin/opencode && chmod -R a+rX /opt/profile /opt/toolchains /opt/browsers /opt/opencode /opt/studio && \\
+    chmod 755 /usr/local/bin/opencode && chmod -R a+rX /opt/studio && \\
     opencode --version
 LABEL soy.studio.profile="legacy-x64" soy.studio.bun="1.3.8" soy.studio.opencode="1.19.3"
 USER 1000:1000

@@ -2,6 +2,38 @@ import { expect, test } from 'bun:test';
 import { containerCommand, ContainerJobs, validateJobFiles } from './container';
 import type { run } from '../process';
 
+test('private service umask still allows the isolated container user to read its job input', async () => {
+  const child = Bun.spawn(
+    [
+      process.execPath,
+      '--no-env-file',
+      '-e',
+      `
+    import { strict as assert } from 'node:assert';
+    import { stat } from 'node:fs/promises';
+    import { join, dirname } from 'node:path';
+    import { ContainerJobs } from ${JSON.stringify(import.meta.dir + '/container.ts')};
+    process.umask(0o077);
+    const jobs = new ContainerJobs('sha256:' + 'a'.repeat(64), async (args, options) => {
+      if (args[1] !== 'run') return '';
+      const input = args[args.indexOf('--mount') + 1].split('source=')[1].split(',')[0];
+      assert.equal((await stat(dirname(input))).mode & 0o777, 0o700, 'host parent must stay private');
+      assert.equal((await stat(input)).mode & 0o007, 0o005, 'mounted input must be traversable');
+      for (const name of ['input.json', 'check-cpu.sh', 'job.js'])
+        assert.equal((await stat(join(input, name))).mode & 0o007, 0o004, name + ' must be readable');
+      options.onLine('SOY_JOB_DONE');
+      return '';
+    });
+    await jobs.run({}, ['bun'], { signal: AbortSignal.timeout(3000), operation: 'permission probe' });
+  `,
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  const [code, error] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+  expect(error).toBe('');
+  expect(code).toBe(0);
+});
+
 test('container job source transfer rejects host paths, private state, oversized files and malformed output', async () => {
   for (const name of [
     '../key',

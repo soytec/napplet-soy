@@ -43,7 +43,7 @@ library="$app_root/studio-libraries/${image#sha256:}"
 [[ ! -e $library ]] || { echo 'Library destination already exists; inspect it.' >&2; exit 1; }
 install -d -m 755 "$library/node_modules/@napplet"
 # Export just the trusted compiler libraries; no container executes project input here.
-docker run --rm --pull=never --network=none --read-only --cap-drop=ALL --security-opt=no-new-privileges --user=1000:1000 --entrypoint=/bin/tar "$image" -ch -C /opt/profile/node_modules/@napplet sdk nap core | tar -xf - -C "$library/node_modules/@napplet"
+docker run --rm --pull=never --network=none --read-only --cap-drop=ALL --security-opt=no-new-privileges --user=1000:1000 --entrypoint=/bin/sh "$image" -ec 'cd "$(dirname "$(readlink -f /opt/profile/node_modules/@napplet/sdk)")"; exec tar -ch sdk nap core' | tar -xf - -C "$library/node_modules/@napplet"
 chmod -R a+rX "$library"
 fallocate -l 1G "$app_root/studio-volume.ext4"
 chmod 600 "$app_root/studio-volume.ext4"

@@ -3,6 +3,25 @@
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
 The current published version is **0.30.0**.
 
+**0.31.0 candidate — hosted BYOK Studio:**
+
+The release candidate enables Studio in the shared shell with a user's own cloud
+provider key. Browser builds use the tab's Web Worker; server builds and the maker
+run in a bounded, offline container with a private inference broker. Both paths
+retain account-owned drafts, Git history, reviewed publication and GRASP proposals.
+The shell account signs publication; provider credentials are encrypted outside
+projects. There is no platform-paid inference or billing in this release.
+
+Private preview hosts use relative runtime and revision URLs so they work beneath
+account-authorized routes. This also updates the soyLI preview bundle; local
+creators should restart previews after upgrading. Existing drafts, repositories,
+local model connections and soyLI commands remain supported. The experimental
+browser Git path is not authoritative for publication. See [hosted limits and
+operation](STUDIO-HOSTING.md) and [local Studio](QUICK-VIBE.md).
+
+Publication and deployment are pending; the current published version above
+remains unchanged until the release gates complete.
+
 **0.30.0 — local Studio beta and publication feedback:**
 
 Published **2026-10-19 (Europe/Vienna)** from source
