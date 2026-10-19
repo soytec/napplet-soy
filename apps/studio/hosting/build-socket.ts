@@ -1,6 +1,7 @@
 import { chmod } from 'node:fs/promises';
 import { readBytes } from '../../../packages/client/src/bytes';
 import { validateJobFiles, type JobFiles } from './container';
+import { DiagnosticError, diagnose, formatDiagnostic } from '../../../packages/diagnostics/src';
 
 /** Job-scoped bridge for the agent's check tool. It cannot execute controller commands. */
 export async function buildSocket(
@@ -21,11 +22,22 @@ export async function buildSocket(
         const bytes = await readBytes(new Response(request.body), 48 * 1024 * 1024);
         const files = validateJobFiles(JSON.parse(new TextDecoder().decode(bytes)));
         return Response.json({ result: await check(files) });
-      } catch {
+      } catch (cause) {
         return Response.json(
           {
-            result:
-              'STUDIO_BROWSER_CHECK: The workspace check failed. The controller kept the last passing preview. Inspect the Studio check result before continuing.',
+            result: formatDiagnostic(
+              diagnose(
+                new DiagnosticError(
+                  'STUDIO_BROWSER_CHECK',
+                  'The workspace check failed. The last passing preview is retained.',
+                  {
+                    cause,
+                    operation: 'check isolated workspace in browser',
+                    recovery: 'Address the reported cause, then run studio_check again.',
+                  },
+                ),
+              ),
+            ),
           },
           { status: 400 },
         );
