@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { previewAssets } from '../apps/cli/src/preview/assets';
 import { playwrightDirectory } from '../apps/cli/src/distribution';
 import version from '../apps/cli/distribution/version.json';
+import { createHash } from 'node:crypto';
 
 const [destination, base] = process.argv.slice(2);
 if (!destination || !/^oven\/bun@sha256:[a-f0-9]{64}$/.test(base ?? ''))
@@ -14,6 +15,21 @@ if (Bun.version !== '1.3.11') throw new Error('Prepare with pinned Bun 1.3.11.')
 const root = resolve(destination),
   sourceRoot = process.cwd();
 await mkdir(root);
+// Fetch once into the secret-free context so image retries do not redownload the
+// full upstream monorepo. Never accept an unpinned local source tree.
+const archive = new Uint8Array(
+  await (
+    await fetch('https://github.com/anomalyco/opencode/archive/refs/tags/v1.19.3.tar.gz', {
+      signal: AbortSignal.timeout(600000),
+    })
+  ).arrayBuffer(),
+);
+if (
+  createHash('sha256').update(archive).digest('hex') !==
+  '8395f12e26df2d16610760ae224daf87da1d253a9883bf230be2c53984fe99ea'
+)
+  throw new Error('Pinned OpenCode source checksum mismatch.');
+await writeFile(join(root, 'opencode-source.tar.gz'), archive);
 await mkdir(join(root, 'tools/lib'), { recursive: true });
 const assets = await previewAssets();
 for (const [name, entry] of [
@@ -96,10 +112,11 @@ RUN cd /opt && soyli new profile --identity later --no-install && cd profile && 
     node /opt/studio/lib/playwright-core/cli.js install --with-deps chromium-headless-shell ffmpeg && \\
     for cli in /opt/profile/node_modules/.pnpm/playwright@*/node_modules/playwright/cli.js; do node "$cli" install chromium-headless-shell || exit; done && \\
     rm -rf /opt/profile/.git /opt/profile/.napplet-space /var/lib/apt/lists/* /root/.cache /root/.bun/install/cache
-RUN curl -fsSL https://github.com/anomalyco/opencode/archive/refs/tags/v1.19.3.tar.gz -o /tmp/opencode.tar.gz && \\
+COPY opencode-source.tar.gz /tmp/opencode.tar.gz
+RUN \\
     echo '8395f12e26df2d16610760ae224daf87da1d253a9883bf230be2c53984fe99ea  /tmp/opencode.tar.gz' | sha256sum -c - && \\
     mkdir /opt/opencode && tar -xzf /tmp/opencode.tar.gz --strip-components=1 -C /opt/opencode && \\
-    cd /opt/opencode && bun install --filter './packages/opencode' --filter './packages/core' --filter './packages/http-recorder' --production --frozen-lockfile --ignore-scripts && \\
+    cd /opt/opencode && bun install --filter './packages/opencode' --frozen-lockfile --ignore-scripts && \\
     rm -rf /tmp/opencode.tar.gz /root/.bun/install/cache
 RUN printf '#!/bin/sh\\nexport OPENCODE_DISABLE_MODELS_FETCH=true OPENCODE_MODELS_PATH=/opt/studio/models.json\\nexec /usr/local/bin/bun --no-env-file /opt/opencode/packages/opencode/src/index.ts "$@"\\n' > /usr/local/bin/opencode && \\
     chmod 755 /usr/local/bin/opencode && chmod -R a+rX /opt/profile /opt/toolchains /opt/browsers /opt/opencode /opt/studio && \\
