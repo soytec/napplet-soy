@@ -3,9 +3,45 @@
 Deployment is operator-run. Routine changes are verified and committed locally;
 do not deploy or upload releases unless the user explicitly requests deployment.
 
-Updated 2026-10-15. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
+Updated 2026-10-19. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-Latest verified website release: **`20261014193031446-12904`**, source
+Latest verified website release: **`20261019120616384-43901`**, source
+`14e9343dff5eb27815eaa9fe64f50490f01c0ffb`, installer pinned to **soyLI 0.30.0**.
+Merged [PR #24](https://github.com/zeSchlausKwab/napplet-soy/pull/24) adds the local
+Studio beta, reliable publication feedback, gameplay capture and the shared theme.
+The production shell labels Studio as a local beta and links to checkout/setup
+instructions. Hosted Studio remains disabled; production does not contact a
+visitor's localhost. Browser Git remains opt-in and native Git remains authoritative
+for publication and proposals. Storage/recovery work is deferred.
+
+[Native release CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39249208939),
+[Nix package/VM CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39249155519)
+and [Studio service CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39249155484)
+passed for the exact released source. The standard deployment checks passed on the
+VPS compatibility runtime: TypeScript, 812 application tests, Go race/relay checks,
+18 Blossom tests, nine GRASP tests, three Linux backend checks and the production
+build. The archive checksum was verified before extraction; all public CLI assets
+and their source manifest were available before the website installer was activated.
+
+Live desktop/390px browser checks pass the production entry points, local-beta
+explanation and Blockfall sandbox startup without page errors or localhost requests.
+The smoke script's play selector was corrected to the existing accessible name
+(`Start blockfall`); application code was unchanged. Blockfall's exact current
+publication now reports `ready`, where the previous website returned `pending`
+despite its verified artifact and fresh index. Unrelated relay failures remain
+visible in health and no longer veto that publication's confirmation.
+
+The public installer matches the released/local installer bytes. Deployed source
+fingerprints match; all five PM2 services are online with zero restarts, and
+Caddy/CVM/TURN are active. A fresh index scan reports the new release. The shared
+proxy hash is unchanged and schlaustronics.com returns HTTPS 200. Persistent state,
+port 3040, legacy CPU settings and previous release `20261014193031446-12904` are
+retained. No public test events, invoices, payments or paid inference were created.
+Physical phones, reboot recovery and long-term uptime were not verified here.
+
+### Previous verified rollout — 2026-10-15
+
+Website release: **`20261014193031446-12904`**, source
 `6d0d6cc2794b31a221ff7f009a82ec0946087e9a`, installer pinned to **soyLI 0.29.0**.
 [Release CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38622887368)
 and [Nix package/VM CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/38619572566)

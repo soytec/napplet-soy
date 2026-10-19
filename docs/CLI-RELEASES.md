@@ -1,9 +1,20 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The current published version is **0.29.0**.
+The current published version is **0.30.0**.
 
-**0.30.0 — local Studio beta and publication feedback (release candidate):**
+**0.30.0 — local Studio beta and publication feedback:**
+
+Published **2026-10-19 (Europe/Vienna)** from source
+`14e9343dff5eb27815eaa9fe64f50490f01c0ffb`, the squash merge of
+[PR #24](https://github.com/zeSchlausKwab/napplet-soy/pull/24).
+[GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.30.0),
+[native release CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39249208939),
+[Nix package/VM CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39249155519)
+and [Studio service CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39249155484)
+passed for the released source. All four native packages and 11 public assets are
+present. An isolated macOS ARM64 installation verifies the manifest/source and
+installer bytes; version and doctor report 0.30.0 current, with Git and browser ready.
 
 Studio brings chat, playable previews, assets, Git checkpoints and reviewed
 publication/proposals into the shared shell. It runs from a local checkout with
@@ -24,7 +35,11 @@ and the shared visual theme round out the local beta. Proposal submission uses
 ordinary GRASP/NIP-34 and links to the shell's existing review page; diff review
 and merging remain in soyLI/Git. Existing local drafts and soyLI workflows remain.
 
-Release and deployment verification will be recorded after the candidate gates pass.
+The source passes TypeScript and 812 tests locally. Real GRASP/relay service tests
+cover proposal submission and the opt-in browser Git path in separate processes;
+gameplay capture has its own browser regression suite. Upgrade with `soyli update`,
+restart previews and run `soyli skills update` in existing projects. Application
+source is not rewritten. See the [website deployment record](DEPLOYMENT.md).
 
 **0.29.0 — OUTBOX, intent handlers and native maps:**
 
