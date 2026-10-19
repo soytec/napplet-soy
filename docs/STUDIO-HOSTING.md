@@ -1,171 +1,176 @@
-# Studio hosting preparation
+# Hosted Studio
 
-Target: containers on the existing Linux VPS. This is deployment preparation,
-not an enabled hosted Studio. `bun run studio` still starts the trusted, local-only
-runner described in [QUICK-VIBE.md](QUICK-VIBE.md). Do not expose that listener.
-Studio's React interface now lives in the main shell at `/studio` and `/studio/<id>`
-with the shared account context. This frontend integration does not enable hosted
-jobs: its loopback HTTP adapter is development-only. The hosted ContextVM browser
-adapter and private preview delivery remain outstanding.
+Status: release candidate; worker image acceptance has passed on the legacy VPS.
+Deployment and live verification are still pending. The local `bun run studio` listener remains a trusted
+local development service and must not be exposed to the internet.
 
-**CPU compatibility:** the target VPS exposes an old QEMU x64 CPU without SSE4.2.
-The standard Bun/standalone soyLI and OpenCode binaries fail on this host, including
-their baseline builds. A temporary combination has now passed isolated VPS probes:
-current soyLI source bundles and unmodified OpenCode 1.19.3 source running on
-Bun 1.3.8, with the pinned Node/browser toolchain. See the
-[compatibility experiment](experiments/STUDIO-LEGACY-CPU.md) for the exact scope.
-This is not an enabled hosted runtime profile. The standard image builder and
-job entrypoint still enforce the CPU check; they must not be pointed at the old
-host by simply removing that guard.
+The first hosted release uses **your own provider API key**. There is no bundled
+inference credit, payment flow or platform-funded model access. Provider charges
+apply. Studio supports its listed cloud providers at their default HTTPS endpoints;
+Ollama, LM Studio, llama.cpp and custom endpoints remain local-Studio options.
 
-## Implemented components
+## Responsibilities
 
-`apps/studio/hosting/control.ts` provides an MCP control server over ContextVM.
-`connectStudioControl` requires encrypted transport, injects the verified caller’s
-public key and disables public announcements. An operator admission list is checked
-on every call. Callers cannot supply an owner or filesystem directory: the controller
-selects the private `nostr:<pubkey>` worker. The workspace factory must provide the
-isolated hosted runner; it must not point to the current local `StudioWorker`.
+| Work                                                        | Browser build                                    | Server build                                |
+| ----------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------- |
+| Account, model choice, chat, review, exact-event signatures | Shared shell                                     | Shared shell                                |
+| Agent and tools                                             | Isolated server container                        | Isolated server container                   |
+| TypeScript checking and HTML bundling                       | Browser Web Worker, fixed compiler profile       | Isolated server container, pinned toolchain |
+| Draft files, Git history, job receipts                      | Private account workspace on server              | Private account workspace on server         |
+| Playable preview                                            | Opaque-origin napplet sandbox in browser         | Same sandbox                                |
+| Gameplay recording and release validation                   | Isolated server capture/check                    | Isolated server capture/check               |
+| GRASP source push and Nostr publication                     | Controller, signed by shell account after review | Same flow                                   |
 
-The experimental `soy_studio_call` contract takes `requestId`, `operation` and
-`input`. Implemented operations are list, state, create, send, check, stop, files,
-file and diff. Each has a strict input schema. Mutations retain the result, including
-ambiguous failures, for identical retries during this controller process. Reusing
-an ID with different input fails. This is not a durable distributed request journal.
-The preparation limits are eight loaded owner controllers, one active build,
-120 calls/account/minute, 256 KiB/control response, and 512 retained mutation IDs.
-Reaching the last limit fails closed; the current preparation requires an operator
-restart after jobs finish. It is not a production lifecycle policy.
+Browser builds require the tab to remain open. They do not move inference, Git or
+publication to the browser. The experimental local browser-Git work remains separate
+and is not authoritative for published source. Existing local drafts are not moved.
 
-`apps/studio/hosting/container.ts` is a separate bounded, offline executor. It accepts
-source bytes and an operator-selected command, never browser-selected mounts or
-Docker options. A locally installed image must be selected by its exact sha256 ID;
-jobs cannot pull an image. The profile uses:
+## Authorization and transport
 
-- UID/GID 1000, no capabilities, no new privileges, read-only root filesystem.
-- No network, no Docker socket, no live checkout, controller database, host home
-  or provider credentials inside the container.
-- One CPU, 2 GiB memory including swap allowance, 128 processes, ten-minute deadline.
-- A 1 GiB executable temporary workspace and 128 MiB non-executable temporary
-  directory. Project-local TypeScript/Vite/esbuild executables need the workspace
-  mount's explicit `exec` option. Workspace writes
-  consume bounded memory instead of filling the VPS’s persistent filesystem.
-- At most 2,048 ordinary source files / 32 MiB transferred in either direction.
-  Private state, environment files, Git internals and dependencies are excluded.
-  Symlink/hardlink outputs are refused by this preliminary transfer format.
-- Explicit container removal on success, failure and cancellation. Killing the
-  Docker client alone is not treated as cleanup.
+The shell signs a NIP-98 kind-27235 POST proof for the exact canonical
+`/api/studio/session` URL, method and payload hash. Its body contains an ephemeral
+CVM public key and random nonce. This authorizes that tab to access the account's
+workspace for eight hours; it does **not** delegate publication signing. Replayed
+proofs and ephemeral-key reassignment are rejected. Sign out, account change or
+explicit reconnect revokes the old tab session. The last disconnected/expired tab
+cancels that account's running job and closes its previews.
 
-`HostedTools` connects agent, setup, build/check/conformance, screenshot/video and
-publication/proposal sandbox checks to the container executor. `isolatedStudio`
-assembles these adapters together, binds the owner's controller directory, and requires
-an explicit private-preview adapter. It cannot silently use the local subprocess runner.
-Fresh scaffolding uses `--no-install`; trusted Git and signing stay in the controller.
-The isolated factory currently rejects remix imports until a server-safe source-fetch
-broker is connected. Local Studio and soyLI retain their existing remix flow.
-A browser caller never selects commands, image IDs, mounts or workspace directories.
+Editing, checks, settings, signing requests, proposals and publication use encrypted
+ContextVM SDK 0.13.16/MCP over Nostr. The host requires encryption and uses the
+transport-verified client key to look up the owner. No request chooses a directory,
+container image, executable or owner. The shell retains extension, NIP-46 and
+browser-key signing through its existing account layer.
 
-The source adapter exports Git-selected source plus ignored `dist/` build output,
-with credentials, Git internals and dependencies excluded. Returned source is validated
-before import: no path escapes, links, credential patterns, case collisions or edits
-to protected dependency/configuration/guidance files. A concurrent controller-side
-edit invalidates the result. Build jobs may change only `dist/`. Writes retain rollback
-bytes, and the real Git history is never replaced by the job's throwaway repository.
-Ignored test reports and dependency caches do not become source changes.
+The experimental `soy_studio_call` input is:
 
-Inference uses a job-specific Unix socket mounted in the private input directory.
-A small loopback HTTP bridge inside the network-disabled container connects OpenCode
-to that socket. The controller supplies the selected cloud provider's credential;
-the job receives no reusable API key. The broker pins the default provider endpoint
-and selected model, strips job-supplied headers, rejects redirects, and limits routes
-to inference. Hosted settings also reject custom endpoints before saving/testing them.
-Local Ollama/LM Studio/custom servers remain supported by the local Studio.
+```json
+{
+  "requestId": "UUID",
+  "createdAt": 1792368000000,
+  "path": "projects/PROJECT_UUID/messages",
+  "body": { "prompt": "Make the ball bounce higher" }
+}
+```
 
-Each job permits the selected step budget plus four inference requests, two concurrent
-requests, 2 MiB/request, 32 MiB of streamed responses and at most 8,192 output tokens
-per request. Provider requests have a 120-second deadline. Cancellation/revocation closes
-the socket and removes the container. These are resource bounds, **not a monetary
-spending cap**. Provider keys currently use the controller's private OS-user storage;
-production custody, billing and the browser settings transport still need integration.
+`createdAt` is epoch milliseconds. Optional `upload` references a private binary
+transfer instead of embedding a large body. The maintained dispatcher validates
+each operation's fields. A mutation's owner, ID and input hash are recorded before
+execution; identical retries reuse its result. A restart during an unfinished
+mutation yields an explicit uncertain result rather than executing it again.
+Receipts last 24 hours. The browser does not automatically repeat mutations.
 
-`scripts/studio-image.ts` prepares an explicit Docker context containing selected build
-sources and browser assets; it never sends the repository, `.env` or draft directories to Docker.
-It takes an exact Bun base-image digest, installs the checksum-pinned baseline Bun
-1.3.11 runtime for older x64 CPUs, and uses OpenCode 1.19.3 and soyLI's
-pinned Node/pnpm/browser versions, and compiles baseline x64 binaries in the image.
-Build it with a dedicated memory/CPU-limited Docker builder, then supply the resulting
-local image ID to `ContainerJobs`. The image installs one starter dependency/lockfile
-profile. Each job checks that profile and copies dependencies into its own temporary
-workspace; unsupported dependencies fail with a profile diagnostic. No package download
-or install script runs in a creator job. This deliberately limits the initial hosted
-profile; it does not restrict ordinary local soyLI projects.
+HTTPS carries NIP-98 session authorization and bearer-authenticated private byte
+transfers. Transfers are account-bound, expire after two minutes, and are consumed
+explicitly. They are never uploaded to public Blossom. Control inputs are bounded
+to 16,000 bytes and inline replies to 10,000 bytes, leaving room for encryption and
+Nostr envelopes inside the relay's 64 KiB message limit.
 
-## Required integration before hosted use
+Preview grants last 60 seconds and exchange once for a Secure, HttpOnly,
+SameSite=Strict, path-scoped cookie. Every request rechecks the owning session.
+Only the trusted preview host/runtime and immutable artifact endpoints are served;
+raw napplet HTML has an octet-stream type and sandbox CSP, and executes inside the
+existing opaque-origin iframe. Manager/workshop routes and writes are unavailable.
+The preview host shares the shell origin; untrusted napplet code does not gain it.
 
-The current local agent still executes with the local OS user’s permissions.
-Do not infer that adding a container helper makes it safe to expose remotely.
-The remaining integration is:
+## Credentials and execution
 
-1. Package the explicitly selected temporary compatibility profile, or use a
-   compatible CPU with the standard image. Complete acceptance through the assembled
-   controller/runner, including real inference through the broker, cancellation and
-   retained passing previews. The isolated source-harness build-error repair and
-   landscape/portrait capture probes have passed; that is not full controller acceptance.
-   Additional dependency profiles need explicit operator provisioning.
-2. Integrate production credential custody and spending policy. A user's local
-   Ollama/LM Studio needs an authenticated connector back to that device; the VPS's
-   loopback address is not the user's computer.
-3. Confine source import and publication destinations with a server-side network
-   policy before enabling hosted remix/publication. CLI URL checks alone are not a
-   server egress boundary.
-4. Connect the browser to authenticated CVM control, including publication signing,
-   connection settings and asset transfer. Bind downloads/previews to short-lived
-   owner authorization on a separate origin. No private draft bytes go to public
-   Blossom or public GRASP before explicit publication.
-5. Exercise two independent owners end to end: create, edit, preview, remix,
-   propose, publish, cancel and disconnect, including a real NIP-46 browser session.
+Provider keys are encrypted at rest using AES-256-GCM with an owner-specific HKDF
+key derived from a private host master key. The master key, CVM key and credential
+files live outside projects with private permissions. This is host custody, not
+end-to-end storage: the operator must protect the host. Keys are never returned to
+the browser, mounted into creator jobs, or included in published source.
 
-Broader storage/recovery, retention, backups and deduplication are explicitly deferred.
-That does not waive execution quotas or owner isolation. Existing local drafts and
-the local soyLI workflow are preserved. No production route or deployment flag
-enables hosted creation in this change.
+Each job receives a private Unix-socket inference capability. The broker supplies
+only the selected provider's key, pins endpoint/model, refuses redirects and limits
+routes to inference. Jobs cannot select another URL, send arbitrary authorization
+headers or request provider-side background work. Provider responses are bounded.
 
-## Verification
+The operator pins the worker image by its exact local SHA-256 ID. Containers run
+as UID/GID 1000, with no network, capabilities, privilege escalation, Docker socket,
+host home, live repository or controller secrets. Root/input filesystems are
+read-only; a one-GiB executable workspace and 128-MiB temporary directory are tmpfs.
+Limits are one CPU, two GiB memory, 128 processes and ten minutes per job. Source
+transfers admit at most 2,048 ordinary files / 32 MiB, excluding private state,
+Git internals and dependencies. Returned files are validated before applying;
+protected guidance/dependency files and concurrent edits are guarded. Failed jobs
+return recoverable edits when they can complete export; forced termination cannot
+guarantee recovery of edits that never left the container.
 
-The CVM test uses a real loopback relay, encrypted SDK transports and three disposable
-identities. It rejects a forged caller metadata field, unadmitted callers, another
-owner’s draft, modified duplicate requests, and duplicate spending work. Prompt/source
-text is absent from relay-visible ciphertext.
+One worker runs at a time, with four queued jobs. Queued cancellation starts no
+inference. A creator turn has a 20-minute deadline, including queue time. Default
+agent budget is 100 steps. The inference broker permits the step budget plus four
+requests, two concurrent requests, two MiB per request, 32 MiB streamed output and
+8,192 output tokens per response. These are resource bounds, not a spending cap.
 
-The container profile was exercised on the target VPS using its existing Bun image,
-without installing an image or changing any service. The probe verified non-root
-execution, blocked network, read-only root/input, absent host secret paths, bounded
-source export, nonzero exit reporting and timeout cleanup. All test containers and
-temporary VPS files were removed. This verifies the executor profile, not a complete
-hosted OpenCode/build/capture flow.
+The first image supports the starter's exact dependency/lockfile profile. Package
+installation happens when building the image, never during creator jobs. Projects
+requiring another dependency profile receive an actionable diagnostic and can
+continue with local soyLI. Hosted remix and proposals use existing NIP-34/GRASP
+flows and exact revisions; no new protocol wrapper or metadata companion is added.
 
-The assembled image attempt on the target VPS exposed the CPU blocker above.
-A minimal Bun 1.3.11 JavaScript process was OOM-killed within a 512 MiB container;
-the same probe passed with the older Bun image. The new CPU check rejects the host
-before executing a job and preserves the SSE4.2 cause and exit status 78 through
-the controller diagnostic. The disposable builder, test-image tag and temporary
-VPS files were removed, and the live website returned HTTP 200 after cleanup.
+## Operator deployment
 
-The selected image source context successfully cross-compiles the soyLI and capture
-Linux x64 binaries locally. This checks source completeness, not Linux execution.
-The full repository check passed 772 tests before the final hosted guards; the final
-Studio/CPU regression run passed 46 tests, with TypeScript checking clean. The web
-production build and desktop/phone header checks passed. Existing drafts and the
-published draft's journal were preserved across the local restart.
+Use a dedicated Linux service user and a dedicated size-limited workspace volume.
+The supplied service unit uses `/var/lib/napplet-studio`, one GiB controller memory
+and the current release's Bun. Its egress helper atomically installs UID-scoped nft
+rules before startup. Only public HTTPS/WSS on port 443, explicit DNS resolvers
+and the existing loopback CVM relay at port 19351 are admitted. All new private/LAN,
+loopback and link-local connections are rejected, including from Git subprocesses.
+The preview adapter calls its trusted handler directly and needs no network exemption.
+The controller's Docker access is privileged; never give that socket to a job.
 
-The later [legacy CPU experiment](experiments/STUDIO-LEGACY-CPU.md) demonstrated
-the temporary source-runtime alternative on this same VPS. It also caught two image
-preparation defects: invoking a transitive Playwright CLI through a nonexistent
-project-level binary, and leaving the workspace tmpfs non-executable. The image
-builder now installs the actual locked Playwright versions and ripgrep; the executor
-explicitly permits project tools on the workspace mount. Jobs remain offline,
-non-root and resource-limited. OpenCode source additionally needs a preprovisioned
-model catalog and disabled online catalog refresh. No source patches to OpenCode
-were needed for these probes.
+`apps/studio/hosting/main.ts` takes an operator-owned JSON config containing
+`origin`, `port` (19352), `directory`, `libraryRoot`, `soyli` command, exact `image`,
+`profile`, public `relays`, `controlRelay` (`ws://127.0.0.1:19351`), `admitted`
+(account keys or `*`), and `networkPolicy: "public-https-only"`. The last field is
+an operator assertion backed by the service's kernel policy, not a substitute for it.
+Caddy forwards only `/api/studio/*` to the loopback controller. `/health` stays local.
+The UI never receives operator paths, image IDs, master keys or the private relay.
 
-Container hardening follows the [Docker Engine security model](https://docs.docker.com/engine/security/).
+Keep a trusted copy of `/opt/profile` from the selected image as `libraryRoot` for
+browser compilation. The controller invokes the maintained soyLI scaffold without
+installing/running project code. It delegates project execution to the image.
+Account admission checks enforce a 256-MiB workspace allowance and refuse new
+work when less than 256 MiB remains on the workspace volume. Configure a hard
+volume capacity as well. Read/cancel/signing completion remain possible on refusal.
+The service currently permits 64 loaded owners, eight sessions per owner, 256 total
+sessions, 240 control calls/account/minute and 128 open previews. Transfer staging
+is memory-bound to 32 MiB each, 48 MiB/account and 128 MiB total.
+
+The existing VPS requires the temporary `legacy-x64` profile: Bun 1.3.8 and
+unmodified OpenCode 1.19.3 source with the pinned Node/Playwright toolchain.
+`scripts/studio-legacy-image.ts` prepares a secret-free build context. It verifies
+Bun and OpenCode downloads and includes an attributed offline model catalogue.
+The standard builder remains available for SSE4.2-capable x64 hosts. Do not weaken
+its CPU guard or point a standard image at the legacy host. Both paths require
+acceptance of the actual assembled image, not just compilation.
+
+For an initial installation, prepare the image with Bun 1.3.11, build it on the
+target architecture, then run `scripts/studio-hosted-acceptance.ts` on Linux with
+the resulting exact image ID and profile. This opt-in test uses scripted inference
+and disposable projects: it checks agent guidance, build failure/repair, the browser
+check bridge, desktop/portrait capture, recoverable failures and cancellation.
+It does not call a paid model or publish events. The real browser compiler and
+private-preview round trip must also pass in a browser.
+
+After acceptance, run the operator-only installer from the verified checkout:
+
+```sh
+sudo bash scripts/studio-install.sh \
+  sha256:<verified-image-id> legacy-x64 \
+  https://napplet.soy wss://relay.napplet.soy <host-dns-ip>
+```
+
+Use the host's actual DNS resolver addresses. The installer refuses an existing
+configuration or storage, requires four GiB of free disk, creates a dedicated
+service account and one-GiB filesystem, and exports trusted compiler libraries from
+the image. It enables the unit but does not start it or change the reverse proxy.
+The normal deployment then starts Studio, verifies its loopback health and switches
+the website. A failed activation restores the previous release and its Studio
+service when present. Image/profile changes require their own acceptance before
+updating the operator configuration; deploying source does not rebuild the image.
+
+Storage retention, backup/recovery policy and deduplication remain deferred.
+Existing local drafts, Git repositories and the local soyLI workflow are preserved.
+A broader proposal inbox, notifications and browser merging are separate features;
+proposal discovery remains on each napplet's source section and proposal pages.

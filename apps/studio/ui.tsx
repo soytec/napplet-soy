@@ -51,6 +51,7 @@ const examples = [
 ];
 export function StudioApp({
   client,
+  reconnect,
   account,
   route,
   navigate,
@@ -59,6 +60,7 @@ export function StudioApp({
   setBrowserBuildAvailable,
 }: {
   client: StudioClient;
+  reconnect?: () => void;
   account: PublicationAccount;
   route: StudioRoute;
   navigate: (path: string) => void;
@@ -67,6 +69,7 @@ export function StudioApp({
   setBrowserBuildAvailable: (available: boolean) => void;
 }) {
   const { api, media } = client;
+  const storagePrefix = client.mode === 'hosted' ? 'studio:' + account.pubkey + ':' : 'quick-vibe-';
   const [state, setState] = useState<StudioState>({ projects: [], model: '' });
   const id = route.view === 'project' ? route.id : '';
   const [loaded, setLoaded] = useState(false);
@@ -87,15 +90,19 @@ export function StudioApp({
   const [publishOpen, setPublishOpen] = useState(false);
   const [proposalOpen, setProposalOpen] = useState(false);
   const [assetFile, setAssetFile] = useState<File>();
-  const signer = usePublicationSigner(api, {
-    ...account,
-    connect: async () => {
-      // A modal makes the shared header inert. Close it before opening its account menu.
-      setPublishOpen(false);
-      setProposalOpen(false);
-      await account.connect();
+  const signer = usePublicationSigner(
+    api,
+    {
+      ...account,
+      connect: async () => {
+        // A modal makes the shared header inert. Close it before opening its account menu.
+        setPublishOpen(false);
+        setProposalOpen(false);
+        await account.connect();
+      },
     },
-  });
+    client.mode === 'hosted',
+  );
   const [tab, setTab] = useState<'preview' | 'assets' | 'files' | 'changes' | 'history'>('preview');
   const [mobileTab, setMobileTab] = useState<'chat' | 'preview'>('chat');
   const [phone, setPhone] = useState(false);
@@ -133,6 +140,7 @@ export function StudioApp({
   };
   useEffect(() => {
     let live = true;
+    let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
         const next = await api<StudioState>('state');
@@ -141,29 +149,33 @@ export function StudioApp({
           setLoaded(true);
           setOffline(false);
         }
-      } catch {
-        if (live) setOffline(true);
+      } catch (e) {
+        if (live) {
+          setOffline(true);
+          setError((e as Error).message);
+        }
+      } finally {
+        if (live) timer = setTimeout(() => void poll(), client.mode === 'hosted' ? 3000 : 1000);
       }
     };
     void poll();
-    const timer = setInterval(() => void poll(), 1000);
     return () => {
       live = false;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
-  }, []);
+  }, [client]);
   useEffect(() => {
-    localStorage.setItem('quick-vibe-project', id);
+    localStorage.setItem(storagePrefix + 'project', id);
     setPublishOpen(false);
     setProposalOpen(false);
     setTab('preview');
     setPreview('');
     setCode('');
     setPath('');
-    setPrompt(localStorage.getItem('quick-vibe-draft:' + id) ?? '');
+    setPrompt(localStorage.getItem(storagePrefix + 'draft:' + id) ?? '');
   }, [id]);
   useEffect(() => {
-    localStorage.setItem('quick-vibe-draft:' + id, prompt);
+    localStorage.setItem(storagePrefix + 'draft:' + id, prompt);
   }, [prompt, id]);
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: 'nearest' });
@@ -261,7 +273,7 @@ export function StudioApp({
         setId(result.id);
         setMobileTab('chat');
       }
-      localStorage.removeItem('quick-vibe-draft:' + id);
+      localStorage.removeItem(storagePrefix + 'draft:' + id);
       setPrompt('');
       setPublicationPrompt(undefined);
     });
@@ -392,6 +404,11 @@ export function StudioApp({
           </button>
         </div>
       )}
+      {offline && client.mode === 'hosted' && reconnect && (
+        <button className="outline" onClick={reconnect}>
+          Reconnect Studio
+        </button>
+      )}
       {route.view === 'dashboard' ? (
         <Dashboard
           projects={state.projects}
@@ -405,7 +422,7 @@ export function StudioApp({
           <p>
             {loaded
               ? 'Your saved projects are in My creations. No new draft has been started.'
-              : 'Connecting to the local Studio.'}
+              : 'Connecting to Studio.'}
           </p>
           <button className="outline" onClick={() => navigate('/studio')}>
             My creations
@@ -520,9 +537,13 @@ export function StudioApp({
           <p className="local-note">
             <a href={'/create#local-soyli'}>Prefer your own editor? Use soyLI locally ↗</a>
             <br />
-            On your computer · Real source code · You choose when to publish
+            {client.mode === 'hosted'
+              ? 'Private server workspace · Your API key · You choose when to publish'
+              : 'On your computer · Real source code · You choose when to publish'}
             <br />
-            This local experiment runs agent tools as your OS user. Use trusted projects.
+            {client.mode === 'hosted'
+              ? 'Your maker runs in an isolated container. Browser builds run in this tab; server builds and publication checks run on the host.'
+              : 'This local experiment runs agent tools as your OS user. Use trusted projects.'}
           </p>
         </section>
       ) : (
@@ -649,7 +670,8 @@ export function StudioApp({
               <div className="chat-bottom">
                 {composer()}
                 <span className="composer-hint">
-                  Enter to send · Shift + Enter for a new line · Saved locally
+                  Enter to send · Shift + Enter for a new line ·{' '}
+                  {client.mode === 'hosted' ? 'Private workspace' : 'Saved locally'}
                 </span>
               </div>
             </section>

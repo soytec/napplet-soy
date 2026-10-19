@@ -180,7 +180,10 @@ document.querySelector<HTMLButtonElement>('#reload')!.onclick = () => {
 };
 async function refresh() {
   try {
-    const response = await fetch('/revision', { cache: 'no-store', signal: lifetime.signal });
+    const response = await fetch(new URL('revision', location.href), {
+      cache: 'no-store',
+      signal: lifetime.signal,
+    });
     const info: PreviewRevision & { error?: string } = await response.json();
     if (!response.ok) throw new Error(info.error ?? 'Could not read local source.');
     if (info.id === loaded) return;
@@ -202,7 +205,7 @@ async function refresh() {
         declaration = declaredConfig(verifiedHtml);
         return nappletPrelude(shim, declaration);
       },
-      { localUrl: `/artifacts/${info.artifactHash}` },
+      { localUrl: new URL(`artifacts/${info.artifactHash}`, location.href).href },
     );
     frame = document.createElement('iframe');
     frame.title = 'Your napplet';

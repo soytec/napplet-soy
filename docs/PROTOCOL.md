@@ -1,5 +1,17 @@
 # Napplet interoperability and publishing contract
 
+## Hosted Studio control — implementation, rollout pending
+
+Hosted Studio uses the existing ContextVM SDK 0.13.16 encrypted MCP transport and
+NIP-98 kind 27235 session authorization. Private source/build/media bytes use
+owner-authenticated HTTPS transfers; drafts are never published as a side effect.
+Publication/proposal events still require exact signatures from the shared shell
+account and retain the existing NIP-34/GRASP flows. No event kind, NAP domain or
+selected NIP-5D authority changes. Browser and server build paths share the same
+publication checks. See [STUDIO-HOSTING.md](STUDIO-HOSTING.md) for schemas,
+constraints, credential custody and the distinction between implementation and
+deployment verification.
+
 ## OUTBOX integration — released 0.29.0
 
 The shared host implements [NAP-OUTBOX at 8865f73d](https://github.com/napplet/naps/blob/8865f73d52a4864afee145f28d26520476273927/naps/NAP-OUTBOX.md)

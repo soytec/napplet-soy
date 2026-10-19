@@ -13,7 +13,7 @@ export const Route = createFileRoute('/create')({
       match.context.clientPolicy.siteOrigin,
       '/create',
       'Create a napplet — napplet.soy',
-      'Create with the local browser Studio or soyLI and your own coding tools. Preview, remix and publish your napplet.',
+      'Create with browser Studio or soyLI and your own coding tools. Preview, remix and publish your napplet.',
     ),
   component: Create,
 });
@@ -30,17 +30,17 @@ function Create() {
       <p className="create-intro">An idea is enough. Choose where you want to make it real.</p>
       <div className="creation-choices">
         <article>
-          <span className="eyebrow">CHAT & PLAY · LOCAL BETA</span>
+          <span className="eyebrow">CHAT & PLAY · BRING YOUR API KEY</span>
           <h2>In your browser</h2>
           <p>
-            Describe your idea, play the preview and keep shaping it. Your drafts are saved by the
-            local Studio on this computer. This beta requires a local checkout and setup; hosted
-            browser creation is not available yet.
+            Describe your idea, play the preview and keep shaping it. Connect your Nostr account and
+            your own inference provider. Your private drafts stay in your Studio workspace; choose
+            browser or server builds, then review before publishing.
           </p>
           <StudioLink path="/create" className="creation-choice-action">
-            {import.meta.env.DEV ? 'Create in browser →' : 'Try Studio locally →'}
+            Create in browser →
           </StudioLink>
-          {import.meta.env.DEV && <StudioLink>Continue a creation ↗</StudioLink>}
+          <StudioLink>Continue a creation ↗</StudioLink>
         </article>
         <article>
           <span className="eyebrow">YOUR EDITOR & AI TOOLS</span>

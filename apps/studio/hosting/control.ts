@@ -3,182 +3,190 @@ import { z } from 'zod';
 import { NostrServerTransport, EncryptionMode } from '@contextvm/sdk';
 import { DiagnosticError, diagnose } from '../../../packages/diagnostics/src';
 import type { StudioSurface } from '../surface';
-import { validSource } from '../navigation';
+import { dispatchStudio } from '../dispatch';
+import { StudioTransfers } from './transfers';
+import { StudioRequests } from './requests';
+import type { HostedPreviews } from './previews';
 
-const id = z.uuid(),
-  empty = z.object({}).strict();
-const project = z.object({ id }).strict();
-const operations = {
-  list: empty,
-  state: project,
-  create: z
-    .object({
-      title: z.string().trim().min(1).max(80),
-      prompt: z.string().trim().min(1).max(10000),
-      source: z.string().max(4096).refine(validSource).optional(),
-    })
-    .strict(),
-  send: project.extend({ prompt: z.string().trim().min(1).max(10000) }).strict(),
-  check: project,
-  stop: project,
-  files: project,
-  file: project.extend({ path: z.string().max(1024) }).strict(),
-  diff: project,
-} as const;
-type Operation = keyof typeof operations;
 export const studioCall = z
   .object({
-    requestId: id,
-    operation: z.enum(Object.keys(operations) as [Operation, ...Operation[]]),
-    input: z.unknown(),
+    requestId: z.uuid(),
+    createdAt: z.number().int(),
+    path: z.string().min(1).max(4096),
+    body: z.unknown().optional(),
+    upload: z.uuid().optional(),
   })
   .strict();
 
-/** CVM caller identity chooses the entire private controller. Project IDs alone
- * never grant access. The factory must supply an isolated worker, not the local runner. */
+/** Authentication selects the private controller. No request may choose its owner,
+ * disk path, worker image or executable. All UI operations share local validation. */
 export class OwnerStudios {
+  private stopped = false;
   private owners = new Map<string, Promise<StudioSurface>>();
-  private replies = new Map<string, { hash: string; response: Promise<unknown> }>();
-  private writer?: string;
-  private mutation: Promise<void> = Promise.resolve();
+  private closing = new Map<string, Promise<void>>();
   private limits = new Map<string, { since: number; count: number }>();
+  readonly transfers: StudioTransfers;
+  readonly requests: StudioRequests;
   constructor(
     private admitted: () => readonly string[],
     private open: (owner: string) => Promise<StudioSurface>,
-  ) {}
+    private options: {
+      resolveOwner?: (actor: string) => string;
+      transfers?: StudioTransfers;
+      requests?: StudioRequests;
+      previews?: HostedPreviews;
+      beforeMutation?: (owner: string) => Promise<void>;
+    } = {},
+  ) {
+    this.transfers = options.transfers ?? new StudioTransfers();
+    this.requests = options.requests ?? new StudioRequests();
+  }
   async call(actor: string, value: unknown) {
-    if (!/^[a-f0-9]{64}$/.test(actor) || !this.admitted().includes(actor))
+    if (this.stopped)
+      throw new DiagnosticError('STUDIO_CLOSED', 'Studio is restarting. Reconnect shortly.');
+    const account = this.options.resolveOwner ? this.options.resolveOwner(actor) : actor;
+    if (
+      !/^[a-f0-9]{64}$/.test(account) ||
+      !(this.admitted().includes('*') || this.admitted().includes(account))
+    )
       throw new DiagnosticError('STUDIO_ACCESS', 'This account is not admitted to hosted Studio.');
     const now = Date.now();
     for (const [key, value] of this.limits) if (now - value.since >= 60000) this.limits.delete(key);
-    const limit = this.limits.get(actor) ?? { since: now, count: 0 };
-    if (++limit.count > 120)
+    const limit = this.limits.get(account) ?? { since: now, count: 0 };
+    if (++limit.count > 240)
       throw new DiagnosticError('STUDIO_RATE', 'Wait a minute before retrying.');
-    this.limits.set(actor, limit);
-    const request = studioCall.parse(value),
-      input: any = operations[request.operation].parse(request.input);
-    const mutable = ['create', 'send', 'check', 'stop'].includes(request.operation);
-    const key = actor + ':' + request.requestId;
-    const hash = new Bun.CryptoHasher('sha256')
-      .update(JSON.stringify({ operation: request.operation, input }))
-      .digest('hex');
-    const previous = mutable ? this.replies.get(key) : undefined;
-    if (previous) {
-      if (previous.hash !== hash)
-        throw new DiagnosticError('STUDIO_REPLAY', 'Request ID already used for different input.');
-      return previous.response;
-    }
-    if (mutable && this.replies.size >= 512)
+    this.limits.set(account, limit);
+    const request = studioCall.parse(value);
+    if (Buffer.byteLength(JSON.stringify(request)) > 16000)
       throw new DiagnosticError(
-        'STUDIO_CAPACITY',
-        'The controller reached its request journal capacity. An operator must restart it after active jobs finish.',
+        'STUDIO_REQUEST',
+        'Use the private transfer channel for large inputs.',
       );
-    let owner = this.owners.get(actor);
+    await this.closing.get(account);
+    if (this.stopped || (this.options.resolveOwner && this.options.resolveOwner(actor) !== account))
+      throw new DiagnosticError('STUDIO_AUTH', 'Reconnect Studio.');
+    let owner = this.owners.get(account);
     if (!owner) {
-      if (this.owners.size >= 8)
+      if (this.owners.size >= 64)
         throw new DiagnosticError(
           'STUDIO_CAPACITY',
-          'This beta host is at its active workspace capacity.',
+          'This host is at its workspace capacity. Try later.',
         );
       owner = Promise.resolve()
-        .then(() => this.open('nostr:' + actor))
+        .then(() => this.open('nostr:' + account))
         .catch((error) => {
-          this.owners.delete(actor);
+          this.owners.delete(account);
           throw error;
         });
-      this.owners.set(actor, owner);
+      this.owners.set(account, owner);
     }
-    const response = (async () => {
-      const studio = await owner!;
-      const mutation = ['create', 'send', 'check'].includes(request.operation);
-      let release: (() => void) | undefined;
-      if (mutation) {
-        const before = this.mutation;
-        this.mutation = new Promise((resolve) => {
-          release = resolve;
-        });
-        await before;
-      }
+    const execute = async () => {
       try {
-        if (mutation) {
-          if (this.writer && (await (await this.owners.get(this.writer)!).state()).busy)
-            throw new DiagnosticError(
-              'STUDIO_BUSY',
-              'The host is finishing another build. Retry shortly.',
+        const studio = await owner!;
+        if (this.options.resolveOwner && this.options.resolveOwner(actor) !== account)
+          throw new DiagnosticError('STUDIO_AUTH', 'Reconnect Studio.');
+        if (
+          (request.body !== undefined || request.upload) &&
+          !/^(?:signers(?:\/|$)|browser-builds\/|connections\/(?:remove|test|models)|projects\/[^/]+\/(?:stop|refresh-publication))/.test(
+            request.path,
+          )
+        )
+          await this.options.beforeMutation?.(account);
+        let body = request.body;
+        let response: Response;
+        if (request.upload) {
+          const transfer = this.transfers.get(account, request.upload);
+          if (/^projects\/[a-f0-9-]{36}\/assets$/.test(request.path)) {
+            response = Response.json(
+              await studio.importAsset(request.path.split('/')[1], body, transfer.bytes),
             );
-          this.writer = actor;
-        }
-        let result: unknown;
-        switch (request.operation) {
-          case 'list':
-            result = (await studio.state()).projects.map((p) => ({
-              id: p.id,
-              title: p.title,
-              phase: p.phase,
-              updatedAt: p.updatedAt,
-            }));
-            break;
-          case 'state': {
-            const state = await studio.state(),
-              p = state.projects.find((p) => p.id === input.id);
-            if (!p) throw new DiagnosticError('STUDIO_PROJECT', 'Project not found.');
-            result = {
-              project: {
-                ...p,
-                messages: p.messages.slice(-8),
-                reasoning: p.reasoning?.slice(-2).map((r) => ({ ...r, text: r.text.slice(-8000) })),
-                activity: p.activity.slice(-30),
-              },
-              busy: state.busy === p.id,
-            };
-            break;
+          } else {
+            if (
+              body !== undefined ||
+              transfer.bytes.length >
+                (/^browser-builds\/[a-f0-9-]{36}$/.test(request.path)
+                  ? 9 * 1024 * 1024
+                  : /^signers\/[a-f0-9-]{36}$/.test(request.path)
+                    ? 128 * 1024
+                    : 16384)
+            )
+              throw new DiagnosticError('STUDIO_REQUEST', 'Unsupported uploaded operation.');
+            body = JSON.parse(new TextDecoder().decode(transfer.bytes));
+            if (request.path === 'signers' && (body as { pubkey?: string })?.pubkey !== account)
+              throw new DiagnosticError(
+                'STUDIO_ACCOUNT',
+                'Publication must use the selected shell account.',
+              );
+            response = await dispatchStudio(studio, request.path, body);
           }
-          case 'create':
-            result = { id: await studio.create(input.title, input.prompt, input.source) };
-            break;
-          case 'send':
-            await studio.send(input.id, input.prompt);
-            result = { accepted: true };
-            break;
-          case 'check':
-            await studio.check(input.id);
-            result = { accepted: true };
-            break;
-          case 'stop':
-            await studio.stop(input.id);
-            result = { stopped: true };
-            break;
-          case 'files':
-            result = await studio.files(input.id);
-            break;
-          case 'file':
-            result = await studio.file(input.id, input.path);
-            break;
-          case 'diff':
-            result = await studio.diff(input.id);
-            break;
+          this.transfers.remove(account, request.upload);
+        } else {
+          if (
+            request.path === 'signers' &&
+            body !== undefined &&
+            (body as { pubkey?: string })?.pubkey !== account
+          )
+            throw new DiagnosticError(
+              'STUDIO_ACCOUNT',
+              'Publication must use the selected shell account.',
+            );
+          response = await dispatchStudio(studio, request.path, body);
         }
-        if (Buffer.byteLength(JSON.stringify(result)) > 256 * 1024)
-          throw new DiagnosticError(
-            'STUDIO_RESPONSE',
-            'This result exceeds the control-channel limit. Fetch a smaller file or use the artifact channel.',
-          );
-        return result;
+        if (
+          this.options.previews &&
+          /^projects\/[a-f0-9-]{36}\/preview$/.test(request.path) &&
+          response.ok
+        ) {
+          const preview = await response.json();
+          response = Response.json({
+            url: this.options.previews.grant(account, actor, preview.url),
+          });
+        }
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        const mime = response.headers.get('content-type') ?? 'application/octet-stream';
+        if (bytes.length > 10000 || !mime.startsWith('application/json'))
+          return { status: response.status, transfer: this.transfers.put(account, bytes, mime) };
+        return { status: response.status, value: JSON.parse(new TextDecoder().decode(bytes)) };
+      } catch (error) {
+        const d = diagnose(error, 'Studio control');
+        return {
+          status: 400,
+          value: {
+            error: d.code.startsWith('STUDIO_')
+              ? d.message
+              : 'The workspace operation failed. Inspect the draft status before retrying.',
+            code: d.code,
+          },
+        };
+      }
+    };
+    if (request.body === undefined && !request.upload) return execute();
+    const hash = new Bun.CryptoHasher('sha256')
+      .update(JSON.stringify({ path: request.path, body: request.body, upload: request.upload }))
+      .digest('hex');
+    return this.requests.run(account, request.requestId, request.createdAt, hash, execute);
+  }
+  async deactivate(account: string) {
+    const existing = this.closing.get(account);
+    if (existing) return existing;
+    const owner = this.owners.get(account);
+    if (!owner) return;
+    const closing = (async () => {
+      try {
+        await (await owner).close();
       } finally {
-        try {
-          if (mutation && this.writer === actor && !(await studio.state()).busy)
-            this.writer = undefined;
-        } finally {
-          release?.();
-        }
+        if (this.owners.get(account) === owner) this.owners.delete(account);
+        this.closing.delete(account);
       }
     })();
-    // Keep failed/ambiguous outcomes too; never repeat a spending request under the same ID.
-    if (mutable) this.replies.set(key, { hash, response });
-    return response;
+    this.closing.set(account, closing);
+    return closing;
   }
   async close() {
+    this.stopped = true;
     await Promise.allSettled([...this.owners.values()].map(async (s) => (await s).close()));
+    await this.requests.drain();
+    this.requests.close();
   }
 }
 
@@ -234,7 +242,7 @@ export async function connectStudioControl(
       isAnnouncedServer: false,
       publishRelayList: false,
       bootstrapRelayUrls: [],
-      maxSessions: 64,
+      maxSessions: 256,
       oversizedTransfer: { enabled: false },
       logLevel: 'silent',
     }),

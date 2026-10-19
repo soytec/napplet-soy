@@ -10,12 +10,23 @@ export function StudioPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const identity = useNostr();
-  const { client, mounted, openConnections, browserBuild, setBrowserBuildAvailable } = useStudio();
+  const { client, mounted, openConnections, browserBuild, setBrowserBuildAvailable, reconnect } =
+    useStudio();
   const route = useMemo(
     () => studioRoute(new URL(location.href, 'http://shell.local')),
     [location.href],
   );
   if (!mounted) return <p role="status">Opening Studio…</p>;
+  if (!client && !import.meta.env.DEV && identity.pubkey)
+    return <p role="status">Opening your Studio…</p>;
+  if (!client && !import.meta.env.DEV)
+    return (
+      <section className="create-page">
+        <h1>Your Studio</h1>
+        <p>Connect your account to open your private drafts and AI connections.</p>
+        <button onClick={() => void identity.connect()}>Connect account</button>
+      </section>
+    );
   if (!client || !browserBuild)
     return (
       <section className="create-page">
@@ -40,6 +51,8 @@ export function StudioPage() {
     );
   return (
     <StudioApp
+      key={client.mode === 'hosted' ? identity.pubkey : 'local'}
+      reconnect={reconnect}
       client={client}
       browserBuild={browserBuild}
       setBrowserBuildAvailable={setBrowserBuildAvailable}

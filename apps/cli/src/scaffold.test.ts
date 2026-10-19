@@ -325,7 +325,11 @@ test('generated preview runs independently and enforces the shared runtime polic
     }
     expect(ready).toBe(true);
     const shell = await (await fetch(`http://127.0.0.1:${port}/`)).text();
-    expect(shell).toContain('src="/runtime.js"');
+    const runtimePath = shell.match(/<script[^>]+src="([^"]*runtime\.js)"/)?.[1];
+    expect(runtimePath).toBe('./runtime.js');
+    const runtime = await fetch(new URL(runtimePath!, `http://127.0.0.1:${port}/`));
+    expect(runtime.ok).toBe(true);
+    expect(runtime.headers.get('content-type')).toContain('javascript');
     expect(shell).not.toContain('src="/preview"');
     const info = await (await fetch(`http://127.0.0.1:${port}/revision`)).json();
     const response = await fetch(`http://127.0.0.1:${port}/artifacts/${info.artifactHash}`);

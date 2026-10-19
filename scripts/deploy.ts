@@ -9,7 +9,7 @@ export function validateWebPort(input = '3000') {
     !/^\d{4,5}$/.test(input) ||
     Number(input) < 1024 ||
     Number(input) > 65534 ||
-    [3477, 3478, 19346, 19347, 19348, 19349, 19350, 19351].includes(Number(input))
+    [3477, 3478, 19346, 19347, 19348, 19349, 19350, 19351, 19352].includes(Number(input))
   )
     throw new Error('--web-port must leave two free unprivileged ports outside the service ports.');
   return Number(input);

@@ -56,6 +56,7 @@ async function collect(
 export async function browserBuildInput(
   root: string,
   libraries = true,
+  libraryRoot = root,
 ): Promise<BrowserBuildInput> {
   for (const path of ['public', 'napplet.config.ts', 'napplet.config.js']) {
     const present = await lstat(join(root, path)).then(
@@ -114,7 +115,7 @@ export async function browserBuildInput(
           'Embedded assets exceed the 12 MiB browser input budget. Use external storage or soyLI checks.',
         );
     }
-    const sdk = await realpath(join(root, 'node_modules/@napplet/sdk'));
+    const sdk = await realpath(join(libraryRoot, 'node_modules/@napplet/sdk'));
     for (const name of ['sdk', 'nap', 'core']) {
       const dir = name === 'sdk' ? sdk : await realpath(join(dirname(sdk), name));
       const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'));

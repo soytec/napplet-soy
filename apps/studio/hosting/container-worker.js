@@ -38,7 +38,8 @@ const child = Bun.spawn(command, {
   stderr: 'inherit',
 });
 const code = await child.exited;
-if (code !== 0) process.exit(code);
+// Export recoverable edits even when verification or inference fails. The
+// controller reports the exit status after validating and saving these files.
 // The controller validates paths and bytes again. Do not follow symlinks or
 // export sockets/devices, private run state, dependencies, or Git internals.
 const result = Object.create(null);
@@ -109,4 +110,5 @@ for (const [path, data] of Object.entries(result)) {
         }),
     );
 }
+await protocolLine('SOY_JOB_STATUS:' + code);
 await protocolLine('SOY_JOB_DONE');

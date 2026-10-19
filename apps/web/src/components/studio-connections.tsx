@@ -42,6 +42,7 @@ export default function StudioConnections({
   return (
     <div className="studio-surface studio-settings">
       <ConnectionsDialog
+        hosted={client.mode === 'hosted'}
         state={state?.connections ?? { connections: [] }}
         busy={!!state?.busy}
         loading={!state}

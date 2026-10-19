@@ -618,6 +618,27 @@ oversized-transfer mode. Choosing a future transport does not itself settle
 schema, authorization, ordering or conflict semantics. See
 [ContextVM and realtime contracts](docs/CONTEXTVM.md).
 
+### Hosted Studio control (implementation; rollout pending)
+
+Studio reuses NIP-98 kind `27235` to authorize an ephemeral ContextVM client key for
+the signed-in account. The signature binds the canonical HTTPS session endpoint,
+POST method and exact body hash. It grants private workspace access, never authority
+to sign napplet, repository or proposal events. Those retain exact shell-account
+signing and the existing publication review.
+
+Encrypted ContextVM SDK 0.13.16/MCP carries the private `soy_studio_call` contract.
+It selects an owner from the verified transport key and validates commands with the
+same dispatcher as local Studio. HTTPS bearer-authenticated transfers carry large
+private source/build/media payloads; they are not public Blossom objects. Mutation
+receipts prevent an ambiguous reconnect from silently running the action twice.
+No new Nostr kind, NAP domain, GRASP wrapper or metadata companion is introduced.
+The selected NIP-5D pin and public creator interoperability are unchanged.
+
+Browser builds compile in the creator's tab; isolated server jobs handle inference,
+server builds and capture. Private Git storage remains on the host. Public remixes,
+proposals and source publication follow §5. See [the complete hosting contract,
+limits and deployment status](docs/STUDIO-HOSTING.md).
+
 ## 8. Decisions and open questions
 
 D1 is adopted as the metadata direction. D2, D3, D5 and D6 remain open within

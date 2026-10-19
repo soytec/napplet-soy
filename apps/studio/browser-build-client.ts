@@ -57,7 +57,7 @@ export function useBrowserBuild(client: StudioClient | undefined, available: boo
       } catch (error) {
         if (live) setStatus((error as Error).message);
       } finally {
-        if (live) timer = setTimeout(() => void poll(), 500);
+        if (live) timer = setTimeout(() => void poll(), client.mode === 'hosted' ? 2000 : 500);
       }
     };
     void poll();

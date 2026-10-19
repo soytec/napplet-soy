@@ -51,6 +51,8 @@ export type StudioOptions = {
   agent: Agent;
   connections?: Connections;
   sourcePolicy?: (source: string) => void;
+  /** Operator-installed, pinned browser library profile; never project-supplied. */
+  browserLibraryRoot?: string;
   soyli: string[];
   env: NodeJS.ProcessEnv;
   // The test seam substitutes the preview server, never the process/verification lifecycle.
@@ -171,7 +173,7 @@ export class Studio {
     return structuredClone({
       projects: this.projects,
       model: this.options.agent.model,
-      browserBuilds: !this.options.projectCommand,
+      browserBuilds: !this.options.projectCommand || !!this.options.browserLibraryRoot,
       browserGit: !this.options.projectCommand,
       connections: this.options.connections?.state(),
       busy: this.active?.id ?? (this.mutating ? 'settings' : undefined),
@@ -308,7 +310,7 @@ export class Studio {
     this.available();
     if (browserSession) {
       z.uuid().parse(browserSession);
-      if (this.options.projectCommand)
+      if (this.options.projectCommand && !this.options.browserLibraryRoot)
         throw new DiagnosticError(
           'STUDIO_BROWSER_PROFILE',
           'Browser builds are currently a local Studio experiment.',
@@ -589,7 +591,7 @@ export class Studio {
   private async turn(p: Project, prompt: string, signal: AbortSignal, browserSession?: string) {
     await this.prepare(p, signal);
     if (browserSession) {
-      if (this.options.projectCommand)
+      if (this.options.projectCommand && !this.options.browserLibraryRoot)
         throw new DiagnosticError(
           'STUDIO_BROWSER_PROFILE',
           'Browser builds are currently a local Studio experiment.',
@@ -664,12 +666,16 @@ export class Studio {
         },
       );
     if (browserSession) {
-      if (this.options.projectCommand)
+      if (this.options.projectCommand && !this.options.browserLibraryRoot)
         throw new DiagnosticError(
           'STUDIO_BROWSER_PROFILE',
           'Browser builds are currently a local Studio experiment.',
         );
-      const input = await browserBuildInput(this.workspace(p.id));
+      const input = await browserBuildInput(
+        this.workspace(p.id),
+        true,
+        this.options.browserLibraryRoot,
+      );
       const check: Check = { name: 'Browser TypeScript & build', state: 'running' };
       p.checks.push(check);
       await this.stage(p, 'checking', 'Building in your browser — keep this tab open');

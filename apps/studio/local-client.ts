@@ -1,4 +1,18 @@
-export function localStudioClient(origin: string) {
+export type StudioClient = {
+  mode?: 'local' | 'hosted';
+  api: <T>(path: string, body?: unknown) => Promise<T>;
+  media: (path: string) => Promise<Blob>;
+  url: (path: string) => string;
+  token: () => string;
+  upload: <T>(
+    path: string,
+    metadata: unknown,
+    file: Blob,
+    progress: (percent: number) => void,
+    signal: AbortSignal,
+  ) => Promise<T>;
+};
+export function localStudioClient(origin: string): StudioClient {
   let token = '';
   let pending: Promise<void> | undefined;
   const url = (path: string) => origin + '/api/' + path;
@@ -47,6 +61,41 @@ export function localStudioClient(origin: string) {
     if (!response.ok) throw new Error('Could not load this project’s media. Reconnect and retry.');
     return response.blob();
   };
-  return { api, media, url, token: () => token };
+  const upload: StudioClient['upload'] = async (path, metadata, file, progress, signal) => {
+    if (!token) await connect();
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const abort = () => xhr.abort();
+      xhr.open('POST', url(path));
+      xhr.timeout = 30000;
+      xhr.setRequestHeader('X-Studio-Token', token);
+      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+      xhr.setRequestHeader('X-Asset-Info', encodeURIComponent(JSON.stringify(metadata)));
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) progress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onloadend = () => signal.removeEventListener('abort', abort);
+      xhr.onload = () => {
+        try {
+          const result = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300) resolve(result);
+          else reject(new Error(result.error ?? 'Upload failed.'));
+        } catch {
+          reject(new Error('Upload failed. Refresh Assets before retrying.'));
+        }
+      };
+      xhr.onerror =
+        xhr.ontimeout =
+        xhr.onabort =
+          () => reject(new Error('Upload interrupted. Refresh Assets before retrying.'));
+      signal.addEventListener('abort', abort, { once: true });
+      if (signal.aborted) {
+        signal.removeEventListener('abort', abort);
+        reject(new Error('Upload cancelled.'));
+        return;
+      }
+      xhr.send(file);
+    });
+  };
+  return { mode: 'local', api, media, upload, url, token: () => token };
 }
-export type StudioClient = ReturnType<typeof localStudioClient>;
