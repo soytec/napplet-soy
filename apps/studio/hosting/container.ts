@@ -56,7 +56,12 @@ export function validateJobFiles(value: unknown): JobFiles {
   }
   return value as JobFiles;
 }
-export function containerCommand(image: string, staging: string, name: string) {
+export function containerCommand(
+  image: string,
+  staging: string,
+  name: string,
+  profile: 'standard' | 'legacy-x64' = 'standard',
+) {
   if (!/^sha256:[a-f0-9]{64}$/.test(image))
     throw new Error('Pin a locally installed Docker image by its exact sha256 ID.');
   if (
@@ -99,7 +104,9 @@ export function containerCommand(image: string, staging: string, name: string) {
     '--noprofile',
     '--norc',
     '-c',
-    '. /input/check-cpu.sh; napplet_check_cpu >/dev/null || exit 78; exec /usr/local/bin/bun --no-env-file /input/job.js',
+    profile === 'legacy-x64'
+      ? '. /input/check-cpu.sh; napplet_check_cpu Linux "$(uname -m)" /proc/cpuinfo legacy-x64 >/dev/null || exit 78; test "$(/usr/local/bin/bun --version)" = 1.3.8 || exit 78; exec /usr/local/bin/bun --no-env-file /input/job.js'
+      : '. /input/check-cpu.sh; napplet_check_cpu >/dev/null || exit 78; exec /usr/local/bin/bun --no-env-file /input/job.js',
   ];
 }
 
@@ -110,6 +117,7 @@ export class ContainerJobs {
   constructor(
     private image: string,
     private execute: typeof run = run,
+    private profile: 'standard' | 'legacy-x64' = 'standard',
   ) {}
   async run(files: JobFiles, command: string[], options: JobOptions) {
     if (this.active)
@@ -142,52 +150,79 @@ export class ContainerJobs {
       await writeFile(join(staging, 'check-cpu.sh'), cpuCheck, { mode: 0o644 });
       await writeFile(join(staging, 'job.js'), worker, { mode: 0o644 });
       dispose = await options.prepare?.(staging);
+      let exitCode = 0;
       let result: JobFiles | undefined,
         transferred = 0;
       const received: JobFiles = Object.create(null),
         completed = new Set<string>();
       // Process output remains bounded by run(); result is exported separately below.
-      const output = await this.execute(containerCommand(this.image, resolve(staging), name), {
-        ...options,
-        cwd: parent,
-        env: { PATH: process.env.PATH },
-        timeoutMs: Math.min(
-          options.timeoutMs ?? containerLimits.timeoutMs,
-          containerLimits.timeoutMs,
-        ),
-        onLine: (line) => {
-          if (line === 'SOY_JOB_DONE') {
-            if (result || completed.size !== Object.keys(received).length)
-              throw new Error('Invalid container result.');
-            result = validateJobFiles(received);
-          } else if (line.startsWith('SOY_JOB_FILE:')) {
-            const frame = JSON.parse(line.slice('SOY_JOB_FILE:'.length));
-            if (
-              result ||
-              typeof frame.path !== 'string' ||
-              !jobPath(frame.path) ||
-              typeof frame.data !== 'string' ||
-              typeof frame.final !== 'boolean' ||
-              completed.has(frame.path)
-            )
-              throw new Error('Invalid container file frame.');
-            transferred += frame.data.length;
-            if (transferred > Math.ceil(jobLimits.bytes / 3) * 4 + jobLimits.files * 4)
-              throw new Error('Container output exceeds its byte budget.');
-            received[frame.path] = (received[frame.path] ?? '') + frame.data;
-            if (Object.keys(received).length > jobLimits.files)
-              throw new Error('Too many container output files.');
-            if (frame.final) completed.add(frame.path);
-          } else options.onLine?.(line);
+      const output = await this.execute(
+        containerCommand(this.image, resolve(staging), name, this.profile),
+        {
+          ...options,
+          includeStderr: true,
+          cwd: parent,
+          env: { PATH: process.env.PATH },
+          timeoutMs: Math.min(
+            options.timeoutMs ?? containerLimits.timeoutMs,
+            containerLimits.timeoutMs,
+          ),
+          onLine: (line) => {
+            if (line.startsWith('SOY_JOB_STATUS:')) {
+              const status = line.slice(15);
+              if (!/^(?:0|[1-9][0-9]{0,2})$/.test(status) || Number(status) > 255 || result)
+                throw new Error('Invalid job exit status.');
+              exitCode = Number(status);
+            } else if (line === 'SOY_JOB_DONE') {
+              if (result || completed.size !== Object.keys(received).length)
+                throw new Error('Invalid container result.');
+              result = validateJobFiles(received);
+            } else if (line.startsWith('SOY_JOB_FILE:')) {
+              const frame = JSON.parse(line.slice('SOY_JOB_FILE:'.length));
+              if (
+                result ||
+                typeof frame.path !== 'string' ||
+                !jobPath(frame.path) ||
+                typeof frame.data !== 'string' ||
+                typeof frame.final !== 'boolean' ||
+                completed.has(frame.path)
+              )
+                throw new Error('Invalid container file frame.');
+              transferred += frame.data.length;
+              if (transferred > Math.ceil(jobLimits.bytes / 3) * 4 + jobLimits.files * 4)
+                throw new Error('Container output exceeds its byte budget.');
+              received[frame.path] = (received[frame.path] ?? '') + frame.data;
+              if (Object.keys(received).length > jobLimits.files)
+                throw new Error('Too many container output files.');
+              if (frame.final) completed.add(frame.path);
+            } else options.onLine?.(line);
+          },
         },
-      });
+      );
       if (!result) throw new Error('Container exited without exporting its source changes.');
+      const text = output
+        .split('\n')
+        .filter((l) => !l.startsWith('SOY_JOB_') && !l.startsWith('SOY_AGENT:'))
+        .join('\n');
       return {
         files: result,
-        output: output
-          .split('\n')
-          .filter((l) => !l.startsWith('SOY_JOB_'))
-          .join('\n'),
+        output: text,
+        ...(exitCode
+          ? {
+              failure: new DiagnosticError(
+                'STUDIO_EXECUTION',
+                'The isolated job failed. Its recoverable edits were saved.',
+                {
+                  tool: command[0],
+                  exitCode,
+                  operation: options.operation,
+                  detail: text,
+                  recovery:
+                    'Inspect the diagnostics and ask the maker to repair the saved draft. Your last passing preview is retained.',
+                },
+              ),
+            }
+          : {}),
       };
     } finally {
       // Killing docker's client does not reliably kill its container. Always remove the owned name.

@@ -16,7 +16,7 @@ relay_domain=${9:-relay.$domain}
 [[ "$web_port" =~ ^[0-9]{4,5}$ && "$web_port" -ge 1024 && "$web_port" -le 65534 ]] || exit 2
 [[ "$admin_pubkey" =~ ^[a-f0-9]{64}$ ]] || exit 2
 smoke_port=$((web_port+1))
-[[ "$web_port" -lt 19346 || "$web_port" -gt 19351 ]] || exit 2
+[[ "$web_port" -lt 19346 || "$web_port" -gt 19352 ]] || exit 2
 [[ "$web_port" != 3477 && "$web_port" != 3478 ]] || exit 2
 [[ "$release_id" =~ ^[0-9]+-[0-9]+$ ]] || exit 2
 [[ "$domain" =~ ^[a-z0-9][a-z0-9.-]+\.[a-z]{2,63}$ ]] || exit 2
@@ -307,8 +307,29 @@ grasp_ready() {
 }
 
 previous=$("$bun_bin" "$release_dir/scripts/deploy-state.ts" previous "$app_root/current")
+studio_configured=0
+[[ ! -f /etc/napplet-space/studio.json ]] || studio_configured=1
+start_studio() {
+  local source_release=$1
+  [[ "$studio_configured" == 1 ]] || return 0
+  if [[ ! -f "$source_release/apps/studio/hosting/main.ts" ]]; then
+    systemctl stop napplet-studio.service
+    return 0
+  fi
+  install -o root -g root -m 644 "$source_release/infra/studio.service" /etc/systemd/system/napplet-studio.service
+  install -o root -g root -m 755 "$source_release/scripts/studio-egress.sh" /usr/local/libexec/napplet-studio-egress
+  systemctl daemon-reload
+  systemctl restart napplet-studio.service
+  for attempt in {1..30}; do
+    if curl -fsS --max-time 2 http://127.0.0.1:19352/health >/dev/null 2>&1; then return 0; fi
+    sleep 1
+  done
+  echo 'Hosted Studio did not become healthy; rolling back the website.' >&2
+  return 1
+}
 smoke_pid=''
 activated=0
+studio_stopped=0
 caddy_changed=0
 shared_candidate=""
 shared_active_hash=""
@@ -338,7 +359,11 @@ rollback() {
     fi
   fi
   [[ -z "$shared_candidate" ]] || rm -f "$shared_candidate"
+  if [[ "$activated" == 0 && "$studio_stopped" == 1 && -n "$previous" ]]; then
+    start_studio "$previous" || true
+  fi
   if [[ "$activated" == 1 ]]; then
+    [[ "$studio_configured" != 1 ]] || systemctl stop napplet-studio.service || true
     if [[ -n "$previous" ]]; then
       ln -sfn "$previous" "$app_root/current.rollback"
       mv -Tf "$app_root/current.rollback" "$app_root/current"
@@ -352,6 +377,7 @@ rollback() {
       if [[ -f "$previous/infra/indexer.ecosystem.config.cjs" ]]; then start_indexer "$previous" || true; fi
       stop_cvm || true
       if [[ -f "$previous/scripts/cvm-health.ts" ]]; then start_cvm "$previous" || true; fi
+      start_studio "$previous" || true
       pm2_run delete napplet-web || true
       runuser -u napplet -- env PM2_HOME="$state_root/pm2" BUN_BIN="$(release_bun "$previous")" SPACE_RELEASE_DIR="$previous" SPACE_RELEASE_ID="$(basename "$previous")" PATH="$previous/bin:$PATH" node "$pm2_bin" start "$previous/infra/ecosystem.config.cjs" --update-env || true
     else
@@ -398,6 +424,8 @@ $domain {
     Referrer-Policy strict-origin-when-cross-origin
     -Server
   }
+  @studio path /api/studio/*
+  reverse_proxy @studio 127.0.0.1:19352
   @relay path /relay /relay/
   reverse_proxy @relay 127.0.0.1:19347
   reverse_proxy 127.0.0.1:$web_port
@@ -435,6 +463,10 @@ if [[ "$proxy_mode" == shared ]]; then
 else
   "$app_root/bin/caddy" validate --config "$app_root/shared/Caddyfile.next" --adapter caddyfile
 fi
+if [[ "$studio_configured" == 1 ]]; then
+  studio_stopped=1
+  systemctl stop napplet-studio.service
+fi
 ln -sfn "$release_dir" "$app_root/current.next"
 mv -Tf "$app_root/current.next" "$app_root/current"
 activated=1
@@ -454,6 +486,7 @@ start_indexer "$release_dir"
 indexer_ready "$release_dir"
 stop_cvm
 start_cvm "$release_dir"
+start_studio "$release_dir"
 pm2_run delete napplet-web || true
 runuser -u napplet -- env PM2_HOME="$state_root/pm2" BUN_BIN="$bun_bin" SPACE_RELEASE_DIR="$release_dir" SPACE_RELEASE_ID="$release_id" PATH="$PATH" node "$pm2_bin" start "$release_dir/infra/ecosystem.config.cjs" --update-env
 healthy=0

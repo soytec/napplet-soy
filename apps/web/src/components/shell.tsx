@@ -73,8 +73,7 @@ export function Shell({ children }: { children: ReactNode }) {
             data-tone="mint"
             data-effect="create"
           >
-            <Sparkles size={16} />{' '}
-            {import.meta.env.DEV ? 'Create in browser' : 'Try Studio locally'}
+            <Sparkles size={16} /> Create in browser
           </StudioLink>
           <Link
             to="/create"

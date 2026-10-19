@@ -50,6 +50,10 @@ const savedSchema = z
   })
   .strict();
 type Saved = z.infer<typeof savedSchema>;
+export type ConnectionCodec = {
+  encode: (value: string) => string;
+  decode: (value: string) => string;
+};
 const fail = (message: string) =>
   new DiagnosticError('STUDIO_CONNECTION', message, {
     operation: 'configure inference connection',
@@ -59,7 +63,10 @@ const fail = (message: string) =>
 export class Connections {
   private data: Saved = { version: 1, connections: [] };
   private secrets = new Set<string>();
-  constructor(private directory: string) {}
+  constructor(
+    private directory: string,
+    private codec?: ConnectionCodec,
+  ) {}
   async initialize(seed?: { key: string; model: string }) {
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
     const directoryInfo = await lstat(this.directory);
@@ -71,7 +78,8 @@ export class Connections {
       const info = await lstat(filename);
       if (!info.isFile() || info.size > 256 * 1024)
         throw fail('The saved connections file is invalid.');
-      this.data = savedSchema.parse(JSON.parse(await readFile(filename, 'utf8')));
+      const bytes = await readFile(filename, 'utf8');
+      this.data = savedSchema.parse(JSON.parse(this.codec ? this.codec.decode(bytes) : bytes));
       await chmod(filename, 0o600);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
@@ -129,7 +137,11 @@ export class Connections {
     const target = join(this.directory, 'connections.json');
     const temporary = join(this.directory, `.connections-${crypto.randomUUID()}`);
     try {
-      await writeFile(temporary, JSON.stringify(next), { mode: 0o600, flag: 'wx' });
+      const bytes = JSON.stringify(next);
+      await writeFile(temporary, this.codec ? this.codec.encode(bytes) : bytes, {
+        mode: 0o600,
+        flag: 'wx',
+      });
       await rename(temporary, target);
       this.data = next;
     } finally {

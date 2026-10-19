@@ -32,7 +32,7 @@ export function AssetsPanel({
   const [error, setError] = useState('');
   const [progress, setProgress] = useState<number>();
   const [media, setMedia] = useState<Record<string, string>>({});
-  const xhr = useRef<XMLHttpRequest | undefined>(undefined);
+  const xhr = useRef<AbortController | undefined>(undefined);
   const input = useRef<HTMLInputElement>(null);
   const choose = (f?: File) => {
     if (!f) return;
@@ -97,47 +97,17 @@ export function AssetsPanel({
     setError('');
     setProgress(0);
     try {
-      await new Promise<void>((resolve, reject) => {
-        const request = new XMLHttpRequest();
-        xhr.current = request;
-        request.open('POST', client.url(`projects/${project.id}/assets`));
-        request.timeout = 30000;
-        request.setRequestHeader('X-Studio-Token', client.token());
-        request.setRequestHeader('Content-Type', 'application/octet-stream');
-        request.setRequestHeader(
-          'X-Asset-Info',
-          encodeURIComponent(JSON.stringify({ id, license, source, storage })),
-        );
-        request.upload.onprogress = (e) => {
-          if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
-        };
-        request.onload = () => {
-          let result;
-          try {
-            result = JSON.parse(request.responseText);
-          } catch {
-            reject(new Error('Upload failed. Refresh Assets before retrying.'));
-            return;
-          }
-          if (request.status >= 200 && request.status < 300) {
-            setAssets(result);
-            resolve();
-          } else reject(new Error(result.error ?? 'Upload failed.'));
-        };
-        request.onerror = request.ontimeout = () =>
-          reject(
-            new Error(
-              'Upload interrupted. Refresh Assets to check whether it completed before retrying.',
-            ),
-          );
-        request.onabort = () =>
-          reject(
-            new Error(
-              'Upload cancelled. If it already reached the server, it may appear in Assets.',
-            ),
-          );
-        request.send(file);
-      });
+      const controller = new AbortController();
+      xhr.current = controller;
+      setAssets(
+        await client.upload<ManagedAsset[]>(
+          `projects/${project.id}/assets`,
+          { id, license, source, storage },
+          file,
+          setProgress,
+          controller.signal,
+        ),
+      );
       setFile(undefined);
       setId('');
       setLicense('');

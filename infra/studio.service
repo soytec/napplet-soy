@@ -1,0 +1,40 @@
+[Unit]
+Description=napplet.soy private Studio controller
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+RequiresMountsFor=/var/lib/napplet-studio
+
+[Service]
+Type=simple
+User=napplet-studio
+Group=napplet-studio
+SupplementaryGroups=docker
+WorkingDirectory=/opt/napplet-space/current
+Environment=HOME=/var/lib/napplet-studio
+Environment=TMPDIR=/var/lib/napplet-studio/tmp
+Environment=PATH=/opt/napplet-space/current/bin:/usr/local/bin:/usr/bin:/bin
+ExecStartPre=+/usr/local/libexec/napplet-studio-egress
+ExecStart=/opt/napplet-space/current/bin/bun --no-env-file apps/studio/hosting/main.ts /etc/napplet-space/studio.json
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=45
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=/var/lib/napplet-studio
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+MemoryMax=1G
+MemorySwapMax=0
+CPUQuota=100%
+TasksMax=256
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

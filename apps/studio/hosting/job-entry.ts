@@ -3,6 +3,7 @@ import { cp, mkdir, readFile } from 'node:fs/promises';
 import { openCodeAgent, type AgentEvent } from '../agent';
 import { providers, type Provider } from '../connections-model';
 import { run } from '../process';
+import { workspaceFiles } from './workspace';
 
 import { diagnose, formatDiagnostic } from '../../../packages/diagnostics/src';
 
@@ -86,12 +87,35 @@ async function main() {
         model: provider + '/' + connection.model,
         key: '',
         steps: connection.steps,
+        browserBuild: !!context.browserBuild,
         endpoint: proxy.url.origin,
         env,
       });
-      await agent.run('/workspace', context.prompt, undefined, signal, (event: AgentEvent) => {
-        if (event.type !== 'session') console.log('SOY_AGENT:' + JSON.stringify(event));
-      });
+      await agent.run(
+        '/workspace',
+        context.prompt,
+        undefined,
+        signal,
+        (event: AgentEvent) => {
+          if (event.type !== 'session') console.log('SOY_AGENT:' + JSON.stringify(event));
+        },
+        {
+          browserBuild: !!context.browserBuild,
+          check: context.browserBuild
+            ? async () => {
+                const response = await fetch('http://studio/check', {
+                  unix: '/input/build.sock',
+                  method: 'POST',
+                  body: JSON.stringify(await workspaceFiles('/workspace')),
+                  signal: AbortSignal.any([signal, AbortSignal.timeout(150000)]),
+                });
+                const { result } = await response.json();
+                if (typeof result !== 'string') throw new Error('Invalid browser check response.');
+                return result;
+              }
+            : undefined,
+        },
+      );
     } finally {
       await proxy.stop(true);
     }

@@ -55,3 +55,52 @@ test('worker exports complete binary chunks after a child makes stdout non-block
     await rm(directory, { recursive: true, force: true });
   }
 }, 15000);
+
+test('failed worker exports edits and reports its original failure for controller recovery', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'studio-failed-job-'));
+  try {
+    const workspace = join(root, 'workspace');
+    await mkdir(workspace);
+    const input = join(root, 'input.json');
+    await writeFile(
+      input,
+      JSON.stringify({
+        files: { 'main.ts': Buffer.from('before').toString('base64') },
+        command: [
+          process.execPath,
+          '-e',
+          "await Bun.write('main.ts','recoverable'); console.error('TS2322: fixture type error'); process.exit(2)",
+        ],
+      }),
+    );
+    const entry = join(root, 'worker.mjs');
+    await writeFile(
+      entry,
+      worker
+        .replaceAll("'/input/input.json'", JSON.stringify(input))
+        .replaceAll("'/workspace/.git/HEAD'", JSON.stringify(join(workspace, '.git/HEAD')))
+        .replaceAll("'/workspace'", JSON.stringify(workspace)),
+    );
+    const child = Bun.spawn([process.execPath, '--no-env-file', entry], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const [out, err, exit] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
+    expect(exit).toBe(0);
+    expect(out).toContain('SOY_JOB_STATUS:2');
+    expect(err).toContain('TS2322');
+    const frame = JSON.parse(
+      out
+        .split('\n')
+        .find((s) => s.startsWith('SOY_JOB_FILE:'))!
+        .slice(13),
+    );
+    expect(Buffer.from(frame.data, 'base64').toString()).toBe('recoverable');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

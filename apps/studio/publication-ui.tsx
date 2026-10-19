@@ -8,7 +8,7 @@ import { PublicationProgressPanel } from './publication-progress-ui';
 export type { PublicationAccount } from './publication-account';
 
 type Api = <T>(path: string, body?: unknown) => Promise<T>;
-export function usePublicationSigner(api: Api, account: PublicationAccount) {
+export function usePublicationSigner(api: Api, account: PublicationAccount, hosted = false) {
   const [session, setSession] = useState<{ id: string; pubkey: string }>();
   const [status, setStatus] = useState('');
   const pending = useRef(false);
@@ -114,7 +114,7 @@ export function usePublicationSigner(api: Api, account: PublicationAccount) {
       }
     };
     void poll();
-    const timer = setInterval(() => void poll(), 750);
+    const timer = setInterval(() => void poll(), hosted ? 1500 : 750);
     return () => {
       live = false;
       clearInterval(timer);

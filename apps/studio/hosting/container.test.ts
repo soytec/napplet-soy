@@ -69,3 +69,31 @@ test('a shared container supervisor serializes jobs and exports bounded files wi
   expect(Buffer.from(result.files['src/main.ts'], 'base64').toString()).toBe('working');
   expect(result.output).toBe('build passed');
 });
+
+test('failed jobs return validated recovery files and an actionable redacted failure', async () => {
+  const execute: typeof run = async (args, options) => {
+    if (args[1] !== 'run') return '';
+    options.onLine!(
+      'SOY_JOB_FILE:' +
+        JSON.stringify({
+          path: 'src/main.ts',
+          data: Buffer.from('saved').toString('base64'),
+          final: true,
+        }),
+    );
+    options.onLine!('SOY_JOB_STATUS:2');
+    options.onLine!('SOY_JOB_DONE');
+    return 'TS2322: a string cannot be assigned to a number\nAPI_KEY=do-not-show';
+  };
+  const runner = new ContainerJobs('sha256:' + 'a'.repeat(64), execute);
+  const result = await runner.run({}, ['bun'], {
+    signal: new AbortController().signal,
+    operation: 'build draft',
+  });
+  expect(Buffer.from(result.files['src/main.ts'], 'base64').toString()).toBe('saved');
+  const { diagnose, formatDiagnostic } = await import('../../../packages/diagnostics/src');
+  const message = formatDiagnostic(diagnose(result.failure));
+  expect(message).toContain('TS2322');
+  expect(message).toContain('2');
+  expect(message).not.toContain('do-not-show');
+});

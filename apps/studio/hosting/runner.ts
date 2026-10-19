@@ -10,6 +10,8 @@ import { DiagnosticError } from '../../../packages/diagnostics/src';
 import { ContainerJobs, type JobOptions } from './container';
 import { applyWorkspace, workspaceFiles } from './workspace';
 import { inferenceSocket } from './inference';
+import { buildSocket } from './build-socket';
+import type { JobFiles } from './container';
 
 const agentEvent = z.discriminatedUnion('type', [
   z.object({ type: z.literal('text'), text: z.string().max(20000) }),
@@ -36,15 +38,47 @@ export class HostedTools {
     context: Record<string, unknown>,
     mode: 'agent' | 'build',
     options: JobOptions,
+    check?: (signal?: AbortSignal) => Promise<string>,
   ) {
-    const before = await workspaceFiles(root);
+    let before = await workspaceFiles(root);
     const result = await this.jobs.run(
       before,
       ['bun', '--no-env-file', '/opt/studio/job-entry.js'],
-      { ...options, context },
+      {
+        ...options,
+        context,
+        prepare: async (input) => {
+          const dispose = await options.prepare?.(input);
+          let bridge: Awaited<ReturnType<typeof buildSocket>> | undefined;
+          try {
+            if (check)
+              bridge = await buildSocket(
+                join(input, 'build.sock'),
+                options.signal,
+                async (files: JobFiles) => {
+                  options.signal.throwIfAborted();
+                  await applyWorkspace(root, before, files, mode);
+                  before = await workspaceFiles(root);
+                  return check(options.signal);
+                },
+              );
+          } catch (error) {
+            await dispose?.();
+            throw error;
+          }
+          return async () => {
+            try {
+              await bridge?.close();
+            } finally {
+              await dispose?.();
+            }
+          };
+        },
+      },
     );
     options.signal.throwIfAborted();
     await applyWorkspace(root, before, result.files, mode);
+    if (result.failure) throw result.failure;
     return result.output;
   }
   agent(): Agent {
@@ -59,13 +93,14 @@ export class HostedTools {
       get stepLimit() {
         return settings.current().steps;
       },
-      run: async (root, prompt, _session, signal, emit) => {
+      run: async (root, prompt, _session, signal, emit, execution) => {
         const c = settings.current();
         await this.job(
           root,
           {
             operation: 'agent',
             prompt,
+            browserBuild: !!execution?.browserBuild,
             connection: { provider: c.provider, model: c.model, steps: c.steps },
           },
           'agent',
@@ -82,6 +117,7 @@ export class HostedTools {
               }
             },
           },
+          execution?.browserBuild ? execution.check : undefined,
         );
       },
     };
@@ -124,6 +160,7 @@ export class HostedTools {
       operation: 'capture isolated studio preview',
     });
     signal.throwIfAborted();
+    if (result.failure) throw result.failure;
     const output = (name: string) => {
       const data = result.files['.studio-result/' + name];
       return data === undefined ? undefined : Buffer.from(data, 'base64');

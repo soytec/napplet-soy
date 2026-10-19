@@ -3,7 +3,8 @@
 A local beta, prompt-first workspace: describe a napplet,
 play its checked build, keep iterating in the same conversation, and review a release for publication. Code and Git
 changes are available alongside the preview. This is a local development tool,
-not a hosted service or a production inference-provider decision.
+this page documents the local mode. The hosted BYOK controller and its release
+status are described in [STUDIO-HOSTING.md](STUDIO-HOSTING.md).
 
 ## Start
 
@@ -535,11 +536,11 @@ experiment keeps an independent local copy. Before publication it is a private
 local Git repository with no newly registered GRASP repository. Publication creates
 or updates public source using the ordinary soyLI rules.
 
-For a hosted version, the corresponding private workspace would live on durable
-server-side storage, associated with an authenticated owner. An isolated worker
-would check out that workspace, run the agent/build/capture tools, and save its
-checkpoint before being discarded. The browser would continue receiving chat,
-diffs and an isolated preview, with signing under the creator's control.
+The hosted path now keeps the private workspace on server storage, keyed by the
+shell account. An isolated worker receives bounded source files, runs the agent or
+server toolchain, and returns validated edits. Browser builds compile in a Web Worker
+and return the exact built snapshot. Both paths retain source history on the server.
+Deployment and full image acceptance remain pending; see the hosting document.
 
 Private source checkpoints could use the optional
 [GRASP-08 private repository extension](https://ngit.dev/protocol/grasp/specification/08).
@@ -551,23 +552,16 @@ metadata must stay on its designated private relays. No private GRASP storage is
 configured by this local slice. The current public GRASP service remains the
 publication destination.
 
-Git transport can store source/history but does not replace agent/build jobs or
-their progress channel. The hosted preparation now includes an encrypted CVM control
-adapter that derives workspace ownership from the signed caller, plus a bounded,
-network-disabled container executor. The isolated runner now supplies agent, project
-command, capture and publication-check adapters as one set, with a per-job inference
-broker. The browser still uses the local runner; hosted browser transport is not enabled. See
-[Studio hosting preparation](STUDIO-HOSTING.md) for the exact boundaries.
-The current VPS also needs a compatible virtual CPU: it does not expose the SSE4.2
-feature required by the prepared toolchain. The image and job preflight reject
-that configuration before starting Bun; the local Studio remains available.
+Git transport stores source/history; encrypted CVM carries hosted commands and
+progress, while authenticated HTTPS carries private bytes. The shared shell authorizes
+the account and separately signs each publication event after review. The hosted
+runner uses a per-job inference broker; saved BYOK credentials are encrypted outside
+projects and never mounted into jobs. See [hosting boundaries and operator limits](STUDIO-HOSTING.md).
+The existing VPS uses the explicit temporary legacy-x64 compatibility image.
 
-For storage, retain portable projects and their installed guidance. Prefer shared
-immutable toolchains/package caches and isolated copy-on-write workspaces; rebuild
-inactive dependencies and outputs from lockfiles. Do not share writable agent files
-between creators. Preview/media retention and content-hash reuse need explicit
-policies before hosting. No workspace cleanup or cross-project deduplication is
-implemented by this slice.
+Retention, broader recovery and cross-project deduplication remain deferred. Hosted
+admission and a dedicated capacity-limited volume constrain resource usage without
+silently deleting drafts. Local repositories and their credentials are unchanged.
 
 The local foundation now separates the web process from the job engine:
 
@@ -585,11 +579,9 @@ the browser cannot submit shell commands or choose a filesystem owner. A crashed
 worker fails outstanding requests instead of replaying potentially completed writes.
 The existing review and signing controls still govern publication.
 
-This is not an enabled hosted deployment mode. The production path still needs
-complete Linux acceptance, production credential custody/spending policy, authenticated
-browser control and private previews on isolated origins. The local web process must
-remain on loopback. Broader storage/recovery work is deferred; existing disk-backed
-Git and SQLite state remain in use.
+The local listener remains loopback-only. The hosted service is a separate controller
+with account authorization, encrypted control, private previews and container-only
+project execution; it must pass complete Linux/image acceptance before enabling it.
 
 ## Verification
 
@@ -631,7 +623,7 @@ estimate, not a verified provider invoice. The full repository check passed 739
 tests; subsequent preview-lifecycle refinements passed typecheck and the 8-test
 studio suite. No deployment or release was performed.
 
-Public hosted integration, physical-phone/Safari coverage, provider billing, public
+At that local acceptance checkpoint, public hosted integration, physical-phone/Safari coverage, provider billing, public
 remix/proposal end-to-end verification and workspace export remain open.
 The publication slice passed the full repository check (744 tests) and a final
 typecheck. The local publication rehearsal uses a separate copy of Orbit Pop, captures actual

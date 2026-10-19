@@ -8,7 +8,7 @@ import { HostedConnections } from './connections';
 test('hosted connection settings reject custom destinations before saving or testing them', async () => {
   const root = await mkdtemp(join(tmpdir(), 'studio-hosted-connections-'));
   try {
-    const connections = new HostedConnections(root);
+    const connections = new HostedConnections(root, 'a'.repeat(64), new Uint8Array(32).fill(1));
     await connections.initialize();
     const input = {
       name: 'test',

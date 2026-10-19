@@ -79,6 +79,10 @@ test('Studio CVM derives ownership from encrypted signed transport and rejects c
           ensure(projectId);
           sends.push(prompt);
         },
+        files: async (projectId: string) => {
+          ensure(projectId);
+          return ['src/main.ts'];
+        },
         file: async (projectId: string) => {
           ensure(projectId);
           return 'private source for ' + owner;
@@ -91,17 +95,34 @@ test('Studio CVM derives ownership from encrypted signed transport and rejects c
     signer: hostSigner,
     relayHandler: hostPool,
   });
-  const call = (
+  const call = async (
     client: number,
     operation: string,
-    input: unknown,
+    input: any,
     requestId = crypto.randomUUID(),
-  ) =>
-    clients[client].callTool({
+  ) => {
+    const paths: Record<string, string> = {
+      list: 'state',
+      state: `projects/${input.id}/files`,
+      file: `projects/${input.id}/file?path=${encodeURIComponent(input.path ?? '')}`,
+      send: `projects/${input.id}/messages`,
+    };
+    const result = await clients[client].callTool({
       name: 'soy_studio_call',
-      arguments: { requestId, operation, input },
+      arguments: {
+        requestId,
+        createdAt: Date.now(),
+        path: paths[operation],
+        ...(operation === 'send'
+          ? { body: Object.fromEntries(Object.entries(input).filter(([key]) => key !== 'id')) }
+          : {}),
+      },
       _meta: { clientPubkey: keys[1] },
     });
+    if (result.isError) return result;
+    const value = JSON.parse((result.content as { text: string }[])[0].text);
+    return { ...result, isError: value.status >= 400 };
+  };
   try {
     for (let i = 0; i < clients.length; i++)
       await clients[i].connect(
@@ -139,3 +160,62 @@ test('Studio CVM derives ownership from encrypted signed transport and rejects c
     relay.stop(true);
   }
 }, 20000);
+
+test('owner logout cancels its controller and reconnect waits for cleanup; expired callers cannot reopen it', async () => {
+  const owner = 'b'.repeat(64),
+    actor = 'a'.repeat(64);
+  let authorized = true,
+    opened = 0,
+    closed = 0;
+  let finish!: () => void;
+  const cleanup = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  const registry = new OwnerStudios(
+    () => [owner],
+    async () => {
+      opened++;
+      return {
+        state: async () => ({ projects: [] }),
+        close: async () => {
+          closed++;
+          await cleanup;
+        },
+      } as unknown as StudioSurface;
+    },
+    {
+      resolveOwner: (client) => {
+        if (!authorized || client !== actor) throw new Error('Expired session');
+        return owner;
+      },
+    },
+  );
+  const read = () =>
+    registry.call(actor, { path: 'state', requestId: crypto.randomUUID(), createdAt: Date.now() });
+  await read();
+  const closing = registry.deactivate(owner);
+  const waiting = read().then(
+    () => 'opened',
+    () => 'expired',
+  );
+  await Bun.sleep(5);
+  expect(opened).toBe(1);
+  expect(closed).toBe(1);
+  authorized = false;
+  finish();
+  await closing;
+  expect(await waiting).toBe('expired');
+  expect(opened).toBe(1);
+  authorized = true;
+  await read();
+  expect(opened).toBe(2);
+  await registry.close();
+  expect(closed).toBe(2);
+  expect(
+    await read().then(
+      () => 'opened',
+      () => 'stopped',
+    ),
+  ).toBe('stopped');
+  expect(opened).toBe(2);
+});

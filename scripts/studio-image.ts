@@ -105,6 +105,7 @@ RUN test "$(bun --version)" = "1.3.11" && ln -s /opt/studio/lib /usr/local/bin/l
     rm -rf /opt/profile/.git /opt/profile/.napplet-space && chmod -R a+rX /opt/profile /opt/toolchains /opt/browsers
 RUN mkdir /opt/opencode && cd /opt/opencode && bun add --exact opencode-ai@1.19.3 && \\
     ln -s /opt/opencode/node_modules/.bin/opencode /usr/local/bin/opencode
+LABEL soy.studio.profile="standard" soy.studio.bun="1.3.11" soy.studio.opencode="1.19.3"
 USER 1000:1000
 WORKDIR /workspace
 `,

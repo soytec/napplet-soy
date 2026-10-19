@@ -21,6 +21,7 @@ const fresh = (): ConnectionInput => ({
 });
 export function ConnectionsDialog({
   state,
+  hosted = false,
   busy: working,
   loading = false,
   loadError = '',
@@ -29,6 +30,7 @@ export function ConnectionsDialog({
   close,
 }: {
   state: ConnectionState;
+  hosted?: boolean;
   busy: boolean;
   loading?: boolean;
   loadError?: string;
@@ -102,14 +104,14 @@ export function ConnectionsDialog({
         </button>
       </div>
       <p className="settings-intro">
-        Choose where your maker runs. Saved on this computer, outside your projects. Credentials are
-        protected by local file permissions; they are not stored in your browser or published with
-        your source.
+        {hosted
+          ? 'Use your own cloud provider API key. Connections are private to your account and encrypted on the Studio host, outside your projects. Keys are supplied only to the selected inference provider and are never published with your source.'
+          : 'Choose where your maker runs. Saved on this computer, outside your projects. Credentials are protected by local file permissions; they are not stored in your browser or published with your source.'}
       </p>
       {loading && !loadError && <p role="status">Loading your connections…</p>}
       {loadError && (
         <p role="alert" className="settings-error">
-          {loadError} Reconnecting…
+          {loadError}
         </p>
       )}
       {working && (
@@ -217,11 +219,13 @@ export function ConnectionsDialog({
                   });
                 }}
               >
-                {Object.entries(providers).map(([id, p]) => (
-                  <option key={id} value={id}>
-                    {p.name}
-                  </option>
-                ))}
+                {Object.entries(providers)
+                  .filter(([, p]) => !hosted || p.url.startsWith('https:'))
+                  .map(([id, p]) => (
+                    <option key={id} value={id}>
+                      {p.name}
+                    </option>
+                  ))}
               </select>
             </label>
           </div>
@@ -229,6 +233,7 @@ export function ConnectionsDialog({
             API base URL
             <input
               required
+              readOnly={hosted}
               type="url"
               placeholder="https://your-provider.example/v1"
               value={form.endpoint}
@@ -243,7 +248,11 @@ export function ConnectionsDialog({
                 autoComplete="new-password"
                 value={form.key ?? ''}
                 placeholder={
-                  form.id ? 'Leave blank to keep the saved key' : 'Optional for local servers'
+                  form.id
+                    ? 'Leave blank to keep the saved key'
+                    : hosted
+                      ? 'Your provider API key'
+                      : 'Optional for local servers'
                 }
                 onChange={(e) =>
                   setForm({ ...form, key: e.target.value || (form.id ? undefined : '') })
@@ -288,9 +297,12 @@ export function ConnectionsDialog({
             </button>
           )}
           <p className="settings-hint">
-            Higher step limits can cost more. The maker also has a 20-minute deadline. Use a model
-            with tool calling and enough context for the project’s skills. Testing only checks
-            access to the model catalogue.
+            Higher step limits can cost more.{' '}
+            {hosted
+              ? 'A turn has 20 minutes including queue time; each server job has up to 10 minutes.'
+              : 'The maker also has a 20-minute deadline.'}{' '}
+            Use a model with tool calling and enough context for the project’s skills. Testing only
+            checks access to the model catalogue.
           </p>
           <div className="connection-buttons">
             <button
