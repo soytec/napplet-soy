@@ -607,8 +607,9 @@ signing-session expiry, hard worker termination, supervisor death and process-gr
 cleanup. Store tests cover exact legacy backup/import, ownership, exclusive writers,
 atomic job/state transitions and invalid input. The suite needs loopback binding.
 
-`bun run test:studio:services` separately exercises reviewed proposals against real
-GRASP, relay and Blossom services. It builds the native servers before starting
+`bun run test:studio:services` exercises reviewed proposals and browser Git against real
+GRASP, relay and Blossom services, in separate Bun processes so Chromium teardown
+cannot affect the embedded service fixtures. It builds the native servers before starting
 the test timeout. This requires the Rust version pinned in
 `services/grasp/upstream.json`, Go and a C compiler; Linux also needs `pkg-config`
 and OpenSSL development headers. The **Studio services** CI workflow provisions

@@ -53,4 +53,6 @@ jobs:
       - name: Install browser test prerequisites
         run: bunx playwright install --with-deps chromium
       - name: Build pinned services and verify proposals and browser Git
+        # Keep Chromium and Bun's embedded service servers in separate processes;
+        # combining the suites can stall service teardown on Linux.
         run: bun run test:studio:services

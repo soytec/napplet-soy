@@ -349,6 +349,7 @@ test('browser jobs bind results to the tab and source; timeout/abort reject late
 
 async function studioFixture(agent: Agent) {
   const f = await fixture();
+  let captures = 0;
   const store = new StudioStore(f.directory);
   const now = new Date().toISOString();
   store.save([
@@ -372,6 +373,8 @@ async function studioFixture(agent: Agent) {
   ]);
   store.close();
   const tool = join(f.directory, 'soyli.ts');
+  const noBrowser = join(f.directory, 'no-browser-cache');
+  await writeFile(noBrowser, 'Browser capture belongs in the service suite.');
   await writeFile(
     tool,
     `import { appendFile, mkdir, writeFile, cp } from 'node:fs/promises';
@@ -386,13 +389,24 @@ if (command === 'new' || command === 'remix') {
   const studio = new Studio({
     directory: f.directory,
     soyli: [process.execPath, tool],
-    env: cleanEnvironment(),
+    env: { ...cleanEnvironment(), PLAYWRIGHT_BROWSERS_PATH: noBrowser },
     agent,
     preview: async () => ({ url: 'http://127.0.0.1:12345/', stop() {} }),
+    capture: async (_root, _pubkey, target) => {
+      captures++;
+      await mkdir(target, { recursive: true });
+      await writeFile(
+        join(target, 'cover.png'),
+        Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lS8AAAAASUVORK5CYII=',
+          'base64',
+        ),
+      );
+    },
   });
   await studio.initialize();
   cleanup.push(() => studio.close());
-  return { ...f, studio };
+  return { ...f, studio, captures: () => captures };
 }
 async function waitFor<T>(read: () => T | Promise<T>, matches: (v: T) => boolean): Promise<T> {
   for (let i = 0; i < 500; i++) {
@@ -512,7 +526,7 @@ test('agent requests browser diagnostics during the same turn and repairs before
 
 test('browser failure preserves preview, feeds one repair pass, avoids host builds; publication reruns host checks', async () => {
   let calls = 0;
-  const { studio, root, directory, id } = await studioFixture({
+  const { studio, root, directory, id, captures } = await studioFixture({
     model: 'fixture',
     async run(root, prompt, _session, _signal, _emit, execution) {
       calls++;
@@ -569,6 +583,9 @@ test('browser failure preserves preview, feeds one repair pass, avoids host buil
     'run verify\ncheck\nrun test:conformance\n',
   );
   expect((await studio.state()).projects[0].previewValidation).toBe('full');
+  expect((await studio.state()).projects[0].phase).toBe('ready');
+  expect((await studio.state()).projects[0].publication?.review).toBeDefined();
+  expect(captures()).toBe(1);
 }, 30000);
 
 test('browser build HTTP retains origin/token checks and rejects stale revisions', async () => {
