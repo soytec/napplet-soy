@@ -11,7 +11,14 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['@resvg/resvg-js', 'sharp', 'ws'],
     // Avoid reloading Studio (and losing its tab-bound build job) on first worker use.
-    include: ['esbuild-wasm', 'typescript-browser', 'parse5'],
+    include: [
+      'esbuild-wasm',
+      'typescript-browser',
+      'parse5',
+      'isomorphic-git',
+      '@isomorphic-git/lightning-fs',
+      'buffer/',
+    ],
   },
   ssr: { external: ['@resvg/resvg-js', 'sharp', 'ws'] },
   server: { strictPort: true, allowedHosts: ['napplet.localhost'] },

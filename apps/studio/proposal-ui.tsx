@@ -29,7 +29,17 @@ export function ProposalDialog({
   }, []);
   useEffect(() => {
     setConfirmed(false);
-  }, [review?.id, retry]);
+  }, [review?.id, retry, signer.pubkey]);
+  useEffect(() => {
+    let live = true;
+    if (signer.pubkey)
+      void signer.connect().catch((e) => {
+        if (live) setError(e.message);
+      });
+    return () => {
+      live = false;
+    };
+  }, [signer.pubkey]);
   const call = async (fn: () => Promise<unknown>) => {
     setError('');
     try {
@@ -64,13 +74,15 @@ export function ProposalDialog({
           <div>
             <strong>Contributing account</strong>
             <small className="pubkey">
-              {signer.session?.pubkey ?? 'Choose your napplet.soy account'}
+              {signer.pubkey ?? 'Sign in using the shared account menu'}
             </small>
             <small>{signer.status}</small>
           </div>
-          <button className="outline" disabled={busy} onClick={() => void call(signer.connect)}>
-            Use shell account
-          </button>
+          {!signer.pubkey || !signer.session ? (
+            <button className="outline" disabled={busy} onClick={() => void call(signer.connect)}>
+              {signer.pubkey ? 'Retry connection' : 'Sign in'}
+            </button>
+          ) : null}
         </div>
         {(error || p.error) && (
           <p className="publication-error" role="alert">
@@ -88,7 +100,8 @@ export function ProposalDialog({
         {result && (
           <div className="publication-success">
             <p>
-              Proposal submitted.{' '}
+              Proposal submitted. <a href={`/proposals/${result.proposal}`}>Open proposal review</a>
+              {' · '}
               <a
                 href={`nostr:${nip19.neventEncode({ id: result.proposal, relays: p.proposal!.attempt!.review.relays })}`}
               >
@@ -101,14 +114,15 @@ export function ProposalDialog({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (signer.session)
-              void call(async () => {
-                setRetry(false);
-                await api(`projects/${p.id}/prepare-proposal`, {
-                  session: signer.session!.id,
-                  proposal: { description },
-                });
+            void call(async () => {
+              const session = await signer.connect();
+              if (!session) return;
+              setRetry(false);
+              await api(`projects/${p.id}/prepare-proposal`, {
+                session: session.id,
+                proposal: { description },
               });
+            });
           }}
         >
           <label className="field">
@@ -163,18 +177,22 @@ export function ProposalDialog({
               disabled={
                 busy ||
                 !confirmed ||
+                signer.pubkey !== review.pubkey ||
                 signer.session?.pubkey !== review.pubkey ||
                 (!retry && description.trim() !== review.description)
               }
               onClick={() =>
-                void call(() =>
-                  api(`projects/${p.id}/propose`, {
-                    session: signer.session!.id,
+                void call(async () => {
+                  const session = await signer.connect();
+                  if (!session || session.pubkey !== review.pubkey)
+                    throw new Error('Your account changed. Prepare a new proposal review.');
+                  await api(`projects/${p.id}/propose`, {
+                    session: session.id,
                     review: review.id,
                     resume: retry,
                     confirmed: true,
-                  }),
-                )
+                  });
+                })
               }
             >
               {retry ? 'Retry reviewed proposal' : 'Submit reviewed proposal'}

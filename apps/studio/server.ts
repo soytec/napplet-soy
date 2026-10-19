@@ -104,7 +104,7 @@ export async function serveStudio(
             const signing = /^\/api\/signers\/([a-f0-9-]{36})$/.exec(url.pathname);
             if (signing) return json(await studio.signing.next(signing[1]));
             const match =
-              /^\/api\/projects\/([a-f0-9-]{36})\/(files|file|diff|preview|listing|media|assets|asset)$/.exec(
+              /^\/api\/projects\/([a-f0-9-]{36})\/(browser-git|files|file|diff|preview|listing|media|assets|asset)$/.exec(
                 url.pathname,
               );
             if (match) {
@@ -120,6 +120,7 @@ export async function serveStudio(
                   },
                 });
               }
+              if (action === 'browser-git') return json(await studio.browserGit(id));
               if (action === 'files') return json(await studio.files(id));
               if (action === 'file')
                 return json(await studio.file(id, url.searchParams.get('path') ?? ''));
@@ -187,7 +188,9 @@ export async function serveStudio(
               if (/^\/api\/browser-builds\/[a-f0-9-]{36}$/.test(url.pathname)) {
                 await studio.browserBuilds.reply(url.pathname.split('/').pop()!, body);
                 result = { ok: true };
-              } else if (/^\/api\/connections\/(save|select|remove|test)$/.test(url.pathname)) {
+              } else if (
+                /^\/api\/connections\/(save|select|remove|test|models|model)$/.test(url.pathname)
+              ) {
                 result = await studio.connectionAction(url.pathname.split('/').pop()!, body);
               } else if (url.pathname === '/api/signers') {
                 result = await studio.signing.connect(
@@ -226,9 +229,17 @@ export async function serveStudio(
                 const [, id, action] = match;
                 if (action === 'messages') {
                   const input = promptSchema
-                    .extend({ browserSession: z.uuid().optional() })
+                    .extend({
+                      browserSession: z.uuid().optional(),
+                      reviewPublication: z.boolean().optional(),
+                    })
                     .parse(body);
-                  await studio.send(id, input.prompt, input.browserSession);
+                  await studio.send(
+                    id,
+                    input.prompt,
+                    input.browserSession,
+                    input.reviewPublication,
+                  );
                 }
                 if (action === 'prepare-publication') {
                   const input = z

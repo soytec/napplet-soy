@@ -1,5 +1,6 @@
 import { writeFile, mkdir } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
+import { studioToolPath } from './toolchain';
 import { Connections } from './connections';
 import { providers } from './connections-model';
 import { Studio } from './studio';
@@ -48,7 +49,7 @@ process.on('message', async (value: any) => {
       const config = workerConfig.parse(value.args[0]);
       key = config.agent.key;
       const env = cleanEnvironment();
-      env.PATH = dirname(config.soyli[0]) + ':' + (env.PATH ?? '');
+      env.PATH = await studioToolPath(config.directory, config.soyli, env.PATH);
       env.SPACE_ACCOUNT_HOME = join(config.directory, 'unused-accounts');
       connections = new Connections(join(config.directory, 'credentials'));
       const settings = connections;
@@ -110,6 +111,7 @@ process.on('message', async (value: any) => {
         browserBuildReply: (session: string, input: unknown) =>
           studio!.browserBuilds.reply(session, input),
         connectionAction: studio.connectionAction.bind(studio),
+        browserGit: studio.browserGit.bind(studio),
         assets: studio.assets.bind(studio),
         importAsset: studio.importAsset.bind(studio),
         assetMedia: studio.assetMedia.bind(studio),

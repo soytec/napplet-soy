@@ -480,6 +480,36 @@ test('new and remix requests carry the initiating browser session through setup 
   );
 }, 30000);
 
+test('agent requests browser diagnostics during the same turn and repairs before finishing', async () => {
+  const outcomes: string[] = [];
+  const { studio, directory, id } = await studioFixture({
+    model: 'fixture',
+    async run(root, _prompt, _session, _signal, _emit, execution) {
+      expect(execution?.check).toBeFunction();
+      await writeFile(join(root, 'src/main.ts'), 'document.body.textContent = missingOrb;');
+      outcomes.push(await execution!.check!());
+      await writeFile(join(root, 'src/main.ts'), 'document.body.textContent = "Repaired in turn";');
+      outcomes.push(await execution!.check!());
+    },
+  });
+  const session = crypto.randomUUID();
+  await studio.send(id, 'Make a toy', session);
+  // Two agent-initiated checks and the independent final check.
+  for (let i = 0; i < 3; i++) {
+    const next = (await waitFor(
+      () => studio.browserBuilds.next(session),
+      (v) => !!v,
+    ))!;
+    studio.browserBuilds.reply(session, await compileBrowserProject(next));
+  }
+  const result = (await settle(studio)).projects[0];
+  expect(outcomes[0]).toContain('TS2304');
+  expect(outcomes[1]).toContain('passed');
+  expect(result.phase).toBe('ready');
+  expect(result.previewValidation).toBe('browser');
+  expect(await Bun.file(join(directory, 'commands.log')).exists()).toBe(false);
+}, 20000);
+
 test('browser failure preserves preview, feeds one repair pass, avoids host builds; publication reruns host checks', async () => {
   let calls = 0;
   const { studio, root, directory, id } = await studioFixture({

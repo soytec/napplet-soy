@@ -14,6 +14,73 @@ import { generateSecretKey, getPublicKey } from 'nostr-tools';
 import { reasoningLimits } from './types';
 
 const cleanup: Array<() => Promise<unknown>> = [];
+
+test('a recording preparation prompt mentioning Publish reaches the maker', async () => {
+  const prompts: string[] = [];
+  const { studio } = await fixture({
+    model: 'fixture',
+    async run(_cwd, prompt) {
+      prompts.push(prompt);
+    },
+  });
+  const id = await studio.create('Recording', 'Create a toy');
+  await settled(studio);
+  const prompt =
+    'Prepare a gameplay recording plan for this app. Inspect its actual start screen and controls. Configure preview.recording in napplet.json with an early start action and timed inputs that demonstrate the core interaction, not just the menu. Keep the app working. Do not publish or claim a clip was captured. I will use Publish to capture and watch the result.';
+  await studio.send(id, prompt);
+  const project = await settled(studio);
+  expect(prompts.some((request) => request.endsWith(prompt))).toBe(true);
+  expect(project.publicationIntent).toBeUndefined();
+});
+
+test('publication follow-up opens only after the maker and checks finish, never after failure', async () => {
+  let release: () => void = () => {};
+  let paused: Promise<void> | undefined;
+  let fail = false;
+  const { studio } = await fixture({
+    model: 'fixture',
+    async run() {
+      if (paused) await paused;
+      if (fail) throw new Error('Maker failed');
+    },
+  });
+  const id = await studio.create('Recording', 'Create a toy');
+  await settled(studio);
+  await studio.send(id, 'Lets publish this');
+  expect((await studio.state()).projects[0].publicationIntent).toBeTruthy();
+  const server = await serveStudio(studio, 0);
+  cleanup.push(async () => {
+    await server.stop(true);
+  });
+  const { token } = await (await fetch(new URL('/api/session', server.url))).json();
+  const sendFollowup = (prompt: string) =>
+    fetch(new URL(`/api/projects/${id}/messages`, server.url), {
+      method: 'POST',
+      headers: {
+        Origin: server.url.origin,
+        'X-Studio-Token': token,
+        'X-Request-ID': crypto.randomUUID(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prompt, reviewPublication: true }),
+    });
+  paused = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  expect((await sendFollowup('Prepare gameplay. Do not publish.')).ok).toBe(true);
+  expect((await studio.state()).projects[0].publicationIntent).toBeUndefined();
+  expect((await studio.state()).busy).toBe(id);
+  release();
+  const ready = await settled(studio);
+  expect(ready.phase).toBe('ready');
+  expect(ready.publicationIntent).toBeTruthy();
+  expect(ready.messages.at(-1)?.text).toContain('No new clip has been captured yet');
+  fail = true;
+  expect((await sendFollowup('Prepare another recording.')).ok).toBe(true);
+  const failed = await settled(studio);
+  expect(failed.phase).toBe('failed');
+  expect(failed.publicationIntent).toBeUndefined();
+});
 afterEach(async () => {
   for (const fn of cleanup.splice(0).reverse()) await fn();
 });
@@ -165,6 +232,7 @@ test('reasoning is bounded, replaces repeated parts, survives reload and resets 
           id: `part-${reasoningLimits.blocks + 2}`,
           text: 'Source inspected.',
         });
+        emit({ type: 'activity', text: 'edit · completed' });
       } else emit({ type: 'reasoning', id: 'next-part', text: 'Verify the updated controls.' });
       await writeFile(join(directory, 'src/main.ts'), `working-${calls}`);
     },
@@ -176,6 +244,11 @@ test('reasoning is bounded, replaces repeated parts, survives reload and resets 
   expect(first.reasoning?.[0].text).toBe('Inspect source 3.');
   expect(first.reasoning?.at(-1)?.text).toBe('Source inspected.');
   expect(first.reasoningOlder).toBe(true);
+  const thought = first.workshop!.findIndex((e) => e.id === `part-${reasoningLimits.blocks + 2}`);
+  expect(first.workshop![thought + 1]).toMatchObject({
+    type: 'activity',
+    text: 'edit · completed',
+  });
   expect(first.messages.every((m) => !m.text.includes('Source inspected.'))).toBe(true);
   const files = await run(['git', 'ls-files'], {
     cwd: join(root, 'projects', id, 'workspace'),
@@ -189,6 +262,7 @@ test('reasoning is bounded, replaces repeated parts, survives reload and resets 
   await reloaded.initialize();
   cleanup.push(() => reloaded.close());
   expect((await reloaded.state()).projects[0].reasoning).toEqual(first.reasoning);
+  expect((await reloaded.state()).projects[0].workshop).toEqual(first.workshop);
   await reloaded.send(id, 'Change the controls');
   const second = await settled(reloaded);
   expect(second.reasoning).toEqual([
@@ -199,6 +273,7 @@ test('reasoning is bounded, replaces repeated parts, survives reload and resets 
     },
   ]);
   expect(second.reasoningOlder).toBe(false);
+  expect(second.workshop!.some((e) => e.id === `part-${reasoningLimits.blocks + 2}`)).toBe(false);
 }, 20000);
 
 test('failed turns keep the passing preview; restoring backs up changes and preserves Git ancestry', async () => {
@@ -282,6 +357,114 @@ test('cancellation kills owned process descendants and retains a resumable draft
   await Bun.sleep(100);
   for (const pid of pids) expect(() => process.kill(pid, 0)).toThrow();
 }, 10000);
+
+test('inference timeout verifies saved work without another paid turn and retains continuation', async () => {
+  let calls = 0;
+  const { studio, root } = await fixture({
+    model: 'fixture',
+    async run(directory, _prompt, _session, signal, emit) {
+      calls++;
+      emit({ type: 'session', id: 'ses_timeout' });
+      await writeFile(join(directory, 'src/main.ts'), 'working after cutoff');
+      await run([process.execPath, '-e', 'setInterval(()=>{},1000)'], {
+        cwd: directory,
+        env: cleanEnvironment(),
+        signal,
+        operation: 'OpenCode inference',
+        timeoutMs: 150,
+      });
+    },
+  });
+  const id = await studio.create('Timed out toy', 'Make it');
+  const result = await settled(studio);
+  expect(result.phase).toBe('ready');
+  expect(result.preview).toBeTruthy();
+  expect(result.timeLimitReached).toBe(true);
+  expect(result.session).toBe('ses_timeout');
+  expect(calls).toBe(1);
+  expect(result.messages.some((m) => /time limit/i.test(m.text))).toBe(true);
+  expect(
+    await readFile(
+      join(root, 'projects', id, 'previews', result.preview!, 'dist/index.html'),
+      'utf8',
+    ),
+  ).toContain('working after cutoff');
+}, 15000);
+
+test('inference stream never becomes an error diagnostic; tool stderr still explains failure', async () => {
+  for (const stderr of ['', 'Provider unavailable: HTTP 503']) {
+    let failure: unknown;
+    try {
+      await run(
+        [
+          process.execPath,
+          '-e',
+          `console.log(JSON.stringify({type:'reasoning',part:{text:'PRIVATE_STREAM_MARKER'}}));console.error(${JSON.stringify(stderr)});process.exit(1);`,
+        ],
+        {
+          cwd: process.cwd(),
+          env: cleanEnvironment(),
+          signal: new AbortController().signal,
+          operation: 'OpenCode inference',
+          stdoutDiagnostic: false,
+        },
+      );
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeTruthy();
+    const message = formatDiagnostic(diagnose(failure));
+    expect(message).not.toContain('PRIVATE_STREAM_MARKER');
+    expect(message).toContain('Exit status: 1');
+    if (stderr) expect(message).toContain(stderr);
+  }
+});
+
+test('timeout before edits is not delivered as a starter; failed recovery keeps the old preview and never buys a repair', async () => {
+  let mode = 'empty',
+    calls = 0;
+  const { studio } = await fixture({
+    model: 'fixture',
+    async run(directory, _prompt, _session, signal) {
+      calls++;
+      if (mode === 'working') {
+        await writeFile(join(directory, 'src/main.ts'), 'working');
+        return;
+      }
+      if (mode === 'broken') await writeFile(join(directory, 'src/main.ts'), 'BROKEN');
+      if (mode === 'protected') await writeFile(join(directory, 'package.json'), '{"scripts":{}}');
+      await run([process.execPath, '-e', 'setInterval(()=>{},1000)'], {
+        cwd: directory,
+        env: cleanEnvironment(),
+        signal,
+        operation: 'OpenCode inference',
+        timeoutMs: 100,
+      });
+    },
+  });
+  const id = await studio.create('Empty', 'Make it');
+  const empty = await settled(studio);
+  expect(empty.phase).toBe('failed');
+  expect(empty.error?.code).toBe('STUDIO_TIMEOUT');
+  expect(empty.preview).toBeUndefined();
+  mode = 'working';
+  await studio.send(id, 'Try again');
+  const passing = await settled(studio);
+  expect(passing.phase).toBe('ready');
+  mode = 'broken';
+  await studio.send(id, 'Change it');
+  const broken = await settled(studio);
+  expect(broken.phase).toBe('failed');
+  expect(broken.preview).toBe(passing.preview);
+  expect(broken.checks[0].detail).toContain('TS2304');
+  expect(calls).toBe(3);
+  mode = 'protected';
+  await studio.send(id, 'Try again');
+  const guarded = await settled(studio);
+  expect(guarded.error?.code).toBe('STUDIO_GUARDRAIL');
+  expect(guarded.preview).toBe(passing.preview);
+  expect(calls).toBe(4);
+}, 15000);
 
 test('loopback HTTP requires the page token and same origin; duplicate actions do not start another draft', async () => {
   const agent: Agent = { model: 'fixture/local', async run() {} };
@@ -458,7 +641,11 @@ test('frozen preview refuses mutations even with its valid manager token', async
     await server.stop(true);
   });
   const origin = server.url.origin;
-  const html = await (await fetch(origin)).text();
+  const response = await fetch(origin);
+  expect(response.headers.get('Content-Security-Policy')).toContain(
+    "frame-ancestors 'self' http://127.0.0.1:* http://localhost:*",
+  );
+  const html = await response.text();
   const token = /name="soyli-token" content="([^"]+)"/.exec(html)![1];
   for (const route of ['/manager', '/capture', '/workshop']) {
     const response = await fetch(origin + route, {

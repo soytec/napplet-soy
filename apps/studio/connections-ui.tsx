@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Plus, X } from 'lucide-react';
+import { ModelPicker } from './model-picker-ui';
 import {
   defaultSteps,
   providers,
@@ -234,15 +235,6 @@ export function ConnectionsDialog({
               onChange={(e) => setForm({ ...form, endpoint: e.target.value })}
             />
           </label>
-          <label>
-            Model ID
-            <input
-              required
-              placeholder="Exact model ID from your provider"
-              value={form.model}
-              onChange={(e) => setForm({ ...form, model: e.target.value })}
-            />
-          </label>
           <div className="settings-grid">
             <label>
               API key
@@ -270,6 +262,26 @@ export function ConnectionsDialog({
               />
             </label>
           </div>
+          <ModelPicker
+            source={{
+              id: form.id,
+              provider: form.provider,
+              endpoint: form.endpoint,
+              key: form.key,
+            }}
+            api={api}
+            value={form.model}
+            onChange={(model) => setForm({ ...form, model })}
+            disabled={busy || pending}
+            autoLoad={
+              !!form.id &&
+              form.key === undefined &&
+              state.connections.some(
+                (c) =>
+                  c.id === form.id && c.provider === form.provider && c.endpoint === form.endpoint,
+              )
+            }
+          />
           {form.id && ['ollama', 'lmstudio', 'llamacpp', 'compatible'].includes(form.provider) && (
             <button type="button" onClick={() => setForm({ ...form, key: '' })}>
               Clear saved API key on save
@@ -281,7 +293,11 @@ export function ConnectionsDialog({
             access to the model catalogue.
           </p>
           <div className="connection-buttons">
-            <button type="submit" className="primary" disabled={busy || pending}>
+            <button
+              type="submit"
+              className="primary"
+              disabled={busy || pending || !form.model.trim()}
+            >
               {pending ? 'Saving…' : 'Save connection'}
             </button>
             <button

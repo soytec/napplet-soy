@@ -30,16 +30,17 @@ function Create() {
       <p className="create-intro">An idea is enough. Choose where you want to make it real.</p>
       <div className="creation-choices">
         <article>
-          <span className="eyebrow">CHAT & PLAY · LOCAL PREVIEW</span>
+          <span className="eyebrow">CHAT & PLAY · LOCAL BETA</span>
           <h2>In your browser</h2>
           <p>
             Describe your idea, play the preview and keep shaping it. Your drafts are saved by the
-            local Studio on this computer.
+            local Studio on this computer. This beta requires a local checkout and setup; hosted
+            browser creation is not available yet.
           </p>
           <StudioLink path="/create" className="creation-choice-action">
-            Create in browser →
+            {import.meta.env.DEV ? 'Create in browser →' : 'Try Studio locally →'}
           </StudioLink>
-          <StudioLink>Continue a creation ↗</StudioLink>
+          {import.meta.env.DEV && <StudioLink>Continue a creation ↗</StudioLink>}
         </article>
         <article>
           <span className="eyebrow">YOUR EDITOR & AI TOOLS</span>

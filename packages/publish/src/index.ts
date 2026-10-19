@@ -152,6 +152,7 @@ export async function publicationStatus(
     refresh?: boolean;
     signal?: AbortSignal;
     creator?: string;
+    waitForWebsite?: boolean;
   } = {},
 ) {
   const journal = new Journal(await realpath(directory), network, options.creator);
@@ -161,7 +162,11 @@ export async function publicationStatus(
     if (!id) return { status: 'not_started' as const };
     const job = await journal.load(id);
     if (options.refresh && job.status === 'announced_pending_index') {
-      job.website = await confirmWebsite(job, { signal: options.signal });
+      job.website = await confirmWebsite(job, {
+        signal: options.signal,
+        wait: options.waitForWebsite,
+        ...(options.waitForWebsite === false ? { timeoutMs: 5000 } : {}),
+      });
       await journal.save(job);
     }
     return result(job);

@@ -20,13 +20,18 @@ export function StudioPage() {
     return (
       <section className="create-page">
         <span className="eyebrow">YOUR IDEAS, A PLACE TO GROW</span>
-        <h1>My creations</h1>
+        <h1>Studio · local beta</h1>
         <p>
           Browser creation is currently available in the local development build. Start the Studio
           worker with <code>bun run studio</code> alongside the shell.
         </p>
         <p>
           Hosted access is still being built. Your local drafts stay on the computer running Studio.
+        </p>
+        <p>
+          <a href="https://github.com/zeSchlausKwab/napplet-soy/blob/main/docs/QUICK-VIBE.md#start">
+            Local Studio setup and requirements →
+          </a>
         </p>
         <Link to="/create" hash="local-soyli">
           Use soyLI locally →

@@ -12,6 +12,8 @@ on:
       - 'scripts/relay*'
       - 'tests/services/publish-stack.ts'
       - 'tests/services/studio-proposal.test.ts'
+      - 'tests/services/studio-browser-git.test.ts'
+      - 'tests/services/fixtures/studio-browser-git.worker.ts'
       - 'package.json'
       - 'bun.lock'
   push:
@@ -48,5 +50,7 @@ jobs:
           rustup toolchain install "$studio_rust" --profile minimal
           printf 'RUSTUP_TOOLCHAIN=%s\n' "$studio_rust" >> "$GITHUB_ENV"
           go version
-      - name: Build pinned services and verify reviewed proposals
+      - name: Install browser test prerequisites
+        run: bunx playwright install --with-deps chromium
+      - name: Build pinned services and verify proposals and browser Git
         run: bun run test:studio:services

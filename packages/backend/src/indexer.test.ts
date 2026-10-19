@@ -383,7 +383,7 @@ test('discovery scopes deletions while retaining kind-tagged and legacy target d
   expect(await w.collect(read, Date.now() + 20 * 60000)).toEqual([]);
   expect(w.store.removed(late)).toBe(true);
 });
-test('website receipt requires matching signed manifests, healthy indexing and verified artifact bytes', async () => {
+test('website receipt requires matching signed manifests, fresh indexing and verified artifact bytes', async () => {
   const w = await setup(),
     r = await release();
   w.store.admit(r.current);
@@ -404,6 +404,19 @@ test('website receipt requires matching signed manifests, healthy indexing and v
   });
   const response = await publicationResponse(new Request(url));
   expect((await response.clone().json()).status).toBe('ready');
+  w.store.setState('health', {
+    checkedAt: Date.now(),
+    release: 'test',
+    relays: w.config.relays,
+    errors: ['wss://unrelated.example: relay query timed out'],
+  });
+  expect((await (await publicationResponse(new Request(url))).json()).status).toBe('ready');
+  await Bun.write(join(directory, 'artifacts', `${r.hash}.html`), new Uint8Array(r.bytes.length));
+  expect((await (await publicationResponse(new Request(url))).json()).status).toBe('pending');
+  await Bun.write(join(directory, 'artifacts', `${r.hash}.html`), r.bytes);
+  w.store.setState('health', { checkedAt: 1, errors: [] });
+  expect((await (await publicationResponse(new Request(url))).json()).status).toBe('pending');
+  w.store.setState('health', { checkedAt: Date.now(), errors: [] });
   const job = {
     plan: {
       pubkey: r.current.pubkey,
@@ -415,6 +428,17 @@ test('website receipt requires matching signed manifests, healthy indexing and v
     snapshot: r.snapshot,
   };
   expect((await confirmWebsite(job, { fetch: async () => response.clone() })).ready).toBe(true);
+  let availabilityProbes = 0;
+  expect(
+    await confirmWebsite(job, {
+      wait: false,
+      fetch: async () => {
+        availabilityProbes++;
+        return Response.json({ ...(await response.clone().json()), status: 'pending' });
+      },
+    }),
+  ).toMatchObject({ ready: false, reason: 'pending' });
+  expect(availabilityProbes).toBe(1);
   const falseReceipt = { ...(await response.json()), snapshot: r.current };
   expect(
     (await confirmWebsite(job, { fetch: async () => Response.json(falseReceipt) })).ready,

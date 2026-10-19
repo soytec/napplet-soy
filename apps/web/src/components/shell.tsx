@@ -61,7 +61,7 @@ export function Shell({ children }: { children: ReactNode }) {
           >
             Explore
           </Link>
-          <StudioLink>My creations</StudioLink>
+          <StudioLink>{import.meta.env.DEV ? 'My creations' : 'Studio beta'}</StudioLink>
           <Link to="/docs" activeProps={{ className: 'nav-active' }}>
             Docs
           </Link>
@@ -73,7 +73,8 @@ export function Shell({ children }: { children: ReactNode }) {
             data-tone="mint"
             data-effect="create"
           >
-            <Sparkles size={16} /> Create in browser
+            <Sparkles size={16} />{' '}
+            {import.meta.env.DEV ? 'Create in browser' : 'Try Studio locally'}
           </StudioLink>
           <Link
             to="/create"

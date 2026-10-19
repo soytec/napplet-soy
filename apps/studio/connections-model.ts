@@ -50,3 +50,6 @@ export type Connection = Omit<ConnectionInput, 'id' | 'key'> & {
   hasKey: boolean;
 };
 export type ConnectionState = { connections: Connection[]; selected?: string };
+export type ModelCatalogueInput = Pick<ConnectionInput, 'id' | 'provider' | 'endpoint' | 'key'>;
+export type InferenceModel = { id: string; name: string };
+export type ModelCatalogue = { models: InferenceModel[]; truncated: boolean };

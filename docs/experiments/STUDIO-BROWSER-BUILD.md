@@ -29,17 +29,17 @@ was approximately $0.01 for the edit and repair.
 
 ## Execution boundary
 
-| Work | Browser build mode |
-| --- | --- |
-| Prepare/install the existing soyLI project | Local Studio service |
-| OpenCode file tools and agent session | Local Studio service |
-| Model inference | Selected provider, unchanged |
-| Source collection and revision hash | Local Studio service |
-| Type-check and bundle preview | Browser Web Worker |
-| Play the preview | Browser, inside the existing soyLI sandbox |
-| Git checkpoints and immutable preview storage/serving | Local Studio service |
-| Guidance, soyLI and conformance checks for publication/proposals | Local Studio service, unchanged |
-| Screenshots, video and publication | Existing reviewed soyLI flow, unchanged |
+| Work                                                             | Browser build mode                         |
+| ---------------------------------------------------------------- | ------------------------------------------ |
+| Prepare/install the existing soyLI project                       | Local Studio service                       |
+| OpenCode file tools and agent session                            | Local Studio service                       |
+| Model inference                                                  | Selected provider, unchanged               |
+| Source collection and revision hash                              | Local Studio service                       |
+| Type-check and bundle preview                                    | Browser Web Worker                         |
+| Play the preview                                                 | Browser, inside the existing soyLI sandbox |
+| Git checkpoints and immutable preview storage/serving            | Local Studio service                       |
+| Guidance, soyLI and conformance checks for publication/proposals | Local Studio service, unchanged            |
+| Screenshots, video and publication                               | Existing reviewed soyLI flow, unchanged    |
 
 The browser receives only selected source/configuration files, the installed
 SDK/NAP/core package files and TypeScript declaration libraries. No credentials,
@@ -53,11 +53,11 @@ NAP/core 0.28.0. Custom package installation is outside this experiment.
 Observed on one Apple Silicon Mac in Chromium; these are development measurements,
 not a cross-device benchmark. Dependencies were already installed.
 
-| Operation | Observed time |
-| --- | --- |
-| Browser TypeScript plus bundle, successful sampled runs | 579–619 ms |
-| Browser build click to new preview URL | 2,063 ms |
-| Normal soyLI check sequence to new preview URL | 7,781 ms |
+| Operation                                               | Observed time |
+| ------------------------------------------------------- | ------------- |
+| Browser TypeScript plus bundle, successful sampled runs | 579–619 ms    |
+| Browser build click to new preview URL                  | 2,063 ms      |
+| Normal soyLI check sequence to new preview URL          | 7,781 ms      |
 
 The end-to-end comparison includes coordination and preview promotion. The normal
 path does more validation: `soyli run verify`, `soyli check`, and
@@ -79,11 +79,11 @@ No persistent source cache or provider credential storage is introduced.
 
 The cache/asset follow-up used the same disposable draft in desktop Chromium:
 
-| Build | Input transferred | Files transferred | Compiler workers started |
-| --- | --- | --- | --- |
-| First build | 3,957,874 bytes | 370 | 1 |
-| Source edit plus PNG/audio/JSON assets | 17,739 bytes | 6 | Still 1 |
-| Unchanged rebuild | 193 bytes | 0 | Still 1 |
+| Build                                  | Input transferred | Files transferred | Compiler workers started |
+| -------------------------------------- | ----------------- | ----------------- | ------------------------ |
+| First build                            | 3,957,874 bytes   | 370               | 1                        |
+| Source edit plus PNG/audio/JSON assets | 17,739 bytes      | 6                 | Still 1                  |
+| Unchanged rebuild                      | 193 bytes         | 0                 | Still 1                  |
 
 The asset build type-check/bundle took 472 ms in this sample. These transfer
 counts cover the private job response, not the compiled HTML returned to the
@@ -114,6 +114,39 @@ idempotent create requests, wrong-tab isolation and the ordinary native flow.
 The real browser acceptance covered fresh creation; remote remix import was not
 retested in that run.
 
+## In-turn compiler feedback and a fresh-game regression
+
+The first browser implementation removed the agent's native build commands but
+only compiled after the agent returned. A real fresh Pong request exposed the
+gap: the agent made 100 tool calls without any compiler feedback, searched for
+recording details unrelated to the request, and hit the ten-minute inference
+deadline at 64 of 100 steps. Its saved renderer still had TypeScript errors.
+The earlier successful Orbit Pop edit did not exercise initial game creation.
+
+The agent now has a scoped `studio_check` MCP tool that runs the browser compiler
+during its turn. It can inspect diagnostics, edit and check again. Final promotion
+still requires a separate controller check of the current source. Guidance asks
+for a small playable version first and reserves recording preparation for an
+explicit request. Studio also uses the checkout's soyLI consistently for scaffold,
+setup, agent commands and verification, rather than accidentally mixing the branch
+with an older globally installed CLI. Existing draft guidance is preserved.
+
+The same request, “Lets create a pong game for two players on one screen.”, was
+repeated once with the same DeepSeek/deepseek-flash connection in a separate fresh
+draft. It completed in 5 minutes 37 seconds at 50 of 100 steps, with 61 tool calls
+including nine successful browser checks. Reported inference cost was about
+$0.054. The final browser type-check and bundle took 410 ms. This is one observed
+run, not a latency guarantee. No time or step limits were increased.
+
+Browser acceptance checked the actual embedded preview: both paddles moved in
+opposite directions under simultaneous keyboard input; pause, resume and rematch
+worked. It also exposed a separate local integration defect: preview embedding
+allowed `127.0.0.1` but blocked the shell on `localhost`. Both loopback hostnames
+are now accepted as frame ancestors; workshop embedding remains disabled, and
+frozen previews remain read-only. The original failed draft was separately
+recovered by repairing its canvas-context type narrowing and running the normal
+soyLI checks, without another inference request.
+
 ## Managed assets
 
 The existing Assets upload form and soyLI asset lock/helper are reused. Embedded
@@ -142,6 +175,11 @@ a complete snapshot. This remains Chromium emulation, not physical-phone testing
 - Browser type/build diagnostics receive one repair pass. Worker startup failure,
   cancellation, disconnect/timeout and stale source do not trigger paid repairs or
   silent host fallback. The prior preview remains available.
+- An inference deadline after source edits triggers verification of those saved
+  files, without another paid turn. Passing files can become a preview with an
+  unfinished-work warning; an untouched starter, invalid source or protected-file
+  changes cannot. Raw agent JSONL never becomes a timeout error message. The
+  existing ten-minute inference and twenty-minute whole-turn limits remain.
 - Browser HTML goes into a new immutable preview snapshot, not the workspace's
   `dist/index.html`. Its Git checkpoint and UI explicitly say full checks are pending.
 - Publication and proposal preparation have no browser-build bypass. Native soyLI
@@ -155,7 +193,7 @@ unsupported profiles and symlinks, wrong-tab/stale replies, cancellation/deadlin
 agent repair, worker failure without paid retry, previous-preview retention,
 asset/helper validation, file removals and cache resets, worker reuse, and
 the native publication verification boundary. The full source gate passes
-786 tests and 6,236 assertions, plus type-checking and production packaging.
+794 tests and 6,285 assertions, plus type-checking and production packaging.
 Physical phones and Safari/Firefox are not yet verified. Nix
 validation remains required before pushing dependency changes; Nix is unavailable
 on the development Mac, so its dependency hash/package check has not been updated

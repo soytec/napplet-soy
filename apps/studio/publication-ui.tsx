@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Check, ExternalLink, LoaderCircle, Send, X } from 'lucide-react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Check, ExternalLink, Send, X } from 'lucide-react';
 import type { EventTemplate, NostrEvent } from 'nostr-tools';
-import type { Listing, Media, ReleaseReview } from './publication';
+import type { Listing, ListingDetails, Media, ReleaseReview } from './publication';
 import type { Project } from './types';
 import { bindPublicationAccount, type PublicationAccount } from './publication-account';
+import { PublicationProgressPanel } from './publication-progress-ui';
 export type { PublicationAccount } from './publication-account';
 
 type Api = <T>(path: string, body?: unknown) => Promise<T>;
@@ -12,37 +13,64 @@ export function usePublicationSigner(api: Api, account: PublicationAccount) {
   const [status, setStatus] = useState('');
   const pending = useRef(false);
   const shell = useRef<ReturnType<typeof bindPublicationAccount> | undefined>(undefined);
-  useEffect(() => {
+  const connected = useRef<{ id: string; pubkey: string } | undefined>(undefined);
+  const connecting = useRef<Promise<{ id: string; pubkey: string } | undefined> | undefined>(
+    undefined,
+  );
+  const latest = useRef(account);
+  latest.current = account;
+  // Reset before the dialog's passive effect binds the newly selected identity.
+  useLayoutEffect(() => {
     shell.current?.close();
     shell.current = undefined;
     setSession(undefined);
+    connected.current = undefined;
+    connecting.current = undefined;
     setStatus('');
     return () => shell.current?.close();
   }, [account.pubkey]);
   async function connect() {
-    shell.current?.close();
-    setSession(undefined);
-    if (!account.pubkey) {
+    const current = latest.current;
+    if (!current.pubkey) {
       setStatus('Choose an account using the shared account menu, then continue.');
-      await account.connect();
+      await current.connect();
       return;
     }
-    const signer = bindPublicationAccount(account);
-    setStatus('Connecting the selected account…');
+    if (shell.current?.alive() && connected.current?.pubkey === current.pubkey)
+      return connected.current;
+    if (connecting.current) return connecting.current;
+    shell.current?.close();
+    setSession(undefined);
+    const signer = bindPublicationAccount(current);
     shell.current = signer;
+    setStatus('Using your signed-in shell account…');
+    const operation = (async () => {
+      try {
+        const result = await api<{ id: string; pubkey: string }>('signers', {
+          pubkey: signer.pubkey,
+        });
+        if (!signer.alive() || result.pubkey !== signer.pubkey)
+          throw new Error('Shell account changed while connecting. Try again.');
+        connected.current = result;
+        setSession(result);
+        setStatus('Using your signed-in shell account');
+        return result;
+      } catch (error) {
+        signer.close();
+        if (shell.current === signer) {
+          shell.current = undefined;
+          connected.current = undefined;
+          setStatus('Could not connect to Studio. Retry to use your shell account.');
+        }
+        throw error;
+      }
+    })();
+    connecting.current = operation;
     try {
-      const connected = await api<{ id: string; pubkey: string }>('signers', {
-        pubkey: signer.pubkey,
-      });
-      if (!signer.alive()) throw new Error('Account changed while connecting. Try again.');
-      setSession(connected);
-    } catch (error) {
-      signer.close();
-      shell.current = undefined;
-      setStatus('Account connection did not complete. Connect again to retry.');
-      throw error;
+      return await operation;
+    } finally {
+      if (connecting.current === operation) connecting.current = undefined;
     }
-    setStatus('Connected through napplet.soy');
   }
   useEffect(() => {
     if (!session) return;
@@ -79,6 +107,7 @@ export function usePublicationSigner(api: Api, account: PublicationAccount) {
         if (live) {
           setStatus((error as Error).message);
           setSession(undefined);
+          connected.current = undefined;
         }
       } finally {
         pending.current = false;
@@ -91,7 +120,7 @@ export function usePublicationSigner(api: Api, account: PublicationAccount) {
       clearInterval(timer);
     };
   }, [session?.id]);
-  return { session, status, connect };
+  return { session, status, connect, pubkey: account.pubkey };
 }
 
 function Capture({
@@ -172,20 +201,69 @@ export function PublicationDialog({
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [form, setForm] = useState<Listing>();
+  const [recordingPlanned, setRecordingPlanned] = useState(false);
   const [tagsText, setTagsText] = useState('');
   const [editing, setEditing] = useState(!p.publication?.review);
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState('');
   const [resume, setResume] = useState(false);
+  const [availabilityChecks, setAvailabilityChecks] = useState(0);
+  const checkingAvailability = useRef(false);
   const review = resume ? p.publication?.attempt?.review : p.publication?.review;
   const attempt = p.publication?.attempt;
-  const success = attempt?.status === 'published' ? attempt.result : undefined;
+  const success =
+    attempt?.status === 'published' &&
+    (!p.publication?.review || p.publication.review.id === attempt.review.id) &&
+    (!p.publication?.progress || p.publication.progress.step === 7)
+      ? attempt.result
+      : undefined;
+  const automaticChecks =
+    !!success &&
+    !success.websiteReady &&
+    success.websiteStatus !== 'superseded' &&
+    availabilityChecks < 40;
+  useEffect(() => {
+    setAvailabilityChecks(0);
+  }, [success?.jobId]);
+  useEffect(() => {
+    if (!automaticChecks || busy) return;
+    // Only query saved publication status. No signing, uploads or republishing.
+    const timer = setTimeout(() => {
+      if (checkingAvailability.current) return;
+      checkingAvailability.current = true;
+      setAvailabilityChecks((value) => value + 1);
+      void api(`projects/${p.id}/refresh-publication`, {})
+        .catch((e) => setError(e.message))
+        .finally(() => {
+          checkingAvailability.current = false;
+        });
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [automaticChecks, busy, availabilityChecks, success?.jobId]);
   useEffect(() => {
     dialog.current?.showModal();
   }, []);
+  const startingPublication =
+    busy && (p.publication?.progress?.step === 0 || attempt?.status === 'running');
   useEffect(() => {
-    void api<Listing>(`projects/${p.id}/listing`)
-      .then((form) => {
+    if (startingPublication)
+      dialog.current?.querySelector('.publication-timeline')?.scrollIntoView({ block: 'nearest' });
+  }, [startingPublication]);
+  useEffect(() => {
+    let live = true;
+    if (signer.pubkey)
+      void signer.connect().catch((e) => {
+        if (live) setError(e.message);
+      });
+    setConfirmed(false);
+    return () => {
+      live = false;
+    };
+  }, [signer.pubkey]);
+  useEffect(() => {
+    void api<ListingDetails>(`projects/${p.id}/listing`)
+      .then(({ recordingPlanned, ...form }) => {
+        setRecordingPlanned(recordingPlanned);
         setForm(form);
         setTagsText(form.topics.join(', '));
       })
@@ -227,32 +305,26 @@ export function PublicationDialog({
       <div className="publication-body">
         <div className="signer-card">
           <div>
-            <strong>Publishing account</strong>
+            <strong>Your shell account</strong>
             <small className="pubkey">
-              {signer.session?.pubkey ?? 'Use your existing napplet.soy account.'}
+              {signer.pubkey ?? 'Sign in using the account menu to publish.'}
             </small>
             <small>{signer.status}</small>
           </div>
-          <button className="outline" disabled={busy} onClick={() => void call(signer.connect)}>
-            {signer.session ? 'Use current account' : 'Use shell account'}
-          </button>
+          {(!signer.pubkey || !signer.session) && (
+            <button className="outline" disabled={busy} onClick={() => void call(signer.connect)}>
+              {signer.pubkey ? 'Retry connection' : 'Sign in'}
+            </button>
+          )}
         </div>
         {error && (
           <p role="alert" className="publication-error">
             {error}
           </p>
         )}
+        <PublicationProgressPanel project={p} signing={signer.status} />
         {busy && (
-          <div role="status" className="publication-progress">
-            <LoaderCircle className="spin" size={20} />
-            <div>
-              <strong>{p.stage}</strong>
-              <small>
-                {p.phase === 'publishing'
-                  ? 'Keep this tab open for signing. Uploaded steps are saved for retry.'
-                  : 'Checking the project and capturing its actual running build.'}
-              </small>
-            </div>
+          <div className="publication-actions">
             <button
               className="outline"
               onClick={() => void call(() => api(`projects/${p.id}/stop`, {}))}
@@ -294,20 +366,36 @@ export function PublicationDialog({
               <strong>
                 {success.websiteReady
                   ? 'Your napplet is live'
-                  : 'Published · website indexing pending'}
+                  : success.websiteStatus === 'superseded'
+                    ? 'Published · a newer release is listed'
+                    : 'Published to Nostr · checking website availability'}
               </strong>
+              {!success.websiteReady && (
+                <p className="muted">
+                  {success.websiteStatus === 'superseded'
+                    ? 'The website lists a newer version of this napplet.'
+                    : automaticChecks
+                      ? 'Uploads and relay publication succeeded. Checking automatically while this dialog is open; the link may already play. No need to publish again.'
+                      : 'Automatic checking has paused. Your release is published; try the link or check availability again. No need to publish again.'}
+                </p>
+              )}
               <p>
                 <a href={success.url} target="_blank" rel="noreferrer">
                   Open napplet <ExternalLink size={13} />
                 </a>
               </p>
-              <button
-                className="outline"
-                disabled={busy}
-                onClick={() => void call(() => api(`projects/${p.id}/refresh-publication`, {}))}
-              >
-                Check availability
-              </button>
+              {!success.websiteReady && (
+                <button
+                  className="outline"
+                  disabled={busy}
+                  onClick={() => {
+                    setAvailabilityChecks(0);
+                    void call(() => api(`projects/${p.id}/refresh-publication`, {}));
+                  }}
+                >
+                  Check availability
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -330,19 +418,20 @@ export function PublicationDialog({
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (signer.session)
-                void call(() =>
-                  api(`projects/${p.id}/prepare-publication`, {
-                    session: signer.session!.id,
-                    listing: {
-                      ...form,
-                      topics: tagsText
-                        .split(',')
-                        .map((t) => t.trim())
-                        .filter(Boolean),
-                    },
-                  }),
-                );
+              void call(async () => {
+                const session = await signer.connect();
+                if (!session) return;
+                await api(`projects/${p.id}/prepare-publication`, {
+                  session: session.id,
+                  listing: {
+                    ...form,
+                    topics: tagsText
+                      .split(',')
+                      .map((t) => t.trim())
+                      .filter(Boolean),
+                  },
+                });
+              });
             }}
           >
             <label className="field">
@@ -394,9 +483,27 @@ export function PublicationDialog({
               </label>
             </div>
             <p className="muted">
-              A fresh screenshot is included. Captures use the project’s saved timing and input
-              recipe. Watch them before publishing.
+              A fresh screenshot is included. For clips, the saved recipe must start the app and
+              demonstrate its core interaction. Watch the result before publishing. Preparing a
+              recipe in chat does not capture a clip. After the maker finishes, this dialog reopens
+              so you can prepare the release and review the actual recording.
             </p>
+            {form.video && !recordingPlanned && (
+              <div className="capture-plan-note">
+                <p>
+                  No gameplay recording plan is saved yet. Prepare one in chat before capturing.
+                </p>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!form.autoplay}
+                    disabled={busy}
+                    onChange={(e) => setForm({ ...form, autoplay: e.target.checked })}
+                  />{' '}
+                  This app runs automatically and needs no input to demonstrate it
+                </label>
+              </div>
+            )}
             <div className="publication-actions">
               <button
                 className="outline"
@@ -404,15 +511,21 @@ export function PublicationDialog({
                 disabled={busy}
                 onClick={() =>
                   chat(
-                    'Improve the publication description and tags, and configure preview.recording with timed inputs that show the core interaction. Keep the current app working. Do not publish. I will use Publish to capture and review the result.',
+                    'Prepare a gameplay recording plan for this app. Inspect its actual start screen and controls. Configure preview.recording in napplet.json with an early start action and timed inputs that demonstrate the core interaction, not just the menu. Coordinates use a 960 × 600 viewport; durationMs is 2000–8000 and actions use atMs, type click with x/y, or keyDown/keyUp with key. Keep the app working. Do not publish or claim a clip was captured. I will use Publish to capture and watch the result.',
                   )
                 }
               >
-                Improve listing & capture plan in chat
+                Prepare gameplay recording in chat
               </button>
               <button
                 className="primary"
-                disabled={busy || !signer.session || !form.title.trim() || !form.description.trim()}
+                disabled={
+                  busy ||
+                  !signer.session ||
+                  !form.title.trim() ||
+                  !form.description.trim() ||
+                  (form.video && !recordingPlanned && !form.autoplay)
+                }
               >
                 Prepare release
               </button>
@@ -472,14 +585,19 @@ export function PublicationDialog({
                 onChange={(e) => setConfirmed(e.target.checked)}
               />
               <span>
-                I reviewed the captures and listing. Publish this version, including its source and
-                Git history, under the account above.
+                I reviewed the listing and captures
+                {review.media.some((m) => m.mime === 'video/webm')
+                  ? ', and watched the clip demonstrate the app’s core interaction'
+                  : ''}
+                . Publish this version, including its source and Git history, under the account
+                above.
               </span>
             </label>
-            {signer.session && signer.session.pubkey !== review.plan.pubkey && (
+            {signer.pubkey !== review.plan.pubkey && (
               <p role="alert">
-                The connected account differs from this review. Reconnect the displayed author to
-                resume, or prepare a new release for the new account.
+                Your shell account changed. This review cannot be published as another author.
+                Prepare a new release using the current account, or switch accounts in the shell
+                menu.
               </p>
             )}
             <div className="publication-actions">
@@ -496,16 +614,18 @@ export function PublicationDialog({
               </button>
               <button
                 className="primary"
-                disabled={busy || !confirmed || signer.session?.pubkey !== review.plan.pubkey}
+                disabled={busy || !confirmed || signer.pubkey !== review.plan.pubkey}
                 onClick={() =>
-                  void call(() =>
-                    api(`projects/${p.id}/publish`, {
-                      session: signer.session!.id,
+                  void call(async () => {
+                    const session = await signer.connect();
+                    if (!session) return;
+                    await api(`projects/${p.id}/publish`, {
+                      session: session.id,
                       review: review.id,
                       resume,
                       confirmed: true,
-                    }),
-                  )
+                    });
+                  })
                 }
               >
                 <Send size={15} />

@@ -102,6 +102,7 @@ export class StudioWorker {
       stop: (...args) => call('stop', ...args),
       check: (...args) => call('check', ...args),
       restore: (...args) => call('restore', ...args),
+      browserGit: (...args) => call('browserGit', ...args),
       files: (...args) => call('files', ...args),
       file: (...args) => call('file', ...args),
       diff: (...args) => call('diff', ...args),

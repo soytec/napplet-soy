@@ -19,9 +19,21 @@ export const listingSchema = z
     topics: z.array(z.string().trim().min(1).max(80)).max(32),
     video: z.boolean(),
     portrait: z.boolean(),
+    autoplay: z.boolean().optional(),
   })
   .strict();
 export type Listing = z.infer<typeof listingSchema>;
+export type ListingDetails = Listing & { recordingPlanned: boolean };
+
+/** A default idle screencast is not a gameplay recipe. Passive apps are an explicit choice. */
+export function requireRecordingPlan(config: z.infer<typeof projectSchema>, input: Listing) {
+  if (input.video && !input.autoplay && !config.preview?.recording?.actions.length)
+    throw new DiagnosticError('STUDIO_RECORDING_PLAN', 'The preview clip needs a recording plan.', {
+      operation: 'prepare publication recording',
+      recovery:
+        'Ask the agent to configure preview.recording with a start action and timed inputs that demonstrate the core interaction at 960 × 600. Then prepare and watch the clip. For an app that starts and demonstrates itself without input, select “This app runs automatically” in Publish.',
+    });
+}
 export type Media = {
   name: string;
   label: string;
@@ -40,6 +52,7 @@ export type ReleaseReview = {
 };
 export type Published = Exclude<Awaited<ReturnType<typeof publishProject>>, { status: 'dry_run' }>;
 export type PublicationState = {
+  progress?: import('./publication-progress').PublicationProgress;
   review?: ReleaseReview;
   preparationFailed?: boolean;
   attempt?: {
@@ -70,7 +83,7 @@ export const reviewChanged = () =>
     recovery: 'Prepare and review the release again before publishing.',
   });
 
-export async function listing(root: string): Promise<Listing> {
+export async function listing(root: string): Promise<ListingDetails> {
   const config = projectSchema.parse(
     JSON.parse(new TextDecoder().decode(await regularFile(root, 'napplet.json', 16384))),
   );
@@ -80,6 +93,8 @@ export async function listing(root: string): Promise<Listing> {
     topics: config.topics,
     video: true,
     portrait: false,
+    autoplay: false,
+    recordingPlanned: !!config.preview?.recording?.actions.length,
   };
 }
 
@@ -100,6 +115,7 @@ export async function prepareRelease(
       'STUDIO_BACKEND',
       'Backend deployment is not supported in this studio yet.',
     );
+  requireRecordingPlan(config, input);
   // Changes remain in ordinary Git; private credentials/chat never enter this tree.
   config.title = input.title;
   config.description = input.description;
@@ -108,6 +124,12 @@ export async function prepareRelease(
   await writeFile(join(root, 'napplet.json'), JSON.stringify(config, null, 2) + '\n');
   await prepareSharingIdentity(root, 'public', pubkey);
   await hooks.verify(signal);
+  requireRecordingPlan(
+    projectSchema.parse(
+      JSON.parse(new TextDecoder().decode(await regularFile(root, 'napplet.json', 16384))),
+    ),
+    input,
+  );
   const before = await inspectProject(root, 'public', pubkey);
   const id = crypto.randomUUID();
   const media: Media[] = [];

@@ -6,6 +6,10 @@ import { run } from './process';
 import { defaultSteps, providers, type Provider } from './connections-model';
 import { regularFile } from '../../packages/publish/src/project';
 import { reasoningLimits } from './types';
+import { agentCheckTool } from './agent-check';
+import { workspaceMap } from './agent-context';
+
+export const inferenceTimeoutMs = 10 * 60_000;
 
 export type AgentEvent =
   | { type: 'session'; id: string }
@@ -24,7 +28,7 @@ export type Agent = {
     session: string | undefined,
     signal: AbortSignal,
     emit: (event: AgentEvent) => void,
-    execution?: { browserBuild: boolean },
+    execution?: { browserBuild: boolean; check?: (signal?: AbortSignal) => Promise<string> },
   ) => Promise<void>;
 };
 
@@ -177,6 +181,7 @@ export async function openCodeAgent(options: {
                 'find *',
                 'head *',
                 'wc *',
+                'echo *',
                 'git status*',
                 'git diff*',
                 'git log*',
@@ -212,7 +217,7 @@ export async function openCodeAgent(options: {
   };
   return {
     model,
-    async run(cwd, prompt, session, signal, emit) {
+    async run(cwd, prompt, session, signal, emit, execution) {
       const guidance: string[] = [];
       for (const path of [
         'docs/napplet-space.md',
@@ -227,7 +232,8 @@ export async function openCodeAgent(options: {
       }
       // Skill discovery alone did not reliably load phase guidance in the experiment.
       // Supply the actual installed files, not a second copy of the soyLI templates.
-      const context = guidance.join('\n');
+      const context =
+        guidance.join('\n') + '\n--- Verified workspace map ---\n' + (await workspaceMap(cwd));
       if (Buffer.byteLength(context + prompt, 'utf8') > 110000)
         throw new DiagnosticError(
           'STUDIO_GUIDANCE',
@@ -235,45 +241,68 @@ export async function openCodeAgent(options: {
           { recovery: 'Review the project’s installed guidance before retrying.' },
         );
       let reportedError: unknown;
-      await run(
-        [
-          executable,
-          '--pure',
-          'run',
-          '--format',
-          'json',
-          '--thinking',
-          '--model',
-          model,
-          ...(session ? ['--session', session] : []),
-          context +
-            '\n\n--- Studio task (tooling/lifecycle overrides above guidance) ---\n' +
-            prompt,
-        ],
-        {
-          cwd,
-          env,
-          signal,
-          operation: 'OpenCode inference',
-          scrub: (text) => (key ? text.replaceAll(key, '[provider credential redacted]') : text),
-          onLine: (line) => {
-            try {
-              for (const event of agentEvents(line)) emit(event);
-            } catch (error) {
-              reportedError = error;
-            }
+      if (options.browserBuild && !execution?.check)
+        throw new DiagnosticError('STUDIO_BROWSER_TOOL', 'The browser check tool is unavailable.', {
+          recovery: 'Restart Studio with the matching worker version, or use native checks.',
+        });
+      const checker = execution?.check ? await agentCheckTool(execution.check) : undefined;
+      try {
+        if (checker) {
+          const configured = await Bun.file(config).json();
+          configured.mcp = { studio: checker.config };
+          configured.permission.studio_check = 'allow';
+          await writeFile(config, JSON.stringify(configured), { mode: 0o600 });
+        }
+        await run(
+          [
+            executable,
+            '--pure',
+            'run',
+            '--format',
+            'json',
+            '--thinking',
+            '--model',
+            model,
+            ...(session ? ['--session', session] : []),
+            context +
+              '\n\n--- Studio task (tooling/lifecycle overrides above guidance) ---\n' +
+              prompt,
+          ],
+          {
+            cwd,
+            env,
+            signal,
+            operation: 'OpenCode inference',
+            timeoutMs: inferenceTimeoutMs,
+            stdoutDiagnostic: false,
+            recovery:
+              'The edited files and agent session are saved. Run checks or send a follow-up to continue.',
+            scrub: (text) => (key ? text.replaceAll(key, '[provider credential redacted]') : text),
+            onLine: (line) => {
+              try {
+                for (const event of agentEvents(line)) emit(event);
+              } catch (error) {
+                reportedError = error;
+              }
+            },
           },
-        },
-      );
-      if (reportedError) throw reportedError;
+        );
+        if (reportedError) throw reportedError;
+      } catch (error) {
+        // Structured provider errors carry the useful cause; stdout is intentionally omitted.
+        throw reportedError ?? error;
+      } finally {
+        await checker?.close();
+      }
     },
   };
 }
 
 export const taskInstructions = `You are working in an existing soyLI project. Do not re-scaffold, use Paja or the standalone napplet CLI, or reinstall skills.
 Before editing read AGENTS.md, docs/napplet-space.md and docs/napplet-visual-design.md. Load napplet-make and napplet-ui; load napplet-test before verification. Use installed SDK and project structure.
-Implement the user's requested experience and its own visual language. Maintain usable pointer, touch and keyboard controls at 200x160, 320x560 and desktop sizes. Preserve upstream attribution on remixes.
+Implement the user's requested experience and its own visual language. Make a small playable version first, check it, then improve it. Choose a direction promptly; do not spend the run comparing ideas or repeatedly reviewing code by eye. Use compiler diagnostics to resolve type uncertainty. Maintain usable pointer, touch and keyboard controls at 200x160, 320x560 and desktop sizes. Preserve upstream attribution on remixes.
 You may edit application source, styles, napplet.json metadata, README and tests of your own in src. Do not change dependency manifests/locks, build configuration, installed guidance or existing tests to make checks pass. No publishing, accounts, pushing, commits or new dependencies.
 Use soyli run verify, soyli check and soyli run test:conformance. Repair failures rather than weakening checks. The controller independently repeats verification and owns previews: do not start a dev server.
-For publication preparation, improve title/description/topics in napplet.json and set preview.recording using the installed capture guidance to demonstrate the core interaction. The studio Publish panel runs captures, presents the actual media and handles the user's signing approval. Never call publish, change the creator, handle signer credentials or claim a public release succeeded. A build/check fix is followed by a fresh review; it cannot authorize publication.
+Focus on the requested playable experience. Leave promotional media and recording configuration alone unless the creator explicitly asks for them. The Publish panel handles release preparation separately; never publish or change accounts.
+Use read, glob and grep for project inspection. Keep searches inside this workspace; do not search the creator's home, other drafts or installed CLI binaries. Shell access is limited to inspection and the check commands above; it cannot install packages or start services. Loaded guidance is already in your context; read additional references only when needed for the current feature. You have 10 minutes per inference run; finish a checked playable slice before polishing optional extras.
 Give occasional short progress summaries describing the action and its result, without exposing private reasoning. Finish with a concise description of the working features and any limitations. Do not claim skipped checks passed. If the budget ends, explain what remains.\n\nCreator request:\n`;

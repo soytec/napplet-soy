@@ -18,6 +18,7 @@ export type StudioSurface = Pick<
   | 'stop'
   | 'check'
   | 'restore'
+  | 'browserGit'
   | 'files'
   | 'file'
   | 'diff'

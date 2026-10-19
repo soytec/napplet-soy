@@ -368,7 +368,7 @@ export function startPreviewServer(
                 'Content-Security-Policy':
                   // srcdoc inherits this policy too; its own stricter CSP removes
                   // 'self' and all network access while allowing embedded code.
-                  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; frame-src 'self'${listing.workshop ? ' http://127.0.0.1:*' : ''}; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors ${listing.workshop ? "'none'" : "'self' http://127.0.0.1:*"}`,
+                  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; frame-src 'self'${listing.workshop ? ' http://127.0.0.1:*' : ''}; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors ${listing.workshop ? "'none'" : "'self' http://127.0.0.1:* http://localhost:*"}`,
               },
             },
           );

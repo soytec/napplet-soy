@@ -23,9 +23,11 @@ import type { StudioState } from './types';
 import { working } from './types';
 import { ProposalDialog } from './proposal-ui';
 import { PublicationDialog, usePublicationSigner } from './publication-ui';
-import { ActivityPanel, ChatText, ReasoningPanel } from './activity-ui';
+import { ActivityPanel, ChatText } from './activity-ui';
+import { BrowserGitPanel } from './browser-git-ui';
 import { AssetsPanel } from './assets-ui';
 import { Dashboard } from './dashboard';
+import { QuickModelChoice } from './model-picker-ui';
 import { validSource } from './navigation';
 import type { BrowserBuildController } from './browser-build-client';
 
@@ -75,6 +77,7 @@ export function StudioApp({
   }, [loaded, state.browserBuilds, setBrowserBuildAvailable]);
   const setId = (id: string) => navigate(id ? '/studio/' + id : '/studio');
   const [prompt, setPrompt] = useState('');
+  const [publicationPrompt, setPublicationPrompt] = useState<string>();
   const [title, setTitle] = useState('');
   const [source, setSource] = useState('');
   const [remix, setRemix] = useState(false);
@@ -105,6 +108,7 @@ export function StudioApp({
   const p = state.projects.find((p) => p.id === id);
   const busy = !!state.busy || sending;
   const active = p && working(p.phase);
+  const seenPublicationIntents = useRef(new Set<string>());
   useEffect(() => {
     if (route.view === 'create') {
       setSource(route.source);
@@ -113,8 +117,15 @@ export function StudioApp({
     }
   }, [route]);
   useEffect(() => {
-    if (p?.publicationIntent) setPublishOpen(true);
-  }, [p?.publicationIntent, p?.id]);
+    if (
+      p?.publicationIntent &&
+      !active &&
+      !seenPublicationIntents.current.has(p.publicationIntent)
+    ) {
+      seenPublicationIntents.current.add(p.publicationIntent);
+      setPublishOpen(true);
+    }
+  }, [p?.publicationIntent, p?.id, active]);
   const refresh = async () => {
     setState(await api<StudioState>('state'));
     setLoaded(true);
@@ -235,7 +246,11 @@ export function StudioApp({
     }
     await action(async () => {
       if (p)
-        await api(`projects/${p.id}/messages`, { prompt, browserSession: browserBuild.session });
+        await api(`projects/${p.id}/messages`, {
+          prompt,
+          browserSession: browserBuild.session,
+          reviewPublication: publicationPrompt === p.id,
+        });
       else {
         const result = await api<{ id: string }>('projects', {
           title: title.trim() || prompt.trim().split('\n')[0].slice(0, 60),
@@ -248,6 +263,7 @@ export function StudioApp({
       }
       localStorage.removeItem('quick-vibe-draft:' + id);
       setPrompt('');
+      setPublicationPrompt(undefined);
     });
   }
   const browserBuildChoice = state.browserBuilds && (
@@ -304,6 +320,15 @@ export function StudioApp({
       <label className="sr-only" htmlFor="prompt">
         {initial ? 'Describe your napplet' : 'Message your agent'}
       </label>
+      {p && publicationPrompt === p.id && (
+        <p className="composer-followup" role="status">
+          Send this to prepare the gameplay recipe. Publish will reopen after the maker and checks
+          finish; then you can capture and watch the clip.
+          <button type="button" onClick={() => setPublicationPrompt(undefined)}>
+            Cancel return to Publish
+          </button>
+        </p>
+      )}
       <textarea
         id="prompt"
         value={prompt}
@@ -321,16 +346,13 @@ export function StudioApp({
         }}
       />
       <div className="composer-foot">
-        <button
-          type="button"
-          className="model-choice"
-          title="Choose inference connection"
-          onClick={openConnections}
-        >
-          <span className="dot" />
-          {state.model || 'Choose a connection'}
-          <ChevronDown size={12} />
-        </button>
+        <QuickModelChoice
+          state={state.connections}
+          api={api}
+          refresh={refresh}
+          openConnections={openConnections}
+          disabled={busy || offline}
+        />
         {p && (
           <button
             type="button"
@@ -606,7 +628,6 @@ export function StudioApp({
                   </div>
                 )}
                 <ActivityPanel key={p.id} project={p} />
-                <ReasoningPanel key={`reasoning-${p.id}`} project={p} />
                 {p.checks.length > 0 && (
                   <div className="checks">
                     {p.checks.map((c) => (
@@ -743,6 +764,9 @@ export function StudioApp({
                     Each passing preview gets a Git checkpoint. Restoring saves your current work
                     first.
                   </p>
+                  {state.browserGit && (
+                    <BrowserGitPanel key={p.id} id={p.id} client={client} busy={busy} />
+                  )}
                   {[...p.checkpoints].reverse().map((c) => (
                     <div className="checkpoint" key={c.commit}>
                       <span>
@@ -840,6 +864,7 @@ export function StudioApp({
             setProposalOpen(false);
             setMobileTab('chat');
             setPrompt(text);
+            setPublicationPrompt(p.id);
           }}
           media={media}
         />

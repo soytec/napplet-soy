@@ -24,6 +24,8 @@ export type Checkpoint = { commit: string; at: string; label: string };
 export type Check = { name: string; state: 'running' | 'passed' | 'failed'; detail?: string };
 export const reasoningLimits = { blocks: 16, characters: 12000 } as const;
 export type ReasoningBlock = { id: string; text: string; truncated?: boolean };
+export type WorkshopEntry =
+  { id: string; type: 'activity'; text: string } | { id: string; type: 'reasoning' };
 export type Project = {
   id: string;
   title: string;
@@ -34,6 +36,7 @@ export type Project = {
   stage: string;
   messages: Message[];
   activity: string[];
+  workshop?: WorkshopEntry[];
   reasoning?: ReasoningBlock[];
   reasoningOlder?: boolean;
   checks: Check[];
@@ -44,6 +47,8 @@ export type Project = {
   turnLimit?: number;
   turnStartedAt?: string;
   budgetReached?: boolean;
+  timeLimitReached?: boolean;
+  turnTimeLimitMs?: number;
   initialized?: boolean;
   setup?: boolean;
   baseline?: string;
@@ -61,6 +66,7 @@ export type StudioState = {
   projects: Project[];
   model: string;
   browserBuilds?: boolean;
+  browserGit?: boolean;
   connections?: ConnectionState;
   busy?: string;
   jobs?: StudioJob[];

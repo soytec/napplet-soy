@@ -1,3 +1,4 @@
+import { exportBrowserGit } from './browser-git-export';
 import { mkdir, readFile, writeFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -24,8 +25,10 @@ import { run } from './process';
 import { connectionInput, type Connections } from './connections';
 import { defaultSteps } from './connections-model';
 import { z } from 'zod';
-import { taskInstructions, type Agent, type AgentEvent } from './agent';
+import { taskInstructions, inferenceTimeoutMs, type Agent, type AgentEvent } from './agent';
 import { reasoningLimits, working, type Check, type Project, type StudioState } from './types';
+import { recordWorkshop } from './workshop';
+import { publishProgress } from './publication-progress';
 import { BrowserSigning } from './signing';
 import { StudioStore } from './store';
 import { localSource } from './navigation';
@@ -98,6 +101,13 @@ export class Studio {
       for (const project of this.projects) {
         if (!/^[a-f0-9-]{36}$/.test(project.id)) throw new Error('Invalid saved project ID.');
         delete project.previewUrl;
+        const publication = project.publication?.attempt;
+        if (publication?.status === 'published' && !publication.result?.websiteReady) {
+          const old = 'Published; awaiting website indexing';
+          const current = 'Published; website availability unconfirmed';
+          if (publication.stage === old) publication.stage = current;
+          if (project.stage === old) project.stage = current;
+        }
         if (project.proposal?.attempt?.status === 'running')
           project.proposal.attempt.status = 'failed';
         if (project.publication?.attempt?.status === 'running') {
@@ -144,12 +154,17 @@ export class Studio {
     p.updatedAt = new Date().toISOString();
   }
   private activity(p: Project, text: string) {
-    p.activity.push(redactDiagnostic(text, 400));
+    const safe = redactDiagnostic(text, 400);
+    recordWorkshop(p, { id: crypto.randomUUID(), type: 'activity', text: safe });
+    p.activity.push(safe);
     p.activity = p.activity.slice(-100);
   }
   private async stage(p: Project, phase: Project['phase'], stage: string) {
+    if (p.stage !== stage) this.activity(p, stage);
     p.phase = phase;
     p.stage = stage;
+    if (phase === 'checking' && p.publication?.progress?.step === 0)
+      p.publication.progress = { ...p.publication.progress, detail: stage, at: Date.now() };
     await this.save();
   }
   async state(): Promise<StudioState> {
@@ -157,6 +172,7 @@ export class Studio {
       projects: this.projects,
       model: this.options.agent.model,
       browserBuilds: !this.options.projectCommand,
+      browserGit: !this.options.projectCommand,
       connections: this.options.connections?.state(),
       busy: this.active?.id ?? (this.mutating ? 'settings' : undefined),
       jobs: this.store!.jobs(),
@@ -183,6 +199,8 @@ export class Studio {
     if (!connections)
       throw new DiagnosticError('STUDIO_CONNECTION', 'Connection settings are not configured.');
     return this.exclusive(async () => {
+      if (action === 'models') return connections.models(input);
+      if (action === 'model') return connections.setModel(input);
       if (action === 'save') {
         const parsed = connectionInput.safeParse(input);
         if (!parsed.success)
@@ -318,12 +336,14 @@ export class Studio {
     this.launch(p, (signal) => this.turn(p, prompt, signal, browserSession));
     return p.id;
   }
-  async send(id: string, prompt: string, browserSession?: string) {
+  async send(id: string, prompt: string, browserSession?: string, reviewPublication = false) {
     this.available();
     const p = this.project(id);
     this.message(p, 'user', prompt);
+    delete p.publicationIntent;
     if (
-      /^(?:(?:okay[,!]?\s+)?let[’']?s\s+)?(?:publish\b|prepare\b.*\b(?:publish|publication|release)\b)/i.test(
+      !reviewPublication &&
+      /^(?:(?:okay[,!]?\s+)?let[’']?s\s+)?(?:publish(?:\s+(?:this|it|the napplet))?|prepare(?:\s+(?:this|it))?\s+(?:for\s+)?(?:publication|release))(?:[.!])?$/i.test(
         prompt.trim(),
       )
     ) {
@@ -337,11 +357,24 @@ export class Studio {
       return;
     }
     if (p.publication) delete p.publication.review;
+    if (p.publication) delete p.publication.progress;
     if (p.proposal) delete p.proposal.review;
     p.error = undefined;
     p.phase = 'preparing';
     p.stage = 'Resuming your workspace';
-    this.launch(p, (signal) => this.turn(p, prompt, signal, browserSession));
+    this.launch(p, async (signal) => {
+      await this.turn(p, prompt, signal, browserSession);
+      if (reviewPublication) {
+        signal.throwIfAborted();
+        p.publicationIntent = crypto.randomUUID();
+        this.message(
+          p,
+          'system',
+          'The maker finished and project checks passed. Publish is open again: prepare the release to capture the updated gameplay recipe, then watch the clip before publishing. No new clip has been captured yet.',
+        );
+        await this.save();
+      }
+    });
   }
   async stop(id: string) {
     this.project(id);
@@ -473,8 +506,11 @@ export class Studio {
     p.turnLimit = this.options.agent.stepLimit ?? defaultSteps;
     p.turnStartedAt = new Date().toISOString();
     p.budgetReached = false;
+    p.timeLimitReached = false;
+    p.turnTimeLimitMs = inferenceTimeoutMs;
     p.reasoning = [];
     p.reasoningOlder = false;
+    p.workshop = [];
     await this.stage(p, 'editing', 'Making your changes');
     let saveError: unknown;
     const emit = (event: AgentEvent) => {
@@ -497,6 +533,7 @@ export class Studio {
           blocks.splice(0, blocks.length - reasoningLimits.blocks);
           p.reasoningOlder = true;
         }
+        recordWorkshop(p, { id: block.id, type: 'reasoning' });
       }
       if (event.type === 'activity') this.activity(p, event.text);
       if (event.type === 'usage') {
@@ -514,7 +551,7 @@ export class Studio {
       (browserSession
         ? taskInstructions.replace(
             'Use soyli run verify, soyli check and soyli run test:conformance. Repair failures rather than weakening checks. The controller independently repeats verification and owns previews: do not start a dev server.',
-            'This turn uses the experimental browser compiler. Do not run soyli, package scripts, build tools, tests or a dev server. Edit the source and finish your reply; Studio then runs TypeScript and compilation in the browser and sends failures back for one repair pass. Full soyLI/conformance verification is deferred to Publish. Never claim those full checks passed.',
+            'This turn uses the experimental browser compiler. Use studio_check after your first playable edit and after fixes to get real TypeScript and build diagnostics. Wait for its result before editing again. Repair those errors in this turn, then finish your reply. Do not run soyli, package scripts, host build tools, tests or a dev server. Studio independently checks again at the end. Full soyLI/conformance verification is deferred to Publish. Never claim those full checks passed.',
           )
         : taskInstructions) +
         (connection && !p.session
@@ -529,7 +566,23 @@ export class Studio {
       p.session,
       signal,
       emit,
-      { browserBuild: !!browserSession },
+      {
+        browserBuild: !!browserSession,
+        check: browserSession
+          ? async (checkSignal) => {
+              const checking = checkSignal ? AbortSignal.any([signal, checkSignal]) : signal;
+              try {
+                await this.verify(p, checking, browserSession, false);
+                return 'Browser TypeScript and build passed. Full soyLI/conformance checks remain pending. Finish this playable slice; Studio will independently verify and open the preview.';
+              } catch (error) {
+                checking.throwIfAborted();
+                return formatDiagnostic(diagnose(error));
+              } finally {
+                if (!checking.aborted) await this.stage(p, 'editing', 'Making your changes');
+              }
+            }
+          : undefined,
+      },
     );
     if (saveError) throw saveError;
   }
@@ -545,20 +598,35 @@ export class Studio {
     }
     // Local checkpoint includes prior unfinished work so inspection/recovery is lossless.
     await this.checkpoint(p, 'Before studio turn', signal);
-    await this.invoke(p, prompt, signal, browserSession);
+    const invoke = async (request: string) => {
+      try {
+        await this.invoke(p, request, signal, browserSession);
+      } catch (error) {
+        signal.throwIfAborted();
+        if ((error as DiagnosticError).code !== 'STUDIO_TIMEOUT') throw error;
+        p.timeLimitReached = true;
+        // A cutoff before any edit must not present the untouched starter as delivery.
+        if (!(await this.git(p, ['status', '--porcelain'], signal)).trim()) throw error;
+        this.message(
+          p,
+          'system',
+          'The maker reached its 10-minute time limit. Your edits and session are saved. Checking the current files without starting another AI turn.',
+        );
+        await this.save();
+      }
+    };
+    await invoke(prompt);
     try {
       await this.verify(p, signal, browserSession);
     } catch (error) {
       signal.throwIfAborted();
+      if (p.timeLimitReached) throw error;
       if ((error as DiagnosticError).code === 'STUDIO_GUARDRAIL') throw error;
       if (browserSession && (error as DiagnosticError).code !== 'STUDIO_BROWSER_DIAGNOSTICS')
         throw error;
       this.message(p, 'system', 'The independent checks found a problem. Trying one repair pass.');
-      await this.invoke(
-        p,
+      await invoke(
         `Repair the failure from the independent verification below. Preserve the requested features. Do not weaken tests or change protected configuration.\n${formatDiagnostic(diagnose(error))}`,
-        signal,
-        browserSession,
       );
       await this.verify(p, signal, browserSession);
     }
@@ -583,7 +651,7 @@ export class Studio {
     );
     return (await this.git(p, ['rev-parse', 'HEAD'], signal)).trim();
   }
-  private async verify(p: Project, signal: AbortSignal, browserSession?: string) {
+  private async verify(p: Project, signal: AbortSignal, browserSession?: string, promote = true) {
     await this.stage(p, 'checking', 'Checking the build and sandbox');
     p.checks = [];
     if (await this.protectedFiles(p, signal))
@@ -633,7 +701,8 @@ export class Studio {
         await builtConfiguration(new TextEncoder().encode(result.html!));
         check.state = 'passed';
         check.detail = `TypeScript: ${Math.round(result.typecheckMs)} ms; bundle: ${Math.round(result.buildMs)} ms. Source ${input.revision.slice(0, 12)}. Full soyLI/conformance checks run when preparing publication.`;
-        return await this.promotePreview(p, signal, result.html);
+        if (promote) await this.promotePreview(p, signal, result.html);
+        return;
       } catch (error) {
         check.state = 'failed';
         check.detail = formatDiagnostic(diagnose(error));
@@ -650,6 +719,8 @@ export class Studio {
       const check: Check = { name, state: 'running' };
       p.checks.push(check);
       p.stage = name;
+      if (p.publication?.progress?.step === 0)
+        p.publication.progress = { ...p.publication.progress, detail: name, at: Date.now() };
       await this.save();
       try {
         const result = await this.command(p, [...this.options.soyli, ...args], signal, name);
@@ -745,6 +816,12 @@ export class Studio {
           ? 'Studio’s independent build, sandbox and conformance commands passed; skipped cases are listed below. The agent reached its step limit, so some requested work may remain. Play the preview and send a follow-up to continue. No additional inference starts automatically.'
           : 'Studio’s independent build, sandbox and conformance commands passed; skipped cases are listed below. Your preview is ready to play. Media capture and publication are separate steps in Publish.',
     );
+    if (p.timeLimitReached)
+      this.message(
+        p,
+        'system',
+        'The saved code passed these checks and is ready to try. The maker ran out of time, so some requested features may be unfinished. Send a follow-up to continue the same draft.',
+      );
     await this.stage(
       p,
       'ready',
@@ -921,6 +998,12 @@ export class Studio {
     p.error = undefined;
     p.phase = 'preparing_release';
     p.stage = 'Preparing your release';
+    p.publication.progress = {
+      step: 0,
+      detail: 'Checking the build, sandbox and conformance before capture.',
+      hint: 'Your existing playable preview stays available.',
+      at: Date.now(),
+    };
     this.launch(p, async (signal) => {
       let review;
       try {
@@ -935,7 +1018,15 @@ export class Studio {
             capture: this.options.capture,
             verify: (signal) => this.verify(p, signal),
             checkpoint: (label, signal) => this.checkpoint(p, label, signal),
-            stage: (label) => this.stage(p, 'preparing_release', label),
+            stage: (label) => {
+              p.publication!.progress = {
+                step: 1,
+                detail: label,
+                hint: 'Running the saved gameplay inputs against the actual build.',
+                at: Date.now(),
+              };
+              return this.stage(p, 'preparing_release', label);
+            },
           },
         );
       } catch (error) {
@@ -943,6 +1034,12 @@ export class Studio {
         throw error;
       }
       p.publication!.review = review;
+      p.publication!.progress = {
+        step: 2,
+        detail: 'Review your listing and watch the captured clip.',
+        hint: 'Nothing is published until you confirm.',
+        at: Date.now(),
+      };
       p.title = review.plan.title;
       this.message(
         p,
@@ -969,6 +1066,7 @@ export class Studio {
     p.publication.attempt = attempt;
     p.error = undefined;
     p.phase = 'publishing';
+    p.publication.progress = publishProgress('check');
     this.launch(p, async (signal) => {
       let persistenceFailure: unknown;
       try {
@@ -980,6 +1078,7 @@ export class Studio {
           (stage) => {
             p.publication!.attempt!.stage = stage;
             p.stage = `Publishing: ${stage}`;
+            p.publication!.progress = publishProgress(stage);
             void this.save().catch((error) => {
               persistenceFailure = error;
             });
@@ -1004,15 +1103,16 @@ export class Studio {
           status: 'published',
           stage: result.websiteReady
             ? 'Available on napplet.soy'
-            : 'Published; awaiting website indexing',
+            : 'Published; website availability unconfirmed',
           result,
         };
+        p.publication!.progress = publishProgress('website');
         this.message(
           p,
           'system',
           result.websiteReady
             ? `Published: ${result.url}`
-            : `Published to relays: ${result.url}\nThe website has not confirmed indexing yet. Recheck availability without rebuilding.`,
+            : `Published to relays: ${result.url}\nWebsite availability is not confirmed. The link may already work; recheck availability without rebuilding or republishing.`,
         );
         await this.stage(p, 'ready', p.publication!.attempt.stage);
       } catch (error) {
@@ -1037,9 +1137,11 @@ export class Studio {
     p.phase = 'publishing';
     this.launch(p, async (signal) => {
       await this.stage(p, 'publishing', 'Checking website availability');
+      p.publication!.progress = publishProgress('website');
       const result = await publicationStatus(this.workspace(id), 'public', {
         creator: attempt.review.plan.pubkey,
         refresh: true,
+        waitForWebsite: false,
         signal,
       });
       if (result.status === 'not_started' || result.jobId !== attempt.result!.jobId)
@@ -1053,7 +1155,7 @@ export class Studio {
       attempt.result = result;
       attempt.stage = result.websiteReady
         ? 'Available on napplet.soy'
-        : 'Published; awaiting website indexing';
+        : 'Published; website availability unconfirmed';
       await this.stage(p, 'ready', attempt.stage);
     });
   }
@@ -1076,6 +1178,15 @@ export class Studio {
       id,
       `Fix this release preparation failure, preserving the intended behavior. Do not publish or change accounts.\n${formatDiagnostic(error)}`,
     );
+  }
+  async browserGit(id: string) {
+    if (this.options.projectCommand)
+      throw new Error('Browser Git is currently a local Studio experiment.');
+    return this.exclusive(async () => {
+      const project = this.project(id);
+      if (!project.initialized) throw new Error('Wait for Studio to prepare this draft first.');
+      return exportBrowserGit(this.workspace(id));
+    });
   }
   async files(id: string) {
     const p = this.project(id);

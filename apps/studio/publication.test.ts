@@ -4,7 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools';
 import { BrowserSigning } from './signing';
-import { prepareRelease, publishReviewed, reviewedMedia } from './publication';
+import {
+  prepareRelease,
+  publishReviewed,
+  reviewedMedia,
+  requireRecordingPlan,
+  listing,
+} from './publication';
+import { projectSchema } from '../../packages/publish/src/config';
 import { cleanEnvironment } from './agent';
 import { sourceGit, sourceUrls } from '../../packages/grasp/src/client';
 import { sha256, verifiedEvent, type SignedEvent } from '../../packages/protocol/src';
@@ -198,6 +205,38 @@ async function fixture() {
     },
   };
 }
+
+test('Studio refuses an unplanned passive clip before changing source or running capture', async () => {
+  const f = await fixture();
+  const before = await readFile(join(f.root, 'napplet.json'), 'utf8');
+  f.input.video = true;
+  await expect(f.prepare()).rejects.toMatchObject({ code: 'STUDIO_RECORDING_PLAN' });
+  expect(f.captures()).toBe(0);
+  expect(f.signatures()).toBe(0);
+  expect(await readFile(join(f.root, 'napplet.json'), 'utf8')).toBe(before);
+});
+
+test('recording requires inputs or an explicit automatic-app choice, independently of screenshots', async () => {
+  const f = await fixture();
+  const config = projectSchema.parse(
+    JSON.parse(await readFile(join(f.root, 'napplet.json'), 'utf8')),
+  );
+  expect((await listing(f.root)).recordingPlanned).toBe(false);
+  expect(() => requireRecordingPlan(config, f.input)).not.toThrow();
+  expect(() =>
+    requireRecordingPlan(config, { ...f.input, video: true, autoplay: true }),
+  ).not.toThrow();
+  config.preview = {
+    recording: {
+      startMs: 0,
+      durationMs: 2000,
+      actions: [{ type: 'keyDown', key: 'Space', atMs: 0 }],
+    },
+  };
+  await writeFile(join(f.root, 'napplet.json'), JSON.stringify(config));
+  expect((await listing(f.root)).recordingPlanned).toBe(true);
+  expect(() => requireRecordingPlan(config, { ...f.input, video: true })).not.toThrow();
+});
 
 test('release preparation is unsigned; reviewed publisher uses exact media, source and stable listing identity', async () => {
   const f = await fixture();

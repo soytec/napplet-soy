@@ -4,6 +4,7 @@ import { diagnose, DiagnosticError, formatDiagnostic } from '../packages/diagnos
 import { StudioWorker } from '../apps/studio/worker-client';
 import { localOwner } from '../apps/studio/store';
 import { serveStudio } from '../apps/studio/server';
+import { studioSoyli } from '../apps/studio/toolchain';
 
 const root = resolve(import.meta.dir, '..');
 const launcherPid = process.ppid;
@@ -30,15 +31,13 @@ try {
         recovery: 'Install opencode-ai@1.19.3 and set QUICK_VIBE_OPENCODE. See docs/QUICK-VIBE.md.',
       },
     );
-  const soyli = process.env.QUICK_VIBE_SOYLI ?? Bun.which('soyli');
-  if (!soyli)
-    throw new DiagnosticError('STUDIO_SOYLI_MISSING', 'Install soyLI before starting the studio.');
+  const soyli = studioSoyli(root, process.env.QUICK_VIBE_SOYLI);
   const key = process.env.DEEPSEEK_KEY ?? '';
   const model = process.env.QUICK_VIBE_MODEL ?? 'deepseek/deepseek-flash';
   worker = new StudioWorker({
     directory,
     owner: localOwner(),
-    soyli: [soyli],
+    soyli,
     agent: {
       directory: join(directory, 'agent'),
       executable,

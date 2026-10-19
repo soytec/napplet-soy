@@ -1,14 +1,18 @@
 # Quick Vibe: local creation studio
 
-An experimental, prompt-first workspace on `feature/quick-vibe`: describe a napplet,
+A local beta, prompt-first workspace: describe a napplet,
 play its checked build, keep iterating in the same conversation, and review a release for publication. Code and Git
 changes are available alongside the preview. This is a local development tool,
 not a hosted service or a production inference-provider decision.
 
 ## Start
 
-Prerequisites: this checkout's Bun dependencies, Git, a working released soyLI on
-PATH, and an inference provider or local model server. The current adapter is tested with **OpenCode V1
+Prerequisites: this checkout's Bun dependencies, Git, and an inference provider or
+local model server. Local Studio uses this checkout's soyLI for scaffolding,
+setup, agent commands and verification, so its installed guidance matches the
+Studio revision. An explicit `QUICK_VIBE_SOYLI` override selects a packaged CLI
+for all four operations. Existing drafts and their guidance are preserved.
+The current adapter is tested with **OpenCode V1
 1.19.3** (`opencode-ai`, not the separate V2 package).
 
 ```sh
@@ -17,13 +21,24 @@ npm install --prefix .local/quick-vibe/tools opencode-ai@1.19.3
 bun run studio
 ```
 
-Open the shared header’s **Account & settings → AI connections** (or the model name
-in the composer) to
+Open the shared header’s **Account & settings → AI connections** to
 save a named endpoint, model, API key and step limit. OpenRouter, OpenAI, Anthropic,
 Google Gemini and DeepSeek have native provider adapters. Groq, Mistral, xAI,
 Together, Fireworks, Ollama, LM Studio, llama.cpp and custom servers use an
 OpenAI-compatible adapter. Select a model that supports tools and enough context
 for the installed guidance; a model catalogue test does not certify those features.
+
+Editing a saved connection fetches its model catalogue automatically. For a new
+connection, enter the endpoint and key, then choose **Fetch models**. The dropdown
+shows model names and exact IDs; larger lists also have a search field. **Enter a
+model ID manually** supports aliases and servers without catalogue support. A
+missing model or failed catalogue request never clears the existing selection.
+Fetching an unsaved form does not save its key or other settings.
+
+The model name beside the chat input opens the same picker for the active
+connection. Choose a model and press **Use model** to save it for the next turn;
+**Connections** opens the full settings dialog. Model changes preserve the endpoint,
+key, step limit and draft. Controls wait for any active task to finish.
 
 An existing `DEEPSEEK_KEY` in this checkout's ignored `.env` or shell is imported
 **once**, when the connection store is first created. `QUICK_VIBE_MODEL` chooses
@@ -40,6 +55,14 @@ Do not place credentials in a napplet or paste them into chat.
 
 Connections can be edited, tested, selected and removed while the worker is idle.
 Testing makes a bounded, non-redirecting model-catalogue request, without generation.
+Discovery uses the same server-side request and keeps saved keys out of browser
+responses. It supports OpenAI-compatible `/models` lists (including local servers),
+Anthropic's header authentication and pagination, and Gemini's header authentication,
+pagination and `models/` ID normalization. Gemini embedding-only models are omitted;
+listing a model does not otherwise guarantee tool-calling compatibility. Each fetch
+has a shared 10-second deadline, 8 MiB total response limit, 10-page limit and
+2,000-model limit. A truncated list is identified as partial; manual IDs remain
+available. Catalogues stay in the open picker rather than being stored in drafts.
 Changing a credential's endpoint requires re-entering the key. Switching connection
 or editing its configuration starts a fresh agent session with recent conversation
 context, while retaining the repository, previews and full Studio chat history.
@@ -55,17 +78,30 @@ Studio terminal stops its worker/tools/previews, not the shell.
 If the shell uses another port, set its exact origin when starting the worker, for
 example `QUICK_VIBE_SHELL_ORIGIN=http://127.0.0.1:4196 bun run studio`.
 
+The hostname must match too: `localhost` and `127.0.0.1` are different browser
+origins. For `http://localhost:3000/studio`, start the service with:
+
+```sh
+QUICK_VIBE_SHELL_ORIGIN=http://localhost:3000 bun run studio
+```
+
+If Studio or AI connections shows **Failed to fetch / Reconnecting**, compare the
+browser address with the shell URL printed when Studio starts. Stop that Studio
+process and restart it with the matching origin and the same `QUICK_VIBE_HOME`;
+drafts and saved connections stay in that store. A change to `VITE_QUICK_VIBE_PORT`
+also requires restarting the shell. No wildcard origin permission is needed.
+
 Optional configuration:
 
-| Variable                  | Purpose                                                                                                                                  |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `QUICK_VIBE_PORT`         | Loopback port; `0` chooses a free port.                                                                                                  |
-| `QUICK_VIBE_SHELL_ORIGIN` | Exact permitted local shell origin for API access and old-bookmark redirects; default `http://127.0.0.1:3000`. Only HTTP loopback origins are accepted.                |
-| `VITE_QUICK_VIBE_PORT`    | Set when starting/building the shell if Studio uses a port other than `4195`. Use an explicit Studio port for shell integration.         |
-| `QUICK_VIBE_HOME`         | Private state directory; default `.local/studio`.                                                                                        |
-| `QUICK_VIBE_OPENCODE`     | Absolute path to the pinned OpenCode executable.                                                                                         |
-| `QUICK_VIBE_SOYLI`        | Absolute path to soyLI; defaults to PATH discovery.                                                                                      |
-| `QUICK_VIBE_MODEL`        | OpenCode model identifier; default `deepseek/deepseek-flash`. Used only for the initial DeepSeek import; saved settings take precedence. |
+| Variable                  | Purpose                                                                                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `QUICK_VIBE_PORT`         | Loopback port; `0` chooses a free port.                                                                                                                 |
+| `QUICK_VIBE_SHELL_ORIGIN` | Exact permitted local shell origin for API access and old-bookmark redirects; default `http://127.0.0.1:3000`. Only HTTP loopback origins are accepted. |
+| `VITE_QUICK_VIBE_PORT`    | Set when starting/building the shell if Studio uses a port other than `4195`. Use an explicit Studio port for shell integration.                        |
+| `QUICK_VIBE_HOME`         | Private state directory; default `.local/studio`.                                                                                                       |
+| `QUICK_VIBE_OPENCODE`     | Absolute path to the pinned OpenCode executable.                                                                                                        |
+| `QUICK_VIBE_SOYLI`        | Optional absolute path to a packaged soyLI; defaults to this checkout's source CLI.                                                                     |
+| `QUICK_VIBE_MODEL`        | OpenCode model identifier; default `deepseek/deepseek-flash`. Used only for the initial DeepSeek import; saved settings take precedence.                |
 
 ## Navigation and saved creations
 
@@ -200,9 +236,15 @@ need external delivery or normal soyLI checks to fit the browser profile.
 
 Only preview type-checking/bundling moves to the browser. Workspace preparation,
 the OpenCode process, inference-provider connection, source/Git storage and preview
-serving still use the local service. In this mode the agent is instructed to edit
-and return; its soyLI build commands are removed from the tool allowlist so it
-does not repeat those builds on the host. These permissions are workflow controls,
+serving still use the local service. In this mode the agent can call **studio_check**
+after an edit to get actual browser TypeScript/build diagnostics and repair errors
+within the same turn. A temporary authenticated loopback MCP tool binds that call
+to the active draft and browser session; it accepts no paths or shell commands and
+closes with the inference process. Closing/cancelling it cancels a pending browser
+job. Studio independently verifies again before promoting a preview; an in-turn
+check alone does not promote one. Its soyLI build commands remain removed from the
+tool allowlist so it does not repeat those builds on the host.
+These permissions are workflow controls,
 not an OS sandbox. Browser-preview success is labelled **full checks pending**.
 Publication and proposal preparation always run the normal independent soyLI
 checks; browser output never replaces their native release build. History restore
@@ -216,16 +258,60 @@ Broader package support and real-device performance remain follow-up work. See t
 [experiment results](experiments/STUDIO-BROWSER-BUILD.md) for measurements and
 verification boundaries.
 
+## Browser Git experiment
+
+In local Studio, open a draft's **History → Open browser Git → Copy draft into
+browser**. The authenticated local service exports the selected draft's existing
+Git objects and public source files. A dedicated worker imports the original
+commit and ancestry into IndexedDB using isomorphic-git and LightningFS. Git
+configuration, local bindings, credentials, installed dependencies and ignored files are
+not transferred. This handoff reads the workspace without committing or changing it.
+
+The panel offers text editing, a before/after comparison against browser HEAD,
+real Git checkpoints, a recent history, and a downloadable backup containing
+source and reachable history. Restore a backup into an empty browser copy.
+Copies survive reloads on the same origin/browser profile. They are scoped by
+Studio endpoint and draft ID; clearing site data removes them. Keep a downloaded
+backup. Browser checkpoints use a local placeholder Git author; they do not sign
+Nostr events or authenticate a publisher.
+
+This is a separate, opt-in copy: maker edits, preview builds, publishing and proposals
+still use the service workspace. Refresh refuses to replace browser edits or commits
+with newer Studio source. File saves and commits reject stale file contents/HEAD,
+and Web Locks serialize operations across tabs. Imports stage a complete copy before
+switching the workspace pointer; one previous import is retained, with abandoned
+and older staging trees collected when the worker next opens the copy. No automatic
+two-way synchronization or public push button is enabled.
+
+Limits: 1,024 regular source files, 40 MiB of source, 40 MiB per Git pack/HTTP
+response, and 256 KiB per edited/diffed text file. The first profile excludes source
+symlinks and submodules. This does not change soyLI's supported publication profile.
+The worker bundle is loaded on demand; it is approximately 257 kB uncompressed.
+
+The shared engine also supports direct Git Smart HTTP cloning and non-force push.
+An isolated real-browser test verifies GRASP CORS, exact commit selection, IndexedDB
+reloads, unsigned-push rejection, a signed kind-30618 push, native-Git interoperability
+and stale remote-ref rejection. GRASP's existing protocol suffices: there is no new
+wrapper event or Git proxy API. Public source discovery, signer review, conflict
+resolution and a browser-owned workspace/agent synchronization contract remain
+prerequisites for exposing remote writes to users. See
+[the experiment](experiments/STUDIO-BROWSER-GIT.md).
+
 ## Activity and assets
 
-An expandable **Inside the workshop** panel appears directly beneath the working
-indicator. It shows installed guidance loads, normalized tool actions/statuses and
-reported step/cost totals. A separate **Reasoning** disclosure is collapsed by
-default and shows text the selected provider exposes through OpenCode's reasoning
-channel. Models may provide summaries or no reasoning at all. OpenCode emits
-completed blocks, so these appear during the run as blocks finish, rather than
-token by token. This setting does not enable a model's optional reasoning mode.
-Runs made before this feature cannot be reconstructed from Studio history.
+One **Workshop activity** box combines tool updates and provider-shared reasoning
+in arrival order. It defaults to a continuously updating three-line tail; expanding
+it shows a 240 px scrolling history and reported cost. It follows new entries
+unless the reader scrolls up. The header gently pulses while work is running and
+respects reduced-motion preferences. The feed retains the latest 100 entries;
+older saved drafts can still display their separate legacy records, without
+inventing an interleaved chronology.
+
+Models may provide summaries or no reasoning at all. OpenCode emits completed
+reasoning blocks, so these appear during the run as blocks finish, rather than
+token by token. Studio's state refresh delivers those updates to the browser.
+This view does not enable a model's optional reasoning mode or reconstruct
+reasoning from runs made before it was recorded.
 
 The latest run's reasoning survives browser/controller restarts outside the project
 Git repository. Each inference run, including a repair pass, starts a fresh view.
@@ -240,6 +326,16 @@ Each connection has a configurable **10–100 steps per run** (default/imported 
 results. A passing preview can still have unfinished requested features. Continuing
 requires a new user message. Publication screenshots and recordings are captured
 and reviewed in Publish, not implied by passing a build.
+
+Activity also shows the separate **10-minute inference time limit**. If it expires
+after edits, Studio checks the saved files without another inference call and
+opens a preview only if those checks pass. An untouched starter is not presented
+as delivery; failed checks and protected-file changes retain any previous preview.
+Timeouts preserve the session for an explicit follow-up. Error messages retain
+structured provider failures or bounded stderr, never the raw JSONL reasoning/tool
+stream. Normal creation prompts prioritize a small checked playable version;
+recording preparation is reserved for an explicit request. A resolved workspace
+map points the agent to installed SDK declarations through pnpm's links.
 
 The **Assets** tab imports in-app assets using the same importer as soyLI. Choose a
 file, drag/drop it into Assets or chat, or paste an image; review its stable name,
@@ -273,8 +369,9 @@ to run a publishing command. More elaborate chat requests can help prepare the
 project, but cannot authorize public writes through the agent.
 
 1. **Use your shell account.** The same account menu supports NIP-07 extensions,
-   NIP-46 remote signers and local-key accounts. Choose **Use shell account** in the
-   release review. If no account is selected, the review closes and opens the shared
+   NIP-46 remote signers and local-key accounts. Publish automatically uses the
+   currently signed-in shell identity; there is no separate publishing account selector.
+   If no account is selected, **Sign in** closes the review and opens the shared
    account menu; reopen Publish after connecting. No popup is needed. Keys and
    remote-session credentials stay with the shell or signer. Publication sessions
    are pinned to the selected public key, validate allowed event kinds and exact
@@ -286,9 +383,17 @@ project, but cannot authorize public writes through the agent.
    helpers, commits a local candidate, validates source history, and produces a
    soyLI dry-run plan. This phase makes no public uploads or signed events.
    Captures follow the project's `preview.recording` timing/input recipe. Use
-   **Improve listing & capture plan in chat** to prepare a prompt, then send it
-   when ready. Inspect the resulting media; a passing build does not guarantee a
-   useful gameplay clip.
+   **Prepare gameplay recording in chat** to prepare a prompt, then send it
+   when ready. This runs a maker turn, not a publish command, even though the prompt
+   mentions Publish. The dialog stays closed while the maker and checks run, then
+   reopens on success. It does not reopen on failure or cancellation. Preparing a
+   recipe does not capture media: use **Prepare release** afterwards to record and
+   review the actual clip. A clip requires input actions unless the creator explicitly selects
+   that the app runs automatically and needs no input. The server enforces this
+   before capture as well as the UI. Keyboard input is focused into the app;
+   960 × 600 click coordinates scale for portrait capture. When capturing a fresh
+   cover with the clip, the cover comes from its midpoint. Watch the actual result
+   before confirming: a recipe and passing build do not prove useful gameplay.
 3. **Review.** See actual captures, editable metadata, author, source revision,
    license and publication destinations. Portrait files are downloadable and are
    included in the public source; they do not introduce extra manifest fields.
@@ -299,11 +404,22 @@ project, but cannot authorize public writes through the agent.
    preserving stable listing identity, remix attribution and retry journals.
    Keep the browser tab open while signing. The controller checks returned event
    signatures, author and every requested event field before accepting them.
+   Progress covers project checks, captures, review, signing, source sharing,
+   file uploads, relay publication and website verification, with two live detail
+   lines. Completed milestones are shown rather than an estimated time percentage.
 5. **Recover.** Preparation failures can be sent back to chat. A service or signer
    failure offers **Resume the saved release** using its frozen bytes, even if
    the editable draft has since changed. Reconnect the same author after a page
-   reload/controller restart and confirm the saved review. Pending website indexing
-   has a separate availability check; it does not rebuild, re-sign or ask the AI.
+   reload/controller restart through the shell menu and confirm the saved review.
+   Successful relay publication with an unconfirmed website check is labelled
+   **Published to Nostr · checking website availability**; the public link may
+   already work. While open and Studio is idle, the dialog makes up to 40 automatic
+   availability probes, spaced 15 seconds apart, each bounded to five seconds.
+   Closing the dialog stops automatic probes; **Check availability** remains available.
+   A superseded release is identified separately. The separate availability
+   check does not rebuild, re-sign or ask the AI. Confirmation requires fresh
+   indexing, the exact signed manifest/release and verified artifact bytes, but
+   unrelated relay errors alone do not block a ready publication.
    Stop cancels outstanding signing/process work; already accepted public steps
    remain recorded and cannot be recalled by cancelling.
 
@@ -320,7 +436,8 @@ them after verification. Those checks also work without another inference reques
 ## Propose changes from a remix
 
 A remixed draft with a passing preview exposes **Propose changes** beside Publish.
-Connect the same shell account, describe the contribution and prepare it. Studio
+The dialog automatically uses the selected shell account. Describe the contribution
+and choose **Prepare proposal**. Studio
 checks the build, checkpoints the source, validates its history, reads the signed
 upstream repository announcement, and shows the upstream, merge base, exact commit,
 build hash and contribution text. Preparation does not sign or upload anything.
@@ -331,7 +448,17 @@ snapshot (kind 5129). It does not create a new napplet listing or repository wra
 The signer and reviewed source, description and upstream are checked again before
 submission. Edited source must be prepared again. Retry reuses the signed journal;
 if signing stopped before a journal existed, it retries the same unchanged review.
-The proposal is available to maintainers through their existing Nostr Git workflow.
+Choose **Submit reviewed proposal** after reviewing and confirming the contribution.
+Switching accounts clears confirmation and requires a review for the new author.
+Success links to `/proposals/<event-id>` in the shell, with a separate Nostr-client link.
+
+Maintainers find contributions under **Proposed changes** in the original
+napplet's source section. They can refresh the list, select a revision, read the
+description and discussion, and play proposed and original builds. The review page
+also supplies `soyli review <event-id>` for the diff, discussion and merge flow.
+There is no global incoming-proposal inbox, notification service or browser merge
+action yet. Submission uses the local controller's authoritative Git repository;
+the experimental browser Git copy is not used for publication or proposals.
 
 ## Local limits and custody
 
@@ -403,7 +530,8 @@ selected browser account.
 ## Where the repository lives in production
 
 Today the repository is on the computer running `bun run studio`, under the path
-above. The browser is a UI, not the source store. Before publication it is a private
+above. That remains the authoritative source store; the opt-in browser Git
+experiment keeps an independent local copy. Before publication it is a private
 local Git repository with no newly registered GRASP repository. Publication creates
 or updates public source using the ordinary soyLI rules.
 

@@ -2,7 +2,7 @@ import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/pr
 import { join } from 'node:path';
 import { z } from 'zod';
 import { DiagnosticError } from '../../packages/diagnostics/src';
-import { readBytes } from '../../packages/client/src/bytes';
+import { fetchModelCatalogue, modelIdPattern } from './model-catalogue';
 import {
   defaultSteps,
   providers,
@@ -22,17 +22,22 @@ export const connectionInput = z
       .trim()
       .max(2048)
       .refine(validEndpoint, 'Use HTTPS, or HTTP on this computer’s loopback address.'),
-    model: z
-      .string()
-      .trim()
-      .min(1)
-      .max(160)
-      .regex(/^[a-zA-Z0-9][a-zA-Z0-9._:/@+-]*$/),
+    model: z.string().trim().min(1).max(160).regex(modelIdPattern),
     steps: z.number().int().min(10).max(100),
     // Omission keeps the saved key. Empty explicitly clears it for a local server.
     key: z.string().max(4096).optional(),
   })
   .strict();
+
+const catalogueInput = connectionInput.pick({
+  id: true,
+  provider: true,
+  endpoint: true,
+  key: true,
+});
+const modelInput = connectionInput
+  .pick({ id: true, model: true })
+  .extend({ id: z.uuid(), revision: z.uuid() });
 
 const savedConnection = connectionInput
   .extend({ id: z.uuid(), revision: z.uuid(), key: z.string().max(4096) })
@@ -173,56 +178,56 @@ export class Connections {
     });
     return this.state();
   }
+  async models(value: unknown) {
+    const parsed = catalogueInput.safeParse(value);
+    if (!parsed.success)
+      throw fail('Check the provider, API base URL and key before fetching models.');
+    const input = parsed.data;
+    const old = this.data.connections.find((c) => c.id === input.id);
+    if (input.id && !old) throw fail('That connection no longer exists.');
+    if (
+      old?.key &&
+      input.key === undefined &&
+      (input.endpoint !== old.endpoint || input.provider !== old.provider)
+    )
+      throw fail('Re-enter the API key when changing its destination or provider.');
+    const key = input.key ?? old?.key ?? '';
+    if (key) this.secrets.add(key);
+    if (!key && !['ollama', 'lmstudio', 'llamacpp', 'compatible'].includes(input.provider))
+      throw fail('Enter an API key before fetching models.');
+    // Discovery never saves an edited form, changes the model or starts inference.
+    return fetchModelCatalogue({ ...input, key });
+  }
+  async setModel(value: unknown) {
+    const parsed = modelInput.safeParse(value);
+    if (!parsed.success) throw fail('Choose a connection and a valid model ID.');
+    const { id, model, revision } = parsed.data;
+    const c = this.data.connections.find((c) => c.id === id);
+    if (!c) throw fail('Connection not found.');
+    if (c.revision !== revision)
+      throw fail('This connection changed. Reopen the model picker and try again.');
+    if (c.model !== model)
+      await this.persist({
+        ...this.data,
+        connections: this.data.connections.map((v) =>
+          v.id === id ? { ...v, model, revision: crypto.randomUUID() } : v,
+        ),
+      });
+    return this.state();
+  }
   async test(id: string) {
     const c = this.data.connections.find((c) => c.id === id);
     if (!c) throw fail('Connection not found.');
-    const headers: Record<string, string> = {};
-    if (c.key) {
-      if (c.provider === 'anthropic') {
-        headers['x-api-key'] = c.key;
-        headers['anthropic-version'] = '2023-06-01';
-      } else if (c.provider === 'google') headers['x-goog-api-key'] = c.key;
-      else headers.Authorization = `Bearer ${c.key}`;
-    }
-    let response: Response;
-    try {
-      response = await fetch(c.endpoint.replace(/\/$/, '') + '/models', {
-        headers,
-        redirect: 'error',
-        signal: AbortSignal.timeout(10000),
-      });
-    } catch {
-      throw fail(
-        'Could not reach the model catalogue. Check the endpoint and whether the server is running.',
-      );
-    }
-    if (!response.ok) {
-      await response.body?.cancel();
-      throw new DiagnosticError(
-        'STUDIO_CONNECTION',
-        `The model catalogue returned HTTP ${response.status}.`,
-        {
-          operation: 'test inference connection',
-          status: response.status,
-          recovery: 'Check the endpoint and API key. No generation was requested.',
-        },
-      );
-    }
-    try {
-      const body = JSON.parse(new TextDecoder().decode(await readBytes(response, 1024 * 1024)));
-      const models = (body.data ?? body.models ?? [])
-        .map((m: any) => m.id ?? m.name)
-        .filter((s: unknown) => typeof s === 'string');
-      const found = models.includes(c.model) || models.includes('models/' + c.model);
-      return {
-        message: found
-          ? 'Connected. The selected model is listed. Tool calling and image support still depend on the model.'
-          : 'Connected, but this model was not listed. Verify its exact ID. This test does not run inference.',
-      };
-    } catch {
-      throw fail(
-        'The server did not return a supported model catalogue. Check its OpenAI-compatible base URL.',
-      );
-    }
+    const { models, truncated } = await this.models({
+      id,
+      provider: c.provider,
+      endpoint: c.endpoint,
+    });
+    const found = models.some((m) => m.id === c.model || 'models/' + m.id === c.model);
+    return {
+      message: found
+        ? 'Connected. The selected model is listed. Tool calling and image support still depend on the model.'
+        : `Connected, but this model was not listed${truncated ? ' in the partial catalogue' : ''}. Verify its exact ID. This test does not run inference.`,
+    };
   }
 }

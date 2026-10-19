@@ -10,6 +10,9 @@ export type RunOptions = {
   timeoutMs?: number;
   onLine?: (line: string) => void;
   includeStderr?: boolean;
+  /** JSONL agent output is data, never a useful fallback error message. */
+  stdoutDiagnostic?: boolean;
+  recovery?: string;
   scrub?: (text: string) => string;
 };
 
@@ -110,10 +113,13 @@ export async function run(command: string[], options: RunOptions): Promise<strin
         operation: options.operation,
         tool: command[0].split('/').pop(),
         exitCode: code ?? undefined,
-        detail: scrub(errors.text || output.slice(-8000)),
+        detail: scrub(
+          errors.text || (options.stdoutDiagnostic === false ? '' : output.slice(-8000)),
+        ),
         cause: failure,
         recovery:
-          'Inspect the check details, then retry or ask the agent to repair the project. Your last passing preview is retained.',
+          options.recovery ??
+          'Inspect the check details, then retry or ask the agent to repair the saved files. Any existing passing preview is retained.',
       },
     );
   return output + (options.includeStderr && errors.text ? '\n' + scrub(errors.text) : '');

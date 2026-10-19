@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Brain, ChevronDown, Terminal } from 'lucide-react';
+import { workshopEntries, workshopTail } from './workshop';
 import type { Project } from './types';
 import { reasoningLimits, working } from './types';
 
@@ -68,135 +69,125 @@ export function ChatText({ text }: { text: string }) {
   );
 }
 export function ActivityPanel({ project: p }: { project: Project }) {
-  const [open, setOpen] = useState(working(p.phase));
-  const log = useRef<HTMLDivElement>(null);
-  const follow = useRef(true);
-  useEffect(() => {
-    setOpen(working(p.phase));
-    follow.current = true;
-  }, [p.turnStartedAt]);
-  useEffect(() => {
-    if (log.current && follow.current) log.current.scrollTop = log.current.scrollHeight;
-  }, [p.activity.length, p.activity.at(-1), open]);
-  if (!p.activity.length) return null;
-  return (
-    <section className="live-activity" aria-label="Maker activity">
-      <button className="activity-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <Terminal size={14} />
-        <span>{working(p.phase) ? 'Inside the workshop' : 'Workshop activity'}</span>
-        <small>
-          {p.turnSteps ?? p.steps}
-          {p.turnLimit ? ` / ${p.turnLimit}` : ' total'} steps
-        </small>
-        <ChevronDown size={14} className={open ? 'rotated' : ''} />
-      </button>
-      {open ? (
-        <>
-          <div
-            ref={log}
-            className="activity-log"
-            tabIndex={0}
-            aria-label="Recent tool activity"
-            onScroll={() => {
-              const e = log.current!;
-              follow.current = e.scrollHeight - e.scrollTop - e.clientHeight < 32;
-            }}
-          >
-            {p.activity.map((line, i) => (
-              <div key={i}>
-                <span className="activity-tick">{String(i + 1).padStart(2, '0')}</span>
-                {line}
-              </div>
-            ))}
-          </div>
-          <div className="activity-caption">
-            Tool actions and progress · ${p.estimatedCost.toFixed(3)} reported total cost
-          </div>
-        </>
-      ) : (
-        <div className="activity-last">{p.activity.at(-1)}</div>
-      )}
-      {(p.budgetReached ??
-        /maximum steps(?: for this agent have been reached| reached)/i.test(
-          p.messages.filter((m) => m.role === 'assistant').at(-1)?.text ?? '',
-        )) && (
-        <p className="budget-note">
-          Step limit reached. Checks can still pass with unfinished work. Send a follow-up when
-          you’re ready to continue.
-        </p>
-      )}
-    </section>
-  );
-}
-
-/** The provider's exposed reasoning channel, separate from chat and tool activity. */
-export function ReasoningPanel({ project: p }: { project: Project }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   const log = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
-  const blocks = p.reasoning ?? [];
+  const entries = workshopEntries(p);
+  const tail = workshopTail(p);
+  const active = working(p.phase);
+  const latest = entries.at(-1);
   useEffect(() => {
+    setOpen(false);
     follow.current = true;
   }, [p.turnStartedAt]);
   useEffect(() => {
     if (log.current && follow.current) log.current.scrollTop = log.current.scrollHeight;
-  }, [blocks.length, blocks.at(-1)?.text, open, p.turnStartedAt]);
-  if (!p.turnStartedAt && !blocks.length && !working(p.phase)) return null;
+  }, [entries.length, latest?.id, latest?.text, open]);
+  if (!entries.length && !active && !p.turnStartedAt) return null;
   return (
-    <section className="live-activity reasoning-panel" aria-label="Maker reasoning">
+    <section
+      className={`live-activity${active ? ' activity-working' : ''}`}
+      aria-label="Workshop activity and reasoning"
+    >
       <button
         className="activity-toggle"
         aria-expanded={open}
         aria-controls={id}
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          follow.current = true;
+          setOpen(!open);
+        }}
       >
-        <Brain size={14} />
-        <span>Reasoning</span>
+        <Terminal size={14} className="workshop-pulse" />
+        <span>Workshop activity</span>
         <small>
-          {blocks.length
-            ? `${blocks.length} ${blocks.length === 1 ? 'block' : 'blocks'}`
-            : 'When available'}
+          {p.turnSteps ?? p.steps}
+          {p.turnLimit ? ` / ${p.turnLimit}` : ' total'} steps
+          {p.turnTimeLimitMs ? ` · ${Math.round(p.turnTimeLimitMs / 60000)} min limit` : ''}
         </small>
         <ChevronDown size={14} className={open ? 'rotated' : ''} />
       </button>
-      {open && (
-        <div id={id}>
+      <div id={id}>
+        {open ? (
+          <>
+            <div
+              ref={log}
+              className="workshop-log"
+              tabIndex={0}
+              aria-label="Reasoning and tool updates"
+              onScroll={() => {
+                const e = log.current!;
+                follow.current = e.scrollHeight - e.scrollTop - e.clientHeight < 32;
+              }}
+            >
+              {p.reasoningOlder && (
+                <p className="reasoning-notice">
+                  Showing the latest {reasoningLimits.blocks} reasoning blocks.
+                </p>
+              )}
+              {entries.map((entry) => (
+                <div className={`workshop-entry workshop-${entry.type}`} key={entry.id}>
+                  <span className="workshop-kind">
+                    {entry.type === 'reasoning' ? <Brain size={12} /> : <Terminal size={12} />}
+                    {entry.type === 'reasoning' ? 'Reasoning' : 'Activity'}
+                  </span>
+                  {entry.type === 'reasoning' ? (
+                    <ChatText text={entry.text} />
+                  ) : (
+                    <div>{entry.text}</div>
+                  )}
+                  {entry.truncated && (
+                    <p className="reasoning-notice">Long block shortened for display.</p>
+                  )}
+                </div>
+              ))}
+              {!entries.length && <p className="reasoning-notice">Waiting for the next update…</p>}
+            </div>
+            <div className="activity-caption">
+              Tool updates and model-shared reasoning · ${p.estimatedCost.toFixed(3)} reported total
+              cost
+            </div>
+          </>
+        ) : (
           <div
-            ref={log}
-            className="reasoning-log"
-            tabIndex={0}
-            aria-label="Provider reasoning"
-            onScroll={() => {
-              const e = log.current!;
-              follow.current = e.scrollHeight - e.scrollTop - e.clientHeight < 32;
-            }}
+            className="workshop-tail"
+            role="log"
+            aria-live="polite"
+            aria-label="Latest three workshop lines"
           >
-            {p.reasoningOlder && (
-              <p className="reasoning-notice">
-                Showing the latest {reasoningLimits.blocks} blocks from this run.
-              </p>
-            )}
-            {blocks.map((block) => (
-              <div className="reasoning-block" key={block.id}>
-                <ChatText text={block.text} />
-                {block.truncated && (
-                  <p className="reasoning-notice">Long block shortened for display.</p>
-                )}
-              </div>
-            ))}
-            {!blocks.length && (
-              <p className="reasoning-notice">
-                {p.phase === 'editing'
-                  ? 'Waiting for the model to share reasoning. Completed blocks appear here as they arrive.'
-                  : 'No reasoning is available for this run. New runs show it here when the model provides it.'}
-              </p>
+            {tail.length ? (
+              tail.map((line, i) => (
+                <div className="workshop-tail-line" key={i}>
+                  {line.type === 'reasoning' ? (
+                    <Brain size={12} aria-label="Reasoning" />
+                  ) : (
+                    <Terminal size={12} aria-label="Activity" />
+                  )}
+                  <span>{line.text}</span>
+                </div>
+              ))
+            ) : (
+              <div className="workshop-tail-line">Waiting for the next update…</div>
             )}
           </div>
-          <div className="activity-caption">
-            Shared by the model · Latest run · Some models provide summaries only
-          </div>
-        </div>
+        )}
+      </div>
+      {p.timeLimitReached ? (
+        <p className="budget-note">
+          Time limit reached. Edits and the agent session are saved; checks determine whether a
+          preview can be opened. Send a follow-up to continue.
+        </p>
+      ) : (
+        (p.budgetReached ??
+          /maximum steps(?: for this agent have been reached| reached)/i.test(
+            p.messages.filter((m) => m.role === 'assistant').at(-1)?.text ?? '',
+          )) && (
+          <p className="budget-note">
+            Step limit reached. Checks can still pass with unfinished work. Send a follow-up when
+            you’re ready to continue.
+          </p>
+        )
       )}
     </section>
   );
