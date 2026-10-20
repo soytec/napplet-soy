@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
-import type { Agent, AgentEvent } from '../agent';
+import { agentFinishReasons, type Agent, type AgentEvent } from '../agent';
 import type { Connections } from '../connections';
 import { inspectProject } from '../../../packages/publish/src/project';
 import type { PublicationHooks } from '../publication';
@@ -22,7 +22,11 @@ const agentEvent = z.discriminatedUnion('type', [
     truncated: z.boolean().optional(),
   }),
   z.object({ type: z.literal('activity'), text: z.string().max(20000) }),
-  z.object({ type: z.literal('usage'), cost: z.number().finite().min(0).max(100000) }),
+  z.object({
+    type: z.literal('usage'),
+    cost: z.number().finite().min(0).max(100000),
+    finishReason: z.enum(agentFinishReasons).optional(),
+  }),
   z.object({ type: z.literal('limit') }),
 ]);
 

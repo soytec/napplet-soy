@@ -21,6 +21,11 @@ Choose **Create in browser** or open a draft from **My creations**. Describe you
 idea and send it. Enable **Browser builds** to compile the supported starter in
 this tab; leave it off for server builds. Keep the tab open during browser builds.
 Both modes run the maker on the host and retain the last passing playable preview.
+An interrupted or truncated model response is reported as incomplete, even when
+the agent process exits successfully. Saved edits remain available for an explicit
+follow-up or check; Studio does not silently start another inference turn.
+An unchanged fresh starter is not promoted as a completed creation. Build checks
+validate the implementation's mechanics, not whether it satisfies every request.
 
 Use **Publish** to prepare and review the listing, screenshots and gameplay clip.
 The active shell account signs the reviewed events. Relay delivery and website
@@ -122,9 +127,12 @@ guarantee recovery of edits that never left the container.
 
 One worker runs at a time, with four queued jobs. Queued cancellation starts no
 inference. A creator turn has a 20-minute deadline, including queue time. Default
-agent budget is 100 steps. The inference broker permits the step budget plus four
-requests, two concurrent requests, two MiB per request, 32 MiB streamed output and
-8,192 output tokens per response. These are resource bounds, not a spending cap.
+agent budget is 100 steps, configurable per connection. The inference broker
+preserves the selected model's output budget and provider defaults: it neither
+injects nor lowers an output-token limit. It imposes no separate total-call ceiling
+or per-response deadline; cancellation and the enclosing job deadline still apply.
+Resource bounds remain two concurrent requests, two MiB per request and 32 MiB
+streamed output per job. These are resource bounds, not a spending cap.
 
 The first image supports the starter's exact dependency/lockfile profile. Package
 installation happens when building the image, never during creator jobs. Projects

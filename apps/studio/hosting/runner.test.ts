@@ -37,6 +37,9 @@ test('hosted agent/build adapters import only permitted files and never pass reu
           options.onLine?.(
             'SOY_AGENT:' + JSON.stringify({ type: 'activity', text: 'Installed guidance loaded' }),
           );
+          options.onLine?.(
+            'SOY_AGENT:' + JSON.stringify({ type: 'usage', cost: 0.01, finishReason: 'stop' }),
+          );
           if (malicious) options.onLine?.('SOY_AGENT:{"type":"usage","cost":-99}');
           return {
             files: { ...files, 'main.ts': Buffer.from('after').toString('base64') },
@@ -58,7 +61,10 @@ test('hosted agent/build adapters import only permitted files and never pass reu
     const events: unknown[] = [];
     await adapters.agent!.run(project, 'edit', undefined, signal, (e) => events.push(e));
     expect(await readFile(join(project, 'main.ts'), 'utf8')).toBe('after');
-    expect(events).toEqual([{ type: 'activity', text: 'Installed guidance loaded' }]);
+    expect(events).toEqual([
+      { type: 'activity', text: 'Installed guidance loaded' },
+      { type: 'usage', cost: 0.01, finishReason: 'stop' },
+    ]);
     await adapters.projectCommand!(project, ['run', 'verify'], { signal, operation: 'verify' });
     expect(await readFile(join(project, 'dist/index.html'), 'utf8')).toBe('<html>built</html>');
     await expect(

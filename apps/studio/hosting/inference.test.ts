@@ -2,7 +2,7 @@ import { test, expect } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { inferenceSocket, inferenceLimits } from './inference';
+import { inferenceSocket } from './inference';
 import { HostedConnections } from './connections';
 
 test('hosted connection settings reject custom destinations before saving or testing them', async () => {
@@ -85,16 +85,75 @@ test('the job inference socket confines provider, model and credentials and enfo
       'Content-Type': 'application/json',
       Authorization: 'Bearer ' + connection.key,
     });
-    expect(JSON.parse(calls[0].options.body as string).max_tokens).toBe(
-      inferenceLimits.outputTokens,
-    );
+    expect(JSON.parse(calls[0].options.body as string).max_tokens).toBeUndefined();
     for (let n = 1; n < 14; n++) await (await send()).text();
-    expect((await send()).status).toBe(429);
-    expect(calls).toHaveLength(14);
+    expect((await send()).status).toBe(200);
+    expect(calls).toHaveLength(15);
     controller.abort();
     expect((await send()).status).toBe(410);
   } finally {
     await broker.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('the inference broker preserves provider output budgets without injecting a Studio token cap', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'studio-budgets-'));
+  try {
+    for (const [provider, endpoint, path, field] of [
+      ['deepseek', 'https://api.deepseek.com/v1', '/chat/completions', 'max_tokens'],
+      ['openai', 'https://api.openai.com/v1', '/chat/completions', 'max_completion_tokens'],
+      ['openai', 'https://api.openai.com/v1', '/responses', 'max_output_tokens'],
+      ['anthropic', 'https://api.anthropic.com/v1', '/messages', 'max_tokens'],
+      [
+        'google',
+        'https://generativelanguage.googleapis.com/v1beta',
+        '/models/fixture:generateContent',
+        'maxOutputTokens',
+      ],
+    ] as const) {
+      const socket = join(root, 'broker.sock');
+      const bodies: any[] = [];
+      const broker = await inferenceSocket(
+        socket,
+        {
+          name: 'Fixture',
+          provider,
+          endpoint,
+          model: 'fixture',
+          steps: 10,
+          key: 'fixture-key',
+        },
+        new AbortController().signal,
+        async (_url, init) => {
+          bodies.push(JSON.parse(String(init.body)));
+          return Response.json({ ok: true });
+        },
+      );
+      try {
+        for (const budget of [undefined, 65536, 4096, 0, -1, 1.5]) {
+          const limits = budget === undefined ? {} : { [field]: budget };
+          const response = await fetch('http://broker' + path, {
+            unix: socket,
+            method: 'POST',
+            body: JSON.stringify({
+              model: 'fixture',
+              ...(provider === 'google' ? { generationConfig: limits } : limits),
+            }),
+          });
+          const valid = budget === undefined || (Number.isSafeInteger(budget) && budget > 0);
+          expect(response.status).toBe(valid ? 200 : 400);
+          await response.text();
+          if (valid) {
+            const body = bodies.at(-1);
+            expect((provider === 'google' ? body.generationConfig : body)[field]).toBe(budget);
+          }
+        }
+      } finally {
+        await broker.close();
+      }
+    }
+  } finally {
     await rm(root, { recursive: true, force: true });
   }
 });

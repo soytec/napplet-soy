@@ -85,6 +85,7 @@ if(prompt.includes('HANG_FIXTURE')) {
 } else {
   // Exercise the controller's real build error and repair round trip through IPC.
   await writeFile('src/main.ts',prompt.includes('Repair the failure')?'working worker preview':'BROKEN');
+  console.log(JSON.stringify({type:'step_finish',part:{reason:'stop',cost:0}}));
 }
 `,
   );
