@@ -5,7 +5,42 @@ do not deploy or upload releases unless the user explicitly requests deployment.
 
 Updated 2026-10-20. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-Latest verified website release: **`20261020111402553-16211`**, source
+Latest verified website release: **`20261020122308291-6231`**, source
+`ce2aeabf5331c6b45f40cfe17f9b1edf82a00ce1`, installer still pinned to **soyLI 0.31.0**.
+[PR #27](https://github.com/zeSchlausKwab/napplet-soy/pull/27) fixes incomplete
+Studio turns being reported as ready creations. Model cutoffs and unfinished tool
+turns now retain edits and report an actionable error; an unchanged starter cannot
+be promoted as a completed creation. The inference broker no longer imposes its
+own output-token cap, total-call ceiling or per-response timeout. Connection step
+budgets, overall deadlines and resource/isolation bounds remain.
+
+TypeScript and 833 application tests passed locally and on the VPS compatibility
+runtime. Deployment also passed native service checks and production rendering
+gates. [All four native platforms](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39421156522)
+passed before merge; merged source passed
+[Nix/VM checks](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39422762424)
+and [Studio service CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39422762320).
+
+The accepted worker image is
+`sha256:23719cca357781e2b9fa48981b7eddfcff9750379e3fecce0cf377d2a553e81b`,
+updating the agent entrypoint over the previous pinned image. Scripted acceptance
+with real OpenCode covers server builds, browser compiler bridging, build repair,
+response truncation, both capture orientations, failure recovery and cancellation.
+The original cutoff reproduction now reports an incomplete turn and preserves
+OpenCode's requested token allowance.
+
+Live HTTPS/CVM acceptance confirms that checking an untouched starter produces
+`STUDIO_NO_CHANGES` without promoting a preview. Its disposable owner was removed
+after revocation. Existing user drafts and repositories were preserved; no paid
+inference or public test publication was performed. Public health and the fresh
+index match the release; deployed source and worker fingerprints are verified.
+The image switch preserves unrelated private configuration and has a paired
+rollback backup. Shared Caddy configuration and the other hosted site are unchanged.
+No soyLI release was needed.
+
+### Previous verified rollout — private preview downloads, 2026-10-20
+
+Website release: **`20261020111402553-16211`**, source
 `028c1447f7400e8116a7bc9d7ba61193c8d18bd6`, installer still pinned to **soyLI 0.31.0**.
 [PR #26](https://github.com/zeSchlausKwab/napplet-soy/pull/26) fixes private Studio
 previews showing “Download unavailable” after successful builds. The trusted player
