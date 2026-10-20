@@ -118,12 +118,22 @@ The operator pins the worker image by its exact local SHA-256 ID. Containers run
 as UID/GID 1000, with no network, capabilities, privilege escalation, Docker socket,
 host home, live repository or controller secrets. Root/input filesystems are
 read-only; a one-GiB executable workspace and 128-MiB temporary directory are tmpfs.
-Limits are one CPU, two GiB memory, 128 processes and ten minutes per job. Source
+Limits are one CPU, two GiB memory, 128 processes and ten minutes of execution per
+job. The controller passes that same deadline to the worker; there is no shorter
+worker-only cutoff. A further 30 seconds allows recovery-file export before forced
+termination. Source
 transfers admit at most 2,048 ordinary files / 32 MiB, excluding private state,
 Git internals and dependencies. Returned files are validated before applying;
 protected guidance/dependency files and concurrent edits are guarded. Failed jobs
 return recoverable edits when they can complete export; forced termination cannot
 guarantee recovery of edits that never left the container.
+
+Execution timeouts retain the `STUDIO_TIMEOUT` classification across the worker
+boundary. Studio checks recovered edits without purchasing another inference turn;
+only passing checks can promote a preview. If further work is needed, the user can
+continue the saved draft. Recovery-file and agent protocol frames are excluded from
+retained process output before truncation, so diagnostics cannot show their encoded
+payloads in place of the actual error.
 
 One worker runs at a time, with four queued jobs. Queued cancellation starts no
 inference. A creator turn has a 20-minute deadline, including queue time. Default

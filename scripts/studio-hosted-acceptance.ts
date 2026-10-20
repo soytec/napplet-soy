@@ -242,6 +242,83 @@ assert(truncated.failure.context.detail?.includes('STUDIO_AGENT_INCOMPLETE'));
 assert(truncated.failure.context.detail?.includes('length'));
 assert(truncated.files['src/hosted-probe.ts'], 'Existing source survives the failed turn');
 console.log('ACCEPTANCE_TRUNCATED_TURN_PASSED');
+// The real entrypoint must honor the controller's budget, export edits and preserve
+// STUDIO_TIMEOUT so orchestration can check them without another inference turn.
+let timeoutEditRequested = false;
+const timed = await jobs.run(files, ['bun', '--no-env-file', '/opt/studio/job-entry.js'], {
+  ...options,
+  timeoutMs: 20000,
+  context: {
+    operation: 'agent',
+    prompt: 'Implement the next feature. Do not publish.',
+    connection: { provider: 'deepseek', model: 'deepseek-flash', steps: 10 },
+  },
+  prepare: async (directory) => {
+    const broker = await inferenceSocket(
+      join(directory, 'inference.sock'),
+      {
+        name: 'Fixture',
+        provider: 'deepseek',
+        endpoint: 'https://api.deepseek.com/v1',
+        model: 'deepseek-flash',
+        steps: 10,
+        key: 'fixture-not-a-provider-key',
+      },
+      signal,
+      async (_url, init) => {
+        const body = JSON.parse(String(init.body));
+        const agent = !!body.tools?.length;
+        if (agent && timeoutEditRequested) {
+          await new Promise<void>((_, reject) => {
+            const aborted = () => reject(init.signal?.reason);
+            if (init.signal?.aborted) aborted();
+            else init.signal?.addEventListener('abort', aborted, { once: true });
+          });
+        }
+        if (agent) timeoutEditRequested = true;
+        const delta = agent
+          ? {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'call_timeout_edit',
+                  type: 'function',
+                  function: {
+                    name: 'write',
+                    arguments: JSON.stringify({
+                      filePath: '/workspace/src/timeout-probe.ts',
+                      content: 'export const recoveredAfterTimeout = true;\n',
+                    }),
+                  },
+                },
+              ],
+            }
+          : { content: 'Fixture title' };
+        const chunk = (delta: unknown, finish_reason: string | null) =>
+          'data: ' +
+          JSON.stringify({
+            id: 'chatcmpl-timeout',
+            object: 'chat.completion.chunk',
+            created: 1,
+            model: body.model,
+            choices: [{ index: 0, delta, finish_reason }],
+          }) +
+          '\n\n';
+        return new Response(
+          chunk(delta, null) + chunk({}, agent ? 'tool_calls' : 'stop') + 'data: [DONE]\n\n',
+          { headers: { 'Content-Type': 'text/event-stream' } },
+        );
+      },
+    );
+    return () => broker.close();
+  },
+});
+assert.equal(timed.failure?.code, 'STUDIO_TIMEOUT');
+assert(timed.files['src/timeout-probe.ts'], 'Edits must survive the execution deadline');
+assert(!timed.output.includes('"final":'), 'Recovery frames must not leak into diagnostics');
+assert(!timed.output.includes('SOY_JOB_'));
+assert(!timed.output.includes('ETIMEDOUT'));
+console.log('ACCEPTANCE_TIMEOUT_RECOVERY_PASSED');
 for (const portrait of [false, true]) {
   const result = await jobs.run(files, ['/opt/studio/capture'], {
     ...options,

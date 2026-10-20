@@ -1,6 +1,49 @@
 import { expect, test } from 'bun:test';
 import { containerCommand, ContainerJobs, validateJobFiles } from './container';
-import type { run } from '../process';
+import { run } from '../process';
+
+test('large recovery frames never enter the failure diagnostic or displace the useful output', async () => {
+  const execute: typeof run = async (args, options) => {
+    if (args[1] !== 'run') return '';
+    return run(
+      [
+        process.execPath,
+        '--no-env-file',
+        '-e',
+        `
+        import { writeSync } from 'node:fs';
+        console.log('Saved the changed game before stopping.');
+        const data = Buffer.from('private recovered source\\n'.repeat(10000)).toString('base64');
+        for (let at = 0; at < data.length; at += 256 * 1024)
+          writeSync(1, 'SOY_JOB_FILE:' + JSON.stringify({
+            path: 'src/main.ts', data: data.slice(at, at + 256 * 1024),
+            final: at + 256 * 1024 >= data.length,
+          }) + '\\n');
+        console.error('STUDIO_TIMEOUT: The maker reached its time limit. API_KEY=do-not-show');
+        console.log('SOY_JOB_STATUS:1');
+        console.log('SOY_JOB_DONE');
+        `,
+      ],
+      options,
+    );
+  };
+  const jobs = new ContainerJobs('sha256:' + 'a'.repeat(64), execute);
+  const result = await jobs.run({}, ['bun'], {
+    signal: new AbortController().signal,
+    operation: 'run isolated OpenCode',
+  });
+  expect(Buffer.from(result.files['src/main.ts'], 'base64').toString()).toContain(
+    'private recovered source',
+  );
+  const { diagnose, formatDiagnostic } = await import('../../../packages/diagnostics/src');
+  const message = formatDiagnostic(diagnose(result.failure));
+  expect(message).toContain('STUDIO_TIMEOUT');
+  expect(message).not.toContain('do-not-show');
+  expect(message).not.toContain('cHJpdmF0ZS');
+  expect(result.output).toContain('Saved the changed game before stopping.');
+  expect(result.output).not.toContain('"final":');
+  expect(result.output).not.toContain('SOY_JOB_');
+});
 
 test('private service umask still allows the isolated container user to read its job input', async () => {
   const child = Bun.spawn(
@@ -88,7 +131,7 @@ test('a shared container supervisor serializes jobs and exports bounded files wi
         }),
     );
     options.onLine!('SOY_JOB_DONE');
-    return 'build passed\nSOY_JOB_DONE';
+    return 'build passed';
   };
   const runner = new ContainerJobs('sha256:' + 'a'.repeat(64), execute);
   const options = { signal: new AbortController().signal, operation: 'build' };

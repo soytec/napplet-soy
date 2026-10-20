@@ -4,12 +4,11 @@ import { openCodeAgent, type AgentEvent } from '../agent';
 import { providers, type Provider } from '../connections-model';
 import { run } from '../process';
 import { workspaceFiles } from './workspace';
+import { withJobDeadline } from './job-deadline';
 
 import { diagnose, formatDiagnostic } from '../../../packages/diagnostics/src';
 
-async function main() {
-  const { context } = await Bun.file('/input/input.json').json();
-  const signal = AbortSignal.timeout(550000);
+async function main(context: any, signal: AbortSignal) {
   const profile = await Bun.file('/opt/profile/package.json').json();
   const project = await Bun.file('/workspace/package.json').json();
   const stable = (value: Record<string, unknown>) =>
@@ -135,7 +134,12 @@ async function main() {
     console.log(output);
   } else throw new Error('Unsupported isolated job.');
 }
-await main().catch((error) => {
-  console.error(formatDiagnostic(diagnose(error, 'execute isolated project')));
+await (async () => {
+  const { context, timeoutMs } = await Bun.file('/input/input.json').json();
+  await withJobDeadline(timeoutMs, (signal) => main(context, signal));
+})().catch((error) => {
+  const diagnostic = diagnose(error, 'execute isolated project');
+  if (diagnostic.code === 'STUDIO_TIMEOUT') console.log('SOY_JOB_TIMEOUT');
+  console.error(formatDiagnostic(diagnostic));
   process.exitCode = 1;
 });
