@@ -3,9 +3,37 @@
 Deployment is operator-run. Routine changes are verified and committed locally;
 do not deploy or upload releases unless the user explicitly requests deployment.
 
-Updated 2026-10-19. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
+Updated 2026-10-20. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-Latest verified website release: **`20261019161500000-2714`**, source
+Latest verified website release: **`20261020111402553-16211`**, source
+`028c1447f7400e8116a7bc9d7ba61193c8d18bd6`, installer still pinned to **soyLI 0.31.0**.
+[PR #26](https://github.com/zeSchlausKwab/napplet-soy/pull/26) fixes private Studio
+previews showing “Download unavailable” after successful builds. The trusted player
+now includes its same-origin access cookie when downloading the immutable artifact.
+Public downloads still omit credentials, and integrity checks and sandbox isolation
+remain enforced. Existing drafts need a page refresh, not another inference run.
+
+The fix passed 828 application tests locally and during the standard VPS deployment,
+plus native service checks and production build/rendering gates.
+[All four native platforms](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39412989782)
+passed before merge; the merged source passed
+[Nix/VM checks](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39414166759)
+and [Studio service CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39414163984).
+The new HTTPS browser regression reproduces the original 403 through the actual
+player download path, then verifies playback, input, opaque-origin isolation,
+anonymous denial and session revocation after the fix.
+
+Live Chromium acceptance on a disposable private draft confirmed artifact HTTP 200,
+game rendering and input, opaque origin, and HTTP 403 after session revocation.
+The disposable workspace was removed; existing user drafts were preserved.
+Deployed source fingerprints and public health match the release. Services are
+healthy, the shared Caddy configuration is unchanged, and the other hosted site
+remains available. The worker image and CLI release are unchanged. No paid
+inference or public test publication was performed.
+
+### Previous verified rollout — hosted Studio, 2026-10-19
+
+Website release: **`20261019161500000-2714`**, source
 `bb271c4aa15980a36a8d825d126defc62691dc7e`, installer pinned to **soyLI 0.31.0**.
 [PR #25](https://github.com/zeSchlausKwab/napplet-soy/pull/25) adds hosted BYOK Studio,
 with browser compilation and isolated server builds under the shared shell account.
