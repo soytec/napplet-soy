@@ -509,6 +509,7 @@ export class Studio {
     p.turnStartedAt = new Date().toISOString();
     p.budgetReached = false;
     p.timeLimitReached = false;
+    delete p.agentFinishReason;
     p.turnTimeLimitMs = inferenceTimeoutMs;
     p.reasoning = [];
     p.reasoningOlder = false;
@@ -539,6 +540,7 @@ export class Studio {
       }
       if (event.type === 'activity') this.activity(p, event.text);
       if (event.type === 'usage') {
+        p.agentFinishReason = event.finishReason;
         p.estimatedCost += event.cost;
         p.steps++;
         p.turnSteps = (p.turnSteps ?? 0) + 1;
@@ -623,7 +625,8 @@ export class Studio {
     } catch (error) {
       signal.throwIfAborted();
       if (p.timeLimitReached) throw error;
-      if ((error as DiagnosticError).code === 'STUDIO_GUARDRAIL') throw error;
+      if (['STUDIO_GUARDRAIL', 'STUDIO_NO_CHANGES'].includes((error as DiagnosticError).code))
+        throw error;
       if (browserSession && (error as DiagnosticError).code !== 'STUDIO_BROWSER_DIAGNOSTICS')
         throw error;
       this.message(p, 'system', 'The independent checks found a problem. Trying one repair pass.');
@@ -631,6 +634,33 @@ export class Studio {
         `Repair the failure from the independent verification below. Preserve the requested features. Do not weaken tests or change protected configuration.\n${formatDiagnostic(diagnose(error))}`,
       );
       await this.verify(p, signal, browserSession);
+    }
+  }
+  private async requireImplementation(p: Project, signal: AbortSignal) {
+    if (!p.source && p.baseline) {
+      // A generated fresh app must differ from the starter itself, not merely
+      // its README/listing. This also catches previously mis-promoted starters.
+      // Read-only follow-ups to an implemented app and imported remixes remain valid.
+      const changed = await this.git(
+        p,
+        ['diff', '--name-only', p.baseline, '--', 'src', 'index.html'],
+        signal,
+      );
+      const added = await this.git(
+        p,
+        ['ls-files', '--others', '--exclude-standard', '--', 'src', 'index.html'],
+        signal,
+      );
+      if (!changed.trim() && !added.trim())
+        throw new DiagnosticError(
+          'STUDIO_NO_CHANGES',
+          'The maker did not change the starter app.',
+          {
+            operation: 'verify maker delivery',
+            recovery:
+              'Your draft and conversation are saved. Ask the maker to implement the app before creating a preview. No additional inference was started.',
+          },
+        );
     }
   }
   private async checkpoint(p: Project, label: string, signal: AbortSignal) {
@@ -665,6 +695,7 @@ export class Studio {
             'Inspect Changes and restore the affected files before continuing. No preview was promoted.',
         },
       );
+    await this.requireImplementation(p, signal);
     if (browserSession) {
       if (this.options.projectCommand && !this.options.browserLibraryRoot)
         throw new DiagnosticError(

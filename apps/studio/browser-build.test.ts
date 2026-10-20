@@ -422,6 +422,26 @@ const settle = (studio: Studio) =>
     (state) => !state.busy,
   );
 
+test('browser creation refuses an unchanged starter before requesting compilation; read-only remixes still work', async () => {
+  const { studio } = await studioFixture({ model: 'fixture', async run() {} });
+  const browserSession = crypto.randomUUID();
+  const id = await studio.create('Unchanged', 'Make a game', undefined, browserSession);
+  const project = (await settle(studio)).projects.find((p) => p.id === id)!;
+  expect(project.error?.code).toBe('STUDIO_NO_CHANGES');
+  expect(project.phase).toBe('failed');
+  expect(project.preview).toBeUndefined();
+  expect(studio.browserBuilds.next(browserSession)).toBeNull();
+  const remix = await studio.create(
+    'Existing game',
+    'Explain it',
+    'http://127.0.0.1:9999/n/test',
+    browserSession,
+  );
+  const input = (await waitFor(() => studio.browserBuilds.next(browserSession), Boolean))!;
+  studio.browserBuilds.reply(browserSession, await compileBrowserProject(input));
+  expect((await settle(studio)).projects.find((p) => p.id === remix)?.phase).toBe('ready');
+}, 15000);
+
 test('new and remix requests carry the initiating browser session through setup and first preview', async () => {
   const executions: boolean[] = [];
   const { studio, directory } = await studioFixture({
@@ -549,6 +569,8 @@ test('browser failure preserves preview, feeds one repair pass, avoids host buil
     ))!;
     studio.browserBuilds.reply(session, await compileBrowserProject(next));
   };
+  // Manual checks start from an implemented draft, not the untouched scaffold.
+  await writeFile(join(root, 'src/main.ts'), 'document.body.textContent = "Initial preview";');
   await studio.check(id, session);
   await answer();
   const first = (await settle(studio)).projects[0];
@@ -676,6 +698,7 @@ test('worker failure and source changes during compilation do not start paid rep
     },
   });
   const session = crypto.randomUUID();
+  await writeFile(join(root, 'src/main.ts'), 'document.body.textContent = "Initial preview";');
   await studio.check(id, session);
   const initial = (await waitFor(
     () => studio.browserBuilds.next(session),

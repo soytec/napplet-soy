@@ -6,7 +6,6 @@ import { DiagnosticError } from '../../../packages/diagnostics/src';
 export const inferenceLimits = {
   requestBytes: 2 * 1024 * 1024,
   responseBytes: 32 * 1024 * 1024,
-  outputTokens: 8192,
 };
 type Connection = ConnectionInput & { key: string };
 const fail = (message: string) => new DiagnosticError('STUDIO_INFERENCE', message);
@@ -58,8 +57,8 @@ export async function inferenceSocket(
             : path === '/chat/completions' ||
               (connection.provider === 'openai' && path === '/responses');
       if (!allowed) return error(403, 'This inference route is not available to this run.');
-      if (active >= 2 || calls >= connection.steps + 4 || bytes >= inferenceLimits.responseBytes)
-        return error(429, 'This inference run reached its request or response budget.');
+      if (active >= 2 || bytes >= inferenceLimits.responseBytes)
+        return error(429, 'This inference run reached its concurrency or transfer budget.');
       let body: Record<string, any>;
       try {
         const data = await readBytes(
@@ -79,20 +78,15 @@ export async function inferenceSocket(
         if (connection.provider === 'google') {
           if (body.tools?.some((t: any) => t.googleSearch || t.codeExecution || t.urlContext))
             throw Error();
-          body.generationConfig ??= {};
-          const limit = body.generationConfig.maxOutputTokens ?? inferenceLimits.outputTokens;
-          if (!Number.isSafeInteger(limit) || limit < 1) throw Error();
-          body.generationConfig.maxOutputTokens = Math.min(limit, inferenceLimits.outputTokens);
+          const limit = body.generationConfig?.maxOutputTokens;
+          if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1)) throw Error();
         } else {
-          const key =
-            path === '/responses'
-              ? 'max_output_tokens'
-              : body.max_completion_tokens !== undefined
-                ? 'max_completion_tokens'
-                : 'max_tokens';
-          const limit = body[key] ?? inferenceLimits.outputTokens;
-          if (!Number.isSafeInteger(limit) || limit < 1) throw Error();
-          body[key] = Math.min(limit, inferenceLimits.outputTokens);
+          // Preserve model/provider budgets, including their defaults. Reasoning
+          // may share the output budget; silently shrinking it can prevent edits.
+          for (const key of ['max_output_tokens', 'max_completion_tokens', 'max_tokens']) {
+            const limit = body[key];
+            if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1)) throw Error();
+          }
           if (path === '/responses') body.store = false;
         }
       } catch {
@@ -100,8 +94,8 @@ export async function inferenceSocket(
       }
       // Reading request bodies yields; recheck before reserving an upstream call.
       if (abort.signal.aborted) return error(410, 'This inference run has ended.');
-      if (active >= 2 || calls >= connection.steps + 4 || bytes >= inferenceLimits.responseBytes)
-        return error(429, 'This inference run reached its request or response budget.');
+      if (active >= 2 || bytes >= inferenceLimits.responseBytes)
+        return error(429, 'This inference run reached its concurrency or transfer budget.');
       calls++;
       active++;
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -119,7 +113,7 @@ export async function inferenceSocket(
             headers,
             body: JSON.stringify(body),
             redirect: 'error',
-            signal: AbortSignal.any([abort.signal, request.signal, AbortSignal.timeout(120000)]),
+            signal: AbortSignal.any([abort.signal, request.signal]),
           },
         );
         if (!response.ok || !response.body) {

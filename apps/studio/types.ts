@@ -3,6 +3,7 @@ import type { Diagnostic } from '../../packages/diagnostics/src';
 import type { ProposalState } from './proposal';
 import type { PublicationState } from './publication';
 import type { StudioJob } from './store';
+import type { AgentFinishReason } from './agent';
 
 export type Phase =
   | 'idle'
@@ -49,6 +50,7 @@ export type Project = {
   budgetReached?: boolean;
   timeLimitReached?: boolean;
   turnTimeLimitMs?: number;
+  agentFinishReason?: AgentFinishReason;
   initialized?: boolean;
   setup?: boolean;
   baseline?: string;

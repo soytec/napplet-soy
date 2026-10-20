@@ -186,6 +186,62 @@ for (const browserBuild of [false, true]) {
   files = result.files;
   console.log('ACCEPTANCE_AGENT_' + (browserBuild ? 'BROWSER_BRIDGE' : 'SERVER') + '_PASSED');
 }
+// Provider truncation is a successful HTTP stream and OpenCode may exit 0.
+// Exercise the real installed adapter, not just the JSONL parser.
+const truncated = await jobs.run(files, ['bun', '--no-env-file', '/opt/studio/job-entry.js'], {
+  ...options,
+  context: {
+    operation: 'agent',
+    prompt: 'Implement the next feature. Do not publish.',
+    connection: { provider: 'deepseek', model: 'deepseek-flash', steps: 10 },
+  },
+  prepare: async (directory) => {
+    const broker = await inferenceSocket(
+      join(directory, 'inference.sock'),
+      {
+        name: 'Fixture',
+        provider: 'deepseek',
+        endpoint: 'https://api.deepseek.com/v1',
+        model: 'deepseek-flash',
+        steps: 10,
+        key: 'fixture-not-a-provider-key',
+      },
+      signal,
+      async (_url, init) => {
+        const body = JSON.parse(String(init.body));
+        assert(body.max_tokens > 8192, 'The broker must not shrink the model output budget');
+        const chunk = (delta: unknown, finish_reason: string | null) =>
+          'data: ' +
+          JSON.stringify({
+            id: 'chatcmpl-length',
+            object: 'chat.completion.chunk',
+            created: 1,
+            model: body.model,
+            choices: [{ index: 0, delta, finish_reason }],
+          }) +
+          '\n\n';
+        const agent = !!body.tools?.length;
+        return new Response(
+          chunk(
+            agent
+              ? { reasoning_content: 'Planning interrupted before implementation.' }
+              : { content: 'Fixture title' },
+            null,
+          ) +
+            chunk({}, agent ? 'length' : 'stop') +
+            'data: [DONE]\n\n',
+          { headers: { 'Content-Type': 'text/event-stream' } },
+        );
+      },
+    );
+    return () => broker.close();
+  },
+});
+assert(truncated.failure, 'A truncated model turn must not report success');
+assert(truncated.failure.context.detail?.includes('STUDIO_AGENT_INCOMPLETE'));
+assert(truncated.failure.context.detail?.includes('length'));
+assert(truncated.files['src/hosted-probe.ts'], 'Existing source survives the failed turn');
+console.log('ACCEPTANCE_TRUNCATED_TURN_PASSED');
 for (const portrait of [false, true]) {
   const result = await jobs.run(files, ['/opt/studio/capture'], {
     ...options,

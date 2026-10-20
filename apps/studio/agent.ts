@@ -10,13 +10,23 @@ import { agentCheckTool } from './agent-check';
 import { workspaceMap } from './agent-context';
 
 export const inferenceTimeoutMs = 10 * 60_000;
+export const agentFinishReasons = [
+  'stop',
+  'length',
+  'tool-calls',
+  'content-filter',
+  'error',
+  'other',
+  'unknown',
+] as const;
+export type AgentFinishReason = (typeof agentFinishReasons)[number];
 
 export type AgentEvent =
   | { type: 'session'; id: string }
   | { type: 'text'; text: string }
   | { type: 'reasoning'; id?: string; text: string; truncated?: boolean }
   | { type: 'activity'; text: string }
-  | { type: 'usage'; cost: number }
+  | { type: 'usage'; cost: number; finishReason?: AgentFinishReason }
   | { type: 'limit' };
 export type Agent = {
   model: string;
@@ -86,6 +96,7 @@ export function agentEvents(line: string): AgentEvent[] {
     result.push({
       type: 'usage',
       cost: typeof event.part?.cost === 'number' ? Math.max(0, event.part.cost) : 0,
+      finishReason: agentFinishReasons.includes(event.part?.reason) ? event.part.reason : 'unknown',
     });
   if (event.type === 'error')
     throw new DiagnosticError('STUDIO_AGENT', 'The inference session failed.', {
@@ -241,6 +252,7 @@ export async function openCodeAgent(options: {
           { recovery: 'Review the project’s installed guidance before retrying.' },
         );
       let reportedError: unknown;
+      let finishReason: AgentFinishReason | undefined;
       if (options.browserBuild && !execution?.check)
         throw new DiagnosticError('STUDIO_BROWSER_TOOL', 'The browser check tool is unavailable.', {
           recovery: 'Restart Studio with the matching worker version, or use native checks.',
@@ -280,7 +292,10 @@ export async function openCodeAgent(options: {
             scrub: (text) => (key ? text.replaceAll(key, '[provider credential redacted]') : text),
             onLine: (line) => {
               try {
-                for (const event of agentEvents(line)) emit(event);
+                for (const event of agentEvents(line)) {
+                  if (event.type === 'usage') finishReason = event.finishReason;
+                  emit(event);
+                }
               } catch (error) {
                 reportedError = error;
               }
@@ -288,6 +303,22 @@ export async function openCodeAgent(options: {
           },
         );
         if (reportedError) throw reportedError;
+        // OpenCode can exit 0 after a provider length cutoff or an unfinished
+        // tool turn. A successful process is not evidence of a completed answer.
+        if (finishReason !== 'stop')
+          throw new DiagnosticError(
+            'STUDIO_AGENT_INCOMPLETE',
+            finishReason === 'length'
+              ? 'The model reached its response limit before completing the turn.'
+              : 'The maker stopped without completing the turn.',
+            {
+              operation: 'OpenCode inference',
+              tool: 'opencode',
+              detail: `Model finish reason: ${finishReason ?? 'missing'}.`,
+              recovery:
+                'Your saved edits are retained. Send a follow-up to continue, or run checks on the current files. No additional inference was started.',
+            },
+          );
       } catch (error) {
         // Structured provider errors carry the useful cause; stdout is intentionally omitted.
         throw reportedError ?? error;

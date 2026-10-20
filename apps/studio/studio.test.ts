@@ -7,7 +7,7 @@ import { StudioStore } from './store';
 import { cleanEnvironment, agentEvents, type Agent } from './agent';
 import { run } from './process';
 import { serveStudio } from './server';
-import { diagnose, formatDiagnostic } from '../../packages/diagnostics/src';
+import { diagnose, DiagnosticError, formatDiagnostic } from '../../packages/diagnostics/src';
 import { startPreviewServer } from '../cli/src/preview/server';
 import { pathToFileURL } from 'node:url';
 import { generateSecretKey, getPublicKey } from 'nostr-tools';
@@ -39,9 +39,10 @@ test('publication follow-up opens only after the maker and checks finish, never 
   let fail = false;
   const { studio } = await fixture({
     model: 'fixture',
-    async run() {
+    async run(directory) {
       if (paused) await paused;
       if (fail) throw new Error('Maker failed');
+      await writeFile(join(directory, 'src/main.ts'), 'working toy');
     },
   });
   const id = await studio.create('Recording', 'Create a toy');
@@ -83,6 +84,68 @@ test('publication follow-up opens only after the maker and checks finish, never 
 });
 afterEach(async () => {
   for (const fn of cleanup.splice(0).reverse()) await fn();
+});
+test('a successful agent exit without implementing the new app never delivers the starter', async () => {
+  let edit = false,
+    calls = 0;
+  const { studio, root } = await fixture({
+    model: 'fixture',
+    async run(directory, _prompt, _session, _signal, emit) {
+      calls++;
+      emit({ type: 'text', text: edit ? 'Made the game.' : 'Here is the plan.' });
+      if (edit) await writeFile(join(directory, 'src/main.ts'), 'working game');
+      else await writeFile(join(directory, 'README.md'), 'Metadata edits alone are not a game.');
+    },
+  });
+  const id = await studio.create('Physics puzzle', 'Make a physics puzzle game');
+  const unchanged = await settled(studio);
+  expect(unchanged.phase).toBe('failed');
+  expect(unchanged.error?.code).toBe('STUDIO_NO_CHANGES');
+  expect(unchanged.preview).toBeUndefined();
+  expect(unchanged.checkpoints).toHaveLength(0);
+  expect(calls).toBe(1);
+  expect(await Bun.file(join(root, 'projects', id, 'workspace/dist/index.html')).exists()).toBe(
+    false,
+  );
+  edit = true;
+  await studio.send(id, 'Implement it');
+  expect((await settled(studio)).phase).toBe('ready');
+  edit = false;
+  await studio.send(id, 'Explain the controls without changing the code');
+  expect((await settled(studio)).phase).toBe('ready');
+  expect(calls).toBe(3);
+});
+test('an incomplete model turn retains edits and the previous preview without buying a repair', async () => {
+  let calls = 0;
+  const { studio, root } = await fixture({
+    model: 'fixture',
+    async run(directory, _prompt, _session, _signal, emit) {
+      calls++;
+      await writeFile(
+        join(directory, 'src/main.ts'),
+        calls === 1 ? 'working toy' : 'partial change',
+      );
+      emit({ type: 'usage', cost: 0.01, finishReason: calls === 1 ? 'stop' : 'length' });
+      if (calls > 1)
+        throw new DiagnosticError(
+          'STUDIO_AGENT_INCOMPLETE',
+          'The model reached its response limit.',
+        );
+    },
+  });
+  const id = await studio.create('Toy', 'Make it');
+  const original = await settled(studio);
+  await studio.send(id, 'Improve it');
+  const incomplete = await settled(studio);
+  expect(incomplete.phase).toBe('failed');
+  expect(incomplete.error?.code).toBe('STUDIO_AGENT_INCOMPLETE');
+  expect(incomplete.agentFinishReason).toBe('length');
+  expect(incomplete.preview).toBe(original.preview);
+  expect(incomplete.checkpoints).toHaveLength(1);
+  expect(calls).toBe(2);
+  expect(await readFile(join(root, 'projects', id, 'workspace/src/main.ts'), 'utf8')).toBe(
+    'partial change',
+  );
 });
 async function fixture(agent: Agent, extra: Partial<StudioOptions> = {}) {
   const root = await mkdtemp(join(tmpdir(), 'soy-studio-'));
