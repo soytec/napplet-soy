@@ -12,6 +12,8 @@ export type RunOptions = {
   includeStderr?: boolean;
   /** JSONL agent output is data, never a useful fallback error message. */
   stdoutDiagnostic?: boolean;
+  /** Control frames still reach onLine, but must not enter retained output or diagnostics. */
+  retainStdout?: (line: string) => boolean;
   recovery?: string;
   scrub?: (text: string) => string;
 };
@@ -70,7 +72,8 @@ export async function run(command: string[], options: RunOptions): Promise<strin
     while ((at = pending.indexOf('\n')) >= 0) {
       const line = scrub(pending.slice(0, at));
       pending = pending.slice(at + 1);
-      output = (output + line + '\n').slice(-256 * 1024);
+      if (options.retainStdout?.(line) !== false)
+        output = (output + line + '\n').slice(-256 * 1024);
       try {
         options.onLine?.(line);
       } catch (error) {
@@ -90,7 +93,7 @@ export async function run(command: string[], options: RunOptions): Promise<strin
   pending += decoder.end();
   if (pending) {
     const line = scrub(pending);
-    output = (output + line).slice(-256 * 1024);
+    if (options.retainStdout?.(line) !== false) output = (output + line).slice(-256 * 1024);
     try {
       options.onLine?.(line);
     } catch (error) {

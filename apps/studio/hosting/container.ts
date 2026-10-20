@@ -14,6 +14,8 @@ export const containerLimits = {
   timeoutMs: 600000,
 } as const;
 export const jobLimits = { bytes: 32 * 1024 * 1024, files: 2048 } as const;
+// After the execution budget expires, allow the worker to export recoverable edits.
+export const recoveryTimeoutMs = 30_000;
 export function jobPath(path: string) {
   return (
     path.length > 0 &&
@@ -145,7 +147,11 @@ export class ContainerJobs {
       // so give its different UID read/traverse access while keeping the host
       // parent private. Creation modes alone are reduced by the process umask.
       await chmod(staging, 0o755);
-      const input = JSON.stringify({ files, command, context: options.context });
+      const timeoutMs = Math.min(
+        options.timeoutMs ?? containerLimits.timeoutMs,
+        containerLimits.timeoutMs,
+      );
+      const input = JSON.stringify({ files, command, context: options.context, timeoutMs });
       if (input.length > 48 * 1024 * 1024)
         throw new Error('Job input exceeds its transfer budget.');
       await writeFile(join(staging, 'input.json'), input, {
@@ -156,7 +162,8 @@ export class ContainerJobs {
       for (const file of ['input.json', 'check-cpu.sh', 'job.js'])
         await chmod(join(staging, file), 0o644);
       dispose = await options.prepare?.(staging);
-      let exitCode = 0;
+      let exitCode = 0,
+        timedOut = false;
       let result: JobFiles | undefined,
         transferred = 0;
       const received: JobFiles = Object.create(null),
@@ -169,12 +176,12 @@ export class ContainerJobs {
           includeStderr: true,
           cwd: parent,
           env: { PATH: process.env.PATH },
-          timeoutMs: Math.min(
-            options.timeoutMs ?? containerLimits.timeoutMs,
-            containerLimits.timeoutMs,
-          ),
+          timeoutMs: timeoutMs + recoveryTimeoutMs,
+          retainStdout: (line) => !line.startsWith('SOY_JOB_') && !line.startsWith('SOY_AGENT:'),
           onLine: (line) => {
-            if (line.startsWith('SOY_JOB_STATUS:')) {
+            if (line === 'SOY_JOB_TIMEOUT') {
+              timedOut = true;
+            } else if (line.startsWith('SOY_JOB_STATUS:')) {
               const status = line.slice(15);
               if (!/^(?:0|[1-9][0-9]{0,2})$/.test(status) || Number(status) > 255 || result)
                 throw new Error('Invalid job exit status.');
@@ -206,18 +213,17 @@ export class ContainerJobs {
         },
       );
       if (!result) throw new Error('Container exited without exporting its source changes.');
-      const text = output
-        .split('\n')
-        .filter((l) => !l.startsWith('SOY_JOB_') && !l.startsWith('SOY_AGENT:'))
-        .join('\n');
+      const text = output.trim();
       return {
         files: result,
         output: text,
         ...(exitCode
           ? {
               failure: new DiagnosticError(
-                'STUDIO_EXECUTION',
-                'The isolated job failed. Its recoverable edits were saved.',
+                timedOut ? 'STUDIO_TIMEOUT' : 'STUDIO_EXECUTION',
+                timedOut
+                  ? 'The isolated job reached its time limit. Its recoverable edits were saved.'
+                  : 'The isolated job failed. Its recoverable edits were saved.',
                 {
                   tool: command[0],
                   exitCode,
