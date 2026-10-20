@@ -5,7 +5,41 @@ do not deploy or upload releases unless the user explicitly requests deployment.
 
 Updated 2026-10-20. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-Latest verified website release: **`20261020122308291-6231`**, source
+Latest verified website release: **`20261020133734312-91324`**, source
+`fe512144ba1dcbe30da8379da37cd5ea1faef31f`, installer still pinned to **soyLI 0.31.0**.
+[PR #28](https://github.com/zeSchlausKwab/napplet-soy/pull/28) fixes hosted Studio
+timeouts and unreadable recovery diagnostics. The worker now receives the
+controller's ten-minute execution budget instead of stopping at a hidden 550
+seconds. A further 30 seconds allows source export. `STUDIO_TIMEOUT` survives the
+worker boundary so Studio checks recovered edits without another inference turn.
+Internal source-transfer and agent frames are filtered before output truncation.
+
+TypeScript and 836 application tests passed locally and on the VPS, along with
+native service and production build checks.
+[All four native platforms](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39431423671)
+passed before merge; the merged source passed
+[Nix/VM checks](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39432923518)
+and [Studio service CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39432923612).
+
+The accepted worker image is
+`sha256:78a1530841e748abf8229ccad04a6077e8c9e24dbeb8c0887138e4d00a730eb8`.
+Real OpenCode scripted acceptance covers server builds and repair, browser check
+bridging, response truncation, timeout/edit recovery, both capture orientations,
+failed-edit export and cancellation/reuse. No paid inference or public test
+publication was performed.
+
+Live HTTPS health and a fresh catalog index identify the new release. Deployed
+source and worker fingerprints match the tested artifacts. The reported published
+draft retains its Git revision, clean worktree and preview. Private configuration
+changed only its worker image, with the original preserved for rollback. Studio,
+CVM, TURN, Caddy and all five application processes are healthy; the shared parent
+Caddy configuration and other site are unchanged. Disposable Rust compiler
+intermediates from this deployment were removed; the installed executable and
+rollback releases remain. No soyLI release was needed.
+
+### Previous verified rollout — incomplete Studio turns, 2026-10-20
+
+Website release: **`20261020122308291-6231`**, source
 `ce2aeabf5331c6b45f40cfe17f9b1edf82a00ce1`, installer still pinned to **soyLI 0.31.0**.
 [PR #27](https://github.com/zeSchlausKwab/napplet-soy/pull/27) fixes incomplete
 Studio turns being reported as ready creations. Model cutoffs and unfinished tool
