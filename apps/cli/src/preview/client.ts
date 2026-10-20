@@ -205,7 +205,10 @@ async function refresh() {
         declaration = declaredConfig(verifiedHtml);
         return nappletPrelude(shim, declaration);
       },
-      { localUrl: new URL(`artifacts/${info.artifactHash}`, location.href).href },
+      {
+        localUrl: new URL(`artifacts/${info.artifactHash}`, location.href).href,
+        credentials: 'same-origin',
+      },
     );
     frame = document.createElement('iframe');
     frame.title = 'Your napplet';
