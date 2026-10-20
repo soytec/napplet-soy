@@ -90,6 +90,11 @@ Only the trusted preview host/runtime and immutable artifact endpoints are serve
 raw napplet HTML has an octet-stream type and sandbox CSP, and executes inside the
 existing opaque-origin iframe. Manager/workshop routes and writes are unavailable.
 The preview host shares the shell origin; untrusted napplet code does not gain it.
+The trusted player explicitly includes only same-origin credentials when fetching
+its private artifact, then verifies the hash before creating the sandboxed game.
+Public Blossom downloads continue to omit credentials. Preview download redirects
+are rejected. Service CI opens this full HTTPS player, interacts with its game and
+checks that anonymous access and revoked sessions remain denied.
 
 ## Credentials and execution
 

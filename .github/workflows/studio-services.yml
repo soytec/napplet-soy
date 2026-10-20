@@ -15,6 +15,7 @@ on:
       - 'tests/services/studio-proposal.test.ts'
       - 'tests/services/studio-browser-git.test.ts'
       - 'tests/services/studio-shell.test.ts'
+      - 'tests/services/studio-preview.test.ts'
       - 'tests/services/fixtures/studio-browser-git.worker.ts'
       - 'package.json'
       - 'bun.lock'
@@ -59,4 +60,4 @@ jobs:
         # combining the suites can stall service teardown on Linux.
         run: bun run test:studio:services
       - name: Verify production shell and Studio account composition
-        run: bun run build && bun test tests/services/studio-shell.test.ts
+        run: bun run build && bun test tests/services/studio-shell.test.ts && bun test tests/services/studio-preview.test.ts

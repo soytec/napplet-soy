@@ -26,7 +26,7 @@ export async function loadArtifact(
   hash: string,
   signal: AbortSignal,
   prelude: string | ((verifiedHtml: string) => string) | undefined,
-  source: string[] | { localUrl: string },
+  source: string[] | { localUrl: string; credentials?: 'same-origin' },
   local: string[] = [],
 ) {
   if (!/^[a-f0-9]{64}$/.test(hash)) throw new Error('Invalid artifact hash');
@@ -34,7 +34,14 @@ export async function loadArtifact(
   const bytes = Array.isArray(source)
     ? await blossomBytes(hash, source, deadline, MAX_READ_ARTIFACT_BYTES, local, 30000)
     : await readBytes(
-        await fetch(source.localUrl, { signal: deadline, credentials: 'omit' }),
+        await fetch(source.localUrl, {
+          signal: deadline,
+          // Only trusted preview hosts opt into their own scoped session cookie.
+          // Public downloads remain credential-free; never follow a credentialed redirect.
+          credentials: source.credentials ?? 'omit',
+          redirect: 'error',
+          referrerPolicy: 'no-referrer',
+        }),
         MAX_READ_ARTIFACT_BYTES,
       );
   return verifiedDocument(bytes, hash, prelude);

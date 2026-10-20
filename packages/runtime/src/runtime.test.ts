@@ -56,3 +56,36 @@ test('the artifact downloader accepts independently published HTML above 25 MiB'
     server.stop(true);
   }
 });
+
+test('only an explicit private preview opts into same-origin cookies; public artifacts omit them', async () => {
+  const html = '<p>Verified private preview</p>',
+    hash = await sha256(html);
+  const original = globalThis.fetch;
+  const calls: RequestInit[] = [];
+  let responseBody = html;
+  globalThis.fetch = (async (_input, init) => {
+    calls.push(init!);
+    return new Response(responseBody);
+  }) as typeof fetch;
+  try {
+    const signal = AbortSignal.timeout(5000);
+    await loadArtifact(hash, signal, undefined, { localUrl: '/artifacts/' + hash });
+    await loadArtifact(hash, signal, undefined, {
+      localUrl: '/api/studio/preview/test/artifacts/' + hash,
+      credentials: 'same-origin',
+    });
+    await loadArtifact(hash, signal, undefined, ['https://blossom.example.com']);
+    expect(calls.map((call) => call.credentials)).toEqual(['omit', 'same-origin', 'omit']);
+    expect(calls.every((call) => call.redirect === 'error')).toBe(true);
+    expect(calls.every((call) => call.referrerPolicy === 'no-referrer')).toBe(true);
+    responseBody = 'tampered';
+    await expect(
+      loadArtifact(hash, signal, undefined, {
+        localUrl: '/artifacts/' + hash,
+        credentials: 'same-origin',
+      }),
+    ).rejects.toThrow('does not match');
+  } finally {
+    globalThis.fetch = original;
+  }
+});
