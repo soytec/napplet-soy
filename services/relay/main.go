@@ -19,6 +19,7 @@ import (
 	"fiatjaf.com/nostr"
 	"fiatjaf.com/nostr/khatru"
 	"fiatjaf.com/nostr/nip40"
+	"fiatjaf.com/nostr/nip45/hyperloglog"
 )
 
 var buildID = "development"
@@ -39,8 +40,14 @@ func newRelayWithBudgetClock(store *eventStore, now func() time.Time) *khatru.Re
 	relay := khatru.NewRelay()
 	// Own the storage lifecycle instead of starting an unjoinable expiration worker.
 	relay.QueryStored = func(ctx context.Context, f nostr.Filter) iter.Seq[nostr.Event] {
-		return store.queryStored(f, 200, khatru.IsInternalCall(ctx))
+		// NIP-77 reconciles the whole matching set, so it may read past the REQ page size.
+		limit := 200
+		if khatru.IsNegentropySession(ctx) {
+			limit = maxCount
+		}
+		return store.queryStored(f, limit, khatru.IsInternalCall(ctx))
 	}
+	relay.Negentropy = true
 	relay.StoreEvent = func(ctx context.Context, e nostr.Event) error { return store.SaveEvent(e) }
 	relay.ReplaceEvent = func(ctx context.Context, e nostr.Event) error { _, err := store.ReplaceEvent(e); return err }
 	relay.DeleteEvent = func(ctx context.Context, id nostr.ID) error { return store.DeleteEvent(id) }
@@ -82,18 +89,23 @@ func newRelayWithBudgetClock(store *eventStore, now func() time.Time) *khatru.Re
 		if !budgets.allow(ctx, false) {
 			return true, "rate-limited: query budget exceeded"
 		}
-		if len(f.Search) > 256 || len(f.IDs) > 64 || len(f.Authors) > 64 || len(f.Kinds) > 32 || len(f.Tags) > 16 {
-			return true, "restricted: filter exceeds service limits"
-		}
-		for key, values := range f.Tags {
-			if len(key) != 1 || !(key[0] >= 'a' && key[0] <= 'z' || key[0] >= 'A' && key[0] <= 'Z') || len(values) > 64 {
-				return true, "restricted: invalid tag filter"
-			}
+		if reject, msg := filterLimits(f); reject {
+			return true, msg
 		}
 		if err := store.check(); err != nil {
 			return true, "error: " + err.Error()
 		}
 		return false, ""
+	}
+	// NIP-45 answers use the same visibility as REQ: deleted, expired and blocked
+	// events are never counted. Budgets are applied inside Count; see waitCount.
+	relay.OnCount = func(ctx context.Context, f nostr.Filter) (bool, string) { return filterLimits(f) }
+	relay.Count = func(ctx context.Context, f nostr.Filter) (uint32, error) {
+		total, _, err := countEvents(ctx, store, budgets, f, -1)
+		return total, err
+	}
+	relay.CountHLL = func(ctx context.Context, f nostr.Filter, offset int) (uint32, *hyperloglog.HyperLogLog, error) {
+		return countEvents(ctx, store, budgets, f, offset)
 	}
 	relay.PreventBroadcast = func(ws *khatru.WebSocket, f nostr.Filter, e nostr.Event) bool {
 		if store.moderation.blocked(e) {
@@ -111,6 +123,44 @@ func newRelayWithBudgetClock(store *eventStore, now func() time.Time) *khatru.Re
 	}
 	return relay
 }
+func filterLimits(f nostr.Filter) (bool, string) {
+	if len(f.Search) > 256 || len(f.IDs) > 64 || len(f.Authors) > 64 || len(f.Kinds) > 32 || len(f.Tags) > 16 {
+		return true, "restricted: filter exceeds service limits"
+	}
+	for key, values := range f.Tags {
+		if len(key) != 1 || !(key[0] >= 'a' && key[0] <= 'z' || key[0] >= 'A' && key[0] <= 'Z') || len(values) > 64 {
+			return true, "restricted: invalid tag filter"
+		}
+	}
+	return false, ""
+}
+
+// The most events a COUNT or NIP-77 session reads; larger sets report this cap.
+const maxCount = 5000
+
+func countEvents(ctx context.Context, store *eventStore, budgets *connectionBudgets, f nostr.Filter, offset int) (uint32, *hyperloglog.HyperLogLog, error) {
+	if !budgets.waitCount(ctx) {
+		return 0, nil, fmt.Errorf("rate-limited: count budget exceeded")
+	}
+	if err := store.check(); err != nil {
+		return 0, nil, err
+	}
+	// A COUNT limit is not a page size; count the whole visible set.
+	f.Limit = 0
+	var hll *hyperloglog.HyperLogLog
+	if offset >= 0 {
+		hll = hyperloglog.New(offset)
+	}
+	total := uint32(0)
+	for e := range store.queryStored(f, maxCount, false) {
+		total++
+		if hll != nil {
+			hll.Add(e.PubKey)
+		}
+	}
+	return total, hll, nil
+}
+
 func main() {
 	data := env("SPACE_SERVICE_DATA", ".local/services/relay")
 	store, err := openStore(data)

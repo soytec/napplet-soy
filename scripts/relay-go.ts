@@ -90,6 +90,37 @@ export async function relayGo(args: string[]) {
             'batchSizePerQuery := min(500, internal.BatchSizePerNumberOfQueries(limit, len(queries)))',
           ),
       },
+      {
+        file: 'khatru/listener.go',
+        sha256: 'bcba2081da4b454012c2a8534ec4fbfbf8601409b805e31774c40fefbfaea7b0',
+        // Unindexed listeners (no kinds or authors) share unsynchronized slice sets: a CLOSE
+        // shifts the backing array while a broadcast iterates it. Guard them and copy on read.
+        apply: (source: string) => {
+          const edits: [string, string][] = [
+            ['\t"iter"\n\t"sync"\n', '\t"iter"\n\t"slices"\n\t"sync"\n'],
+            [
+              '\tfallbackNothing set.Set[int]\n}',
+              '\tfallbackNothing set.Set[int]\n\tfallbackMu      sync.Mutex\n}',
+            ],
+            [
+              '\tif !indexed {\n\t\tif sub.filter.Tags != nil {\n\t\t\td.fallbackTags.Add(ssid)\n\t\t} else {\n\t\t\td.fallbackNothing.Add(ssid)\n\t\t}\n\t}',
+              '\tif !indexed {\n\t\td.fallbackMu.Lock()\n\t\tif sub.filter.Tags != nil {\n\t\t\td.fallbackTags.Add(ssid)\n\t\t} else {\n\t\t\td.fallbackNothing.Add(ssid)\n\t\t}\n\t\td.fallbackMu.Unlock()\n\t}',
+            ],
+            [
+              '\t\tif !indexed {\n\t\t\tif sub.filter.Tags != nil {\n\t\t\t\td.fallbackTags.Remove(ssid)\n\t\t\t} else {\n\t\t\t\td.fallbackNothing.Remove(ssid)\n\t\t\t}\n\t\t}',
+              '\t\tif !indexed {\n\t\t\td.fallbackMu.Lock()\n\t\t\tif sub.filter.Tags != nil {\n\t\t\t\td.fallbackTags.Remove(ssid)\n\t\t\t} else {\n\t\t\t\td.fallbackNothing.Remove(ssid)\n\t\t\t}\n\t\t\td.fallbackMu.Unlock()\n\t\t}',
+            ],
+            ['range d.fallbackTags.Slice()', 'range d.fallbackSnapshot(d.fallbackTags)'],
+            ['range d.fallbackNothing.Slice()', 'range d.fallbackSnapshot(d.fallbackNothing)'],
+          ];
+          for (const [from, to] of edits) {
+            if (source.split(from).length !== 2)
+              throw new Error(`Relay listener patch did not match exactly once: ${from.trim()}`);
+            source = source.replace(from, to);
+          }
+          return `${source}\nfunc (d *dispatcher) fallbackSnapshot(s set.Set[int]) []int {\n\td.fallbackMu.Lock()\n\tdefer d.fallbackMu.Unlock()\n\treturn slices.Clone(s.Slice())\n}\n`;
+        },
+      },
     ];
     for (const patch of patches) {
       const path = resolve(module.Dir, patch.file);
