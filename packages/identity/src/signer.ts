@@ -176,7 +176,13 @@ class Session extends NostrConnectSigner {
   private ended = false;
   constructor(options: ConstructorParameters<typeof NostrConnectSigner>[0]) {
     super(options);
-    this.log.enabled = false;
+    // v7 loggers are read-only; swap in a silent one so RPC params never reach a sink.
+    const silent = Object.assign(() => {}, {
+      namespace: this.log.namespace,
+      enabled: false,
+      extend: () => silent,
+    });
+    this.log = silent;
   }
   /** SDK 6.2.2 lacks the fourth NIP-46 connect parameter. Keep its encryption,
    * response dispatch, authorization challenges and close/cancellation registry. */

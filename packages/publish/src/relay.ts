@@ -52,7 +52,7 @@ export class PublicationRelays {
       this.signal?.addEventListener('abort', aborted, { once: true });
       subscription = this.pool
         .relay(url)
-        .req(filter, { reconnect: false, resubscribe: false })
+        .req(filter)
         .subscribe({
           next: (message) => {
             if (message.type === 'EOSE') finish();

@@ -61,7 +61,7 @@ export async function discoverRemix(filter: Filter, relays: string[], signal: Ab
         if (combined.aborted) return;
         await new Promise<void>((done) => {
           pool!
-            .req([relay], [filter], { reconnect: false, waitForAuth: false })
+            .req([relay], [filter])
             .pipe(
               takeWhile((m) => m.type !== 'EOSE' && m.type !== 'CLOSED', true),
               take(12),

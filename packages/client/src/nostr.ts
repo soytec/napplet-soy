@@ -124,7 +124,7 @@ export class ProtocolClient {
               return;
             }
             const subscription = pool
-              .req([relay], filters, { reconnect: false, waitForAuth: false })
+              .req([relay], filters)
               .pipe(
                 takeWhile((m) => m.type !== 'EOSE' && m.type !== 'CLOSED', true),
                 take(1200),
