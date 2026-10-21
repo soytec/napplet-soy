@@ -27,7 +27,9 @@ Any Nostr client can query, for example:
 ]
 ```
 
-No Space hashtag, snapshot pointer, API key, or special event kind is required. Text search includes retained content, title/name, description/about, and topics. Words are combined with AND; double quotes select phrases. It uses Bleve's standard analyzer, not semantic search or a language-detection model. Ordinary author, kind, ID, time, and tag filters still apply. Results sort by descending timestamp then ascending event ID. NIP-50 extensions such as `language:` are not implemented. COUNT/NIP-45 and management/NIP-86 are not advertised or enabled.
+No Space hashtag, snapshot pointer, API key, or special event kind is required. Text search includes retained content, title/name, description/about, and topics. Words are combined with AND; double quotes select phrases. It uses Bleve's standard analyzer, not semantic search or a language-detection model. Ordinary author, kind, ID, time, and tag filters still apply. Results sort by descending timestamp then ascending event ID. NIP-50 extensions such as `language:` are not implemented. Management/NIP-86 is not advertised or enabled.
+
+COUNT/NIP-45 and negentropy/NIP-77 are advertised and enabled. COUNT applies the same filter checks and visibility as REQ (deleted, expired and moderated events are excluded), ignores `limit`, and stops at 5,000 matching events. Filters that khatru answers with HyperLogLog (for example kind 7 by `#e`, kind 1111 by `#E`) return the same count plus author registers. Negentropy sessions read up to 5,000 stored events per filter instead of the 200-event REQ cap.
 
 ## Persistence and compatibility
 
@@ -65,7 +67,12 @@ Each public connection has separate budgets of 120 publications and 240 queries
 per fixed clock minute. The optional loopback-only CVM ingress permits 6,000
 publications and 12,000 queries per connection per minute and rejects browser
 Origin headers. Both counters reset at the next minute boundary; a connection's
-public/service classification is retained. Tests control this budget clock while
+public/service classification is retained. COUNT has its own budget of 1,200 per
+connection per minute (24,000 for the service ingress). Over budget, a COUNT waits
+for the next minute instead of being answered with khatru's rejection count of 0; at
+most 32 can wait per connection, after which a NOTICE and count 0 are returned.
+The pinned khatru build also patches a listener race between closing a subscription
+and broadcasting an event to it (`scripts/relay-go.ts`). Tests control this budget clock while
 using real WebSockets, so crossing a wall-clock minute during a slow CI run cannot
 make an otherwise valid acknowledgement fail the deployment gate. Production
 continues to use the wall clock, with the same limits.

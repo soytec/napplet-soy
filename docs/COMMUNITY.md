@@ -361,8 +361,10 @@ browser-native fullscreen remains subject to the browser's user-gesture controls
 Both address and revision links are covered by the featured-slider browser test.
 This revision is verified locally, not deployed.
 
-Every normal gallery card shows unique-author likes, visible comments/replies, verified
-zap receipt count, and sats received. Unknown/unavailable counts use a dash rather than
+Every normal gallery card shows likes, top-level comments, verified zap receipt
+count, and sats received. Gallery likes and comments are NIP-45 COUNT totals (see
+below), so repeated likes by one author each count there; detail pages still count
+unique authors. Unknown/unavailable counts use a dash rather than
 zero. The comment bubble is disabled while signed out; signed-in navigation opens the
 canonical portable detail route with `#comments` and focuses the composer after data
 loads. A direct logged-out hash link focuses the sign-in control, retaining the focus
@@ -391,7 +393,18 @@ napplets** for the unfiltered Featured view, and shows the matching count. The g
 pagination and empty results belong to this named section. This presentation change
 is verified locally at 320–1920px; it has not been deployed.
 
-The browser queries counts directly over Nostr, processing up to 64 napplets per
+Gallery likes and comments use Applesauce's count service with NIP-45 COUNT against
+one relay: the first configured relay whose NIP-11 document advertises NIP-45 (the
+choice is remembered per browser). Likes count kind 7 by `#a` for addressed napplets,
+otherwise `#e`; comments count root kind 1111 by `#A`/`#E`. Answers are cached in
+IndexedDB, so a reload shows the last counts before the relay answers, and a like,
+unlike or comment invalidates the affected counts. Counts are only as complete as that
+relay's copy of the reactions; relays that delete reacted events on kind 5 reflect
+unlikes. With no NIP-45 relay configured, these counts show a dash. Most liked and Most
+commented rank from these counts.
+
+Zap totals and the viewer's own liked state still use relay reads. The browser queries
+them directly over Nostr, visible cards first, processing up to 64 napplets per
 sweep. Compatible relay sets share batches of up to 32 napplets, with at most three
 concurrent readers. Publication relay hints retain the same per-query bounds;
 batches split when combining hints would discard a publication's relay choices.
