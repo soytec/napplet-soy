@@ -3471,3 +3471,142 @@ input::placeholder, textarea::placeholder { color: var(--muted-foreground); opac
 .intent-handler-settings label { display: grid; gap: 8px; margin-block: 12px; }
 .intent-handler-settings select { max-width: 100%; padding: 8px; background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: 6px; }
 .studio-settings-loading { position: fixed; z-index: 60; inset: auto 20px 20px auto; background: var(--card); padding: 16px; border: 1px solid var(--border); border-radius: 8px; }
+
+/* Account workspace: use the shared shell's palette and typography. */
+.work-page > h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  margin: 0.75rem 0;
+}
+.work-page > h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.work-dot {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  flex: 0 0 auto;
+  margin-left: 0.4rem;
+  border-radius: 50%;
+  background: var(--coral);
+  box-shadow: 0 0 0 2px var(--background);
+  vertical-align: middle;
+}
+.work-navigation,
+.work-entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+}
+.work-section {
+  margin: 2rem 0;
+}
+.work-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.work-section h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.work-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 1rem;
+  margin: 1rem 0 2rem;
+}
+.work-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  overflow-wrap: anywhere;
+}
+.work-card:hover {
+  border-color: var(--primary);
+}
+.work-card small,
+.work-activity small {
+  color: var(--muted-foreground);
+}
+.work-card a,
+.work-entry-actions a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.work-status {
+  border-radius: 999px;
+  background: var(--secondary);
+  padding: 0.15rem 0.65rem;
+  font-size: 0.8rem;
+}
+.work-unread-label {
+  color: var(--primary) !important;
+  font-weight: 700;
+}
+.work-unread-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.work-activity {
+  list-style: none;
+  padding: 0;
+}
+.work-activity li {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.75rem 0;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+.work-activity li[data-unread='true'] {
+  border-left: 4px solid var(--primary);
+}
+.work-activity h3 {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+.work-activity p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0.4rem 0;
+}
+.work-recovery {
+  margin: 1rem 0;
+  color: var(--muted-foreground);
+}
+.author-management {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--secondary);
+}
+.author-management h3 {
+  font-weight: 700;
+}
+.author-management p {
+  margin: 0.75rem 0;
+}
+@media (max-width: 640px) {
+  .work-activity li {
+    flex-direction: column;
+  }
+}

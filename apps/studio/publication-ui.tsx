@@ -551,6 +551,12 @@ export function PublicationDialog({
                 {review.plan.files.length} files ·{' '}
                 {(review.plan.sourceBytes / 1024 / 1024).toFixed(1)} MiB
               </small>
+              {review.previousCurrent && (
+                <p>
+                  Publishing shares this reviewed source and its captured media with the original
+                  repository, then updates the original napplet listing.
+                </p>
+              )}
             </div>
             <div className="capture-grid">
               {review.media.map((item) => (

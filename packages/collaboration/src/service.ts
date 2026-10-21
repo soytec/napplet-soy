@@ -29,6 +29,7 @@ import {
 } from './protocol';
 import { mergeReviewed, selectCloneUrls } from './git';
 import { deliverProposal, publishBranch } from './transport';
+import type { ProposalProgress } from './progress';
 
 export type CollaborationOptions = {
   directory: string;
@@ -132,6 +133,7 @@ export async function propose(
     resume?: boolean;
     check: PublishOptions['check'];
     checkpoint?: (phase: 'source' | 'proposal') => Promise<void>;
+    onProgress?: ProposalProgress;
     /** Optional browser review boundary. CLI callers retain their ordinary workflow. */
     expectedReview?: { commit: string; fingerprint: string; repository: string };
   },
@@ -139,6 +141,7 @@ export async function propose(
   if (!options.resume && (!options.description.trim() || options.description.length > 8000))
     throw new Error('Provide a proposal description of 1–8000 characters.');
   const accounts = await captureAccount(options.accounts ?? new Accounts(options.network));
+  await options.onProgress?.('check', 'Checking the reviewed revision and upstream repository.');
   const context = await collaborationContext({ ...options, accounts }),
     { client, targets, account, project, binding } = context;
   let signer: Awaited<ReturnType<Accounts['signer']>> | undefined;
@@ -306,6 +309,10 @@ export async function propose(
             options.network,
             account.pubkey,
           );
+          await options.onProgress?.(
+            'check',
+            'Checking the exact playable build before sharing it.',
+          );
           const checked = await options.check(inspected.contents);
           if (
             (await committedSource(options.directory)) !== commit ||
@@ -327,6 +334,10 @@ export async function propose(
           if ((await signer.getPublicKey()) !== account.pubkey)
             throw new Error('Signer identity changed.');
           const put = async (bytes: Uint8Array, type: string) => {
+            await options.onProgress?.(
+              'upload',
+              `Uploading and verifying ${type} (${Math.ceil(bytes.length / 1024)} KiB). Approve upload requests in your signer.`,
+            );
             await uploadBlob({
               origin: targets.blossom,
               bytes,
@@ -347,6 +358,10 @@ export async function propose(
           if (checked.preview) await durableFile(join(folder, 'preview.png'), checked.preview);
           const image = checked.preview ? await put(checked.preview, 'image/png') : undefined;
           const now = Math.max(Math.floor(Date.now() / 1000), (saved?.event.created_at ?? 0) + 1);
+          await options.onProgress?.(
+            'upload',
+            'Signing the playable preview with your selected account.',
+          );
           const manifest = await signExact(signer!, account.pubkey, {
             kind: 5129,
             created_at: now,
@@ -379,6 +394,10 @@ export async function propose(
           );
           await durableFile(join(folder, 'preview.json'), descriptor);
           const url = await put(descriptor, 'application/json');
+          await options.onProgress?.(
+            'sign',
+            'Approve the proposal signature in your selected signer.',
+          );
           const event = verifiedEvent(
             await signExact(signer!, account.pubkey, {
               kind: saved ? 1619 : 1618,
@@ -455,6 +474,7 @@ export async function propose(
         local: options.network === 'local',
         signal: options.signal,
         checkpoint: options.checkpoint,
+        onProgress: options.onProgress,
       });
       saved.done = true;
       await atomic(path, saved);
@@ -658,6 +678,10 @@ export async function proposalAction(
 export async function pushSource(
   options: CollaborationOptions & {
     checkpoint?: (phase: 'git' | 'status') => Promise<void>;
+    /** Retry one already-reviewed UI operation, including an ambiguous successful response. */
+    resumeCompleted?: boolean;
+    /** UI confirmation binds source sharing to this exact committed tree. */
+    expectedCommit?: string;
   },
 ) {
   options = {
@@ -671,6 +695,11 @@ export async function pushSource(
     if (!account || !repository.maintainers.includes(account.pubkey))
       throw new Error('Only an announced repository maintainer can publish its branches.');
     const commit = await committedSource(options.directory);
+    if (options.expectedCommit && commit !== options.expectedCommit)
+      throw new DiagnosticError('REVIEW_CHANGED', 'The source commit changed after review.', {
+        operation: 'share reviewed source',
+        recovery: 'Prepare and review the current source before publishing it.',
+      });
     const { inspectHistory } = await import('../../publish/src/git-source');
     await inspectHistory(options.directory, commit);
     const branch = await sourceGit(options.directory, ['symbolic-ref', '--short', 'HEAD']);
@@ -702,7 +731,7 @@ export async function pushSource(
         throw new Error(
           'Finish the saved Git publication before publishing new commits. Restore its saved branch tip and rerun soyli push; keep the journal.',
         );
-      if (!saved || saved.done) {
+      if (!saved || (saved.done && (!options.resumeCompleted || saved.commit !== commit))) {
         const { state: previous, authors } = await readRepositoryState(client, repository);
         if (!authors.includes(account.pubkey))
           throw new Error(

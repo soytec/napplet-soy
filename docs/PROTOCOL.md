@@ -364,6 +364,12 @@ recursive authority use ngit. Independent ngit PR qualification uses 2.6.1 at
 `55f3e3a838dffd03f0fdd996103b8dc8c2cddcd6`. NIP-34 and NIP-5D pins are unchanged;
 GRASP-06 is not enabled. See [behavior and limits](COLLABORATION.md).
 
+The browser author-management flow reuses these same merge, push and status operations.
+It prepares a private rebuilt candidate and requires explicit source-update confirmation,
+followed by a separate Publish review to update the original named release. My work
+reads existing proposal, status and social events; its account-scoped unread markers
+stay in browser storage. Neither flow adds a wrapper kind or changes protocol pins.
+
 The optional `soy-preview` tag binds a hash-addressed JSON descriptor, signed
 snapshot and source commit to the exact PR revision. It adds no requirement to
 NIP-34 discovery or NIP-5D playback; attachments are not gallery publications.

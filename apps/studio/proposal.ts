@@ -11,6 +11,8 @@ import { prepareSharingIdentity } from '../cli/src/share-project';
 import { checkPublication } from '../cli/src/publish-check';
 import type { PublishOptions } from '../../packages/publish/src';
 import type { Network } from '../../packages/identity/src/signer';
+import type { ProposalProgress } from '../../packages/collaboration/src/progress';
+import type { ProposalProgressState } from './proposal-progress';
 
 export const proposalInput = z.object({ description: z.string().trim().min(1).max(8000) }).strict();
 export type ProposalReview = {
@@ -28,6 +30,7 @@ export type ProposalReview = {
   preparedAt: string;
 };
 export type ProposalState = {
+  progress?: ProposalProgressState;
   review?: ProposalReview;
   attempt?: {
     review: ProposalReview;
@@ -118,6 +121,7 @@ export async function proposeReviewed(
   network: Network = 'public',
   check: PublishOptions['check'] = (contents) =>
     checkPublication(contents, false, undefined, false, signal),
+  onProgress?: ProposalProgress,
 ) {
   if ((await accounts.current())?.pubkey !== review.pubkey)
     throw new DiagnosticError(
@@ -133,6 +137,7 @@ export async function proposeReviewed(
     description: review.description,
     expectedReview: review,
     check,
+    onProgress,
   };
   try {
     return await propose(options);
