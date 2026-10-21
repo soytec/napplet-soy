@@ -9,6 +9,7 @@ import { ProfileAvatar } from './creator-link';
 import { useProfile } from '@/lib/profiles';
 import { shortPubkey } from '../../../../packages/protocol/src/profile';
 import { StudioLink } from './studio-link';
+import { WorkDot } from './work-provider';
 
 function ConnectedIdentity({
   pubkey,
@@ -61,7 +62,9 @@ export function Shell({ children }: { children: ReactNode }) {
           >
             Explore
           </Link>
-          <StudioLink>{import.meta.env.DEV ? 'My creations' : 'Studio beta'}</StudioLink>
+          <Link to="/manage" activeProps={{ className: 'nav-active' }}>
+            My work <WorkDot />
+          </Link>
           <Link to="/docs" activeProps={{ className: 'nav-active' }}>
             Docs
           </Link>
@@ -109,6 +112,7 @@ export function Shell({ children }: { children: ReactNode }) {
               ) : (
                 'Connect'
               )}
+              <WorkDot />
             </Button>
           </PopoverTrigger>
         </div>

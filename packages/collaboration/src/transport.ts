@@ -4,6 +4,7 @@ import { sourceGit } from '../../grasp/src/client';
 import { verifiedEvent, type SignedEvent } from '../../protocol/src';
 import { selectCloneUrls, fetchCommit } from './git';
 import { commitPattern, tag, values } from './protocol';
+import type { ProposalProgress } from './progress';
 
 /** GRASP-01 event first, immutable objects second, independent read-back last.
  * No signer or repository-publication helper belongs in this transport. */
@@ -16,6 +17,7 @@ export async function deliverProposal(input: {
   local?: boolean;
   signal?: AbortSignal;
   checkpoint?: (phase: 'source' | 'proposal') => Promise<void>;
+  onProgress?: ProposalProgress;
 }) {
   const event = verifiedEvent(input.event),
     commit = tag(event, 'c');
@@ -33,11 +35,16 @@ export async function deliverProposal(input: {
   const failures: Error[] = [];
   try {
     input.signal?.throwIfAborted();
+    await input.onProgress?.('relay', 'Publishing the signed proposal to the upstream relays.');
     await client.publish(event, input.relays, input.signal);
     let hosted = false;
     for (const url of selectCloneUrls(input.clones, input.local)) {
       input.signal?.throwIfAborted();
       try {
+        await input.onProgress?.(
+          'source',
+          `Sharing the exact source revision with ${new URL(url).host}.`,
+        );
         await sourceGit(input.directory, [
           'push',
           '--no-verify',
@@ -76,6 +83,10 @@ export async function deliverProposal(input: {
         },
       );
     await input.checkpoint?.('source');
+    await input.onProgress?.(
+      'verify',
+      'Fetching the shared source and proposal back to confirm both are available.',
+    );
     // Legacy events may advertise contributor clones. Keep their signature and
     // require those original locations to remain fetchable; never create a fork.
     await fetchCommit(input.directory, advertised, commit!, input.local);

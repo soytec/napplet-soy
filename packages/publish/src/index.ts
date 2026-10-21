@@ -72,6 +72,8 @@ export type PublishOptions = {
   expectedFingerprint?: string;
   /** Reviewed NIP-34 repository address; null selects soyLI-hosted source. */
   expectedRepository?: string | null;
+  /** Continue an explicitly reviewed named release from a fresh linked-repository checkout. */
+  expectedCurrent?: SignedEvent;
   accounts?: Pick<Accounts, 'current' | 'signer'>;
   check: (
     contents: Map<string, Uint8Array>,
@@ -454,6 +456,41 @@ export async function publishProject(options: PublishOptions) {
                   ...plan.targets.mirrors,
                 ])
               : null;
+            const [current, sourceState, announcement] = await Promise.all([
+              relays.latest(plan.targets.relay, account.pubkey, plan.identifier, 35129),
+              linked ? null : relays.latest(source.relay, account.pubkey, plan.identifier, 30618),
+              linked ? null : relays.latest(source.relay, account.pubkey, plan.identifier, 30617),
+            ]);
+            let reviewedContinuation = false;
+            if (!previous && options.expectedCurrent) {
+              const anchor = verifiedEvent(options.expectedCurrent);
+              await validateManifest(anchor);
+              const sourceRef = anchor.tags.find((t) => t[0] === 'source')?.[1];
+              if (
+                !linked ||
+                anchor.kind !== 35129 ||
+                anchor.pubkey !== account.pubkey ||
+                anchor.tags.find((t) => t[0] === 'd')?.[1] !== plan.identifier ||
+                !sourceRef?.startsWith('nostr://') ||
+                repositoryRef(sourceRef).address !== linked.repository.address ||
+                current?.id !== anchor.id
+              )
+                throw new PublishError(
+                  'REMOTE_CONFLICT',
+                  'The reviewed release no longer matches this author, listing or source repository. Review the current napplet again before publishing.',
+                );
+              reviewedContinuation = true;
+            }
+            if (
+              (current?.id ?? null) !== (previous?.current?.id ?? null) &&
+              !reviewedContinuation &&
+              !(retired && !current) &&
+              !(refreshedInShell && current?.id === remotePrevious?.id)
+            )
+              throw new PublishError(
+                'REMOTE_CONFLICT',
+                'A remote release or source state differs from this journal. Restore the current journal or choose a new napplet identifier; stale releases are never forced over it.',
+              );
             if (linked)
               await verifyReleaseReachable({
                 directory: root,
@@ -462,20 +499,6 @@ export async function publishProject(options: PublishOptions) {
                 commit: plan.sourceCommit,
                 lsRemote: deps.lsRemote,
               });
-            const [current, sourceState, announcement] = await Promise.all([
-              relays.latest(plan.targets.relay, account.pubkey, plan.identifier, 35129),
-              linked ? null : relays.latest(source.relay, account.pubkey, plan.identifier, 30618),
-              linked ? null : relays.latest(source.relay, account.pubkey, plan.identifier, 30617),
-            ]);
-            if (
-              (current?.id ?? null) !== (previous?.current?.id ?? null) &&
-              !(retired && !current) &&
-              !(refreshedInShell && current?.id === remotePrevious?.id)
-            )
-              throw new PublishError(
-                'REMOTE_CONFLICT',
-                'A remote release or source state differs from this journal. Restore the current journal or choose a new napplet identifier; stale releases are never forced over it.',
-              );
             if (
               sourceState?.tags.some(
                 (t) =>

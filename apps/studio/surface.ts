@@ -14,6 +14,8 @@ export type StudioSurface = Pick<
   | 'importAsset'
   | 'assetMedia'
   | 'create'
+  | 'reviewMerge'
+  | 'mergeProposal'
   | 'send'
   | 'stop'
   | 'check'

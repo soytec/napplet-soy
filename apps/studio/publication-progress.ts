@@ -28,6 +28,8 @@ export function publishProgress(stage: string): PublicationProgress {
     (
       {
         check: 'Rechecking the reviewed source and release settings.',
+        'prepare-source':
+          'Signing and sharing the reviewed release-media commit with the original Git repository.',
         sandbox: 'Verifying the frozen build in the sandbox.',
         freeze: 'Freezing the reviewed source and Git history.',
         sign: 'Signing the release with your shell account.',

@@ -8,6 +8,9 @@ import { publishProject, publicationStatus, type PublishOptions } from '../../pa
 import { sha256 } from '../../packages/protocol/src';
 import { prepareSharingIdentity } from '../cli/src/share-project';
 import { checkPublication } from '../cli/src/publish-check';
+import { pushSource } from '../../packages/collaboration/src/service';
+import { PublicationRelays } from '../../packages/publish/src/relay';
+import type { Network } from '../../packages/identity/src/signer';
 import { DiagnosticError } from '../../packages/diagnostics/src';
 import type { Diagnostic } from '../../packages/diagnostics/src';
 import { run } from './process';
@@ -49,6 +52,7 @@ export type ReleaseReview = {
   plan: PublishPlan;
   media: Media[];
   repository: { address: string | null; origin: string; hosted: boolean };
+  previousCurrent?: import('../../packages/protocol/src').SignedEvent;
 };
 export type Published = Exclude<Awaited<ReturnType<typeof publishProject>>, { status: 'dry_run' }>;
 export type PublicationState = {
@@ -234,6 +238,65 @@ export async function reviewedMedia(storage: string, review: ReleaseReview, name
   return { bytes, mime: item.mime };
 }
 
+/** Share the post-merge release/media checkpoint under its own Git lock, before
+ * the publisher takes its journal lock and revalidates source reachability. */
+export async function shareReviewedRelease(
+  root: string,
+  review: ReleaseReview,
+  accounts: NonNullable<PublishOptions['accounts']>,
+  signal: AbortSignal,
+  progress: (stage: string) => void,
+  network: Network = 'public',
+) {
+  if (!review.previousCurrent || !review.repository.address) throw reviewChanged();
+  if ((await accounts.current())?.pubkey !== review.plan.pubkey) throw reviewChanged();
+  const dry = await publishProject({
+    directory: root,
+    network,
+    dryRun: true,
+    accounts,
+    signal,
+    check: async () => {
+      throw reviewChanged();
+    },
+  });
+  if (
+    dry.status !== 'dry_run' ||
+    dry.fingerprint !== review.fingerprint ||
+    dry.sourceRepository.address !== review.repository.address ||
+    dry.plan.sourceCommit !== review.plan.sourceCommit
+  )
+    throw reviewChanged();
+  const previous = await publicationStatus(root, network, { creator: review.plan.pubkey });
+  const expected =
+    previous.status === 'not_started' ? review.previousCurrent.id : previous.currentId;
+  const relays = new PublicationRelays(signal);
+  try {
+    const current = await relays.latest(
+      review.plan.targets.relay,
+      review.plan.pubkey,
+      review.plan.identifier,
+      35129,
+    );
+    if (current?.id !== expected)
+      throw new DiagnosticError('REMOTE_CONFLICT', 'The original napplet changed after review.', {
+        operation: 'prepare reviewed release source',
+        recovery: 'Review the current original release again. No release-media commit was shared.',
+      });
+  } finally {
+    relays.close();
+  }
+  progress('prepare-source');
+  await pushSource({
+    directory: root,
+    network,
+    accounts,
+    signal,
+    resumeCompleted: true,
+    expectedCommit: review.plan.sourceCommit,
+  });
+}
+
 export async function publishReviewed(
   root: string,
   review: ReleaseReview,
@@ -265,6 +328,8 @@ export async function publishReviewed(
       (await inspectProject(root, 'public', review.plan.pubkey)).fingerprint !== review.fingerprint
     )
       throw reviewChanged();
+    if (review.previousCurrent && review.repository.address)
+      await shareReviewedRelease(root, review, accounts, signal, progress);
   }
   const result = await publishProject({
     directory: root,
@@ -273,6 +338,7 @@ export async function publishReviewed(
     signal,
     expectedFingerprint: review.fingerprint,
     expectedRepository: review.repository.address,
+    expectedCurrent: review.previousCurrent,
     resume: !!frozen,
     requirePreview: true,
     progress,

@@ -10,6 +10,8 @@ import { sourceGit } from '../../packages/grasp/src/client';
 import { ProtocolClient } from '../../packages/client/src/nostr';
 import { readProposals, readRepository } from '../../packages/collaboration/src/protocol';
 import { prepareProposal, proposeReviewed } from '../../apps/studio/proposal';
+import { prepareMerge, freezeMerge, submitMerge } from '../../apps/studio/merge';
+import { shareReviewedRelease, type ReleaseReview } from '../../apps/studio/publication';
 import { BrowserSigning } from '../../apps/studio/signing';
 import { stack } from './publish-stack';
 
@@ -146,7 +148,24 @@ test('Studio prepares unsigned proposals, shares exact reviewed source through G
       ),
     ).rejects.toMatchObject({ code: 'CREATOR_MISMATCH' });
     // Retry before the first signed journal safely starts the same reviewed proposal.
-    const result = await proposeReviewed(root, review, accounts, signal, true, 'local', check);
+    const progress: string[] = [];
+    const result = await proposeReviewed(
+      root,
+      review,
+      accounts,
+      signal,
+      true,
+      'local',
+      check,
+      (stage) => {
+        progress.push(stage);
+      },
+    );
+    expect(progress).toContain('check');
+    expect(progress).toContain('upload');
+    expect(progress.indexOf('sign')).toBeLessThan(progress.indexOf('relay'));
+    expect(progress.indexOf('relay')).toBeLessThan(progress.indexOf('source'));
+    expect(progress.at(-1)).toBe('verify');
     expect(result.head).toBe(review.commit);
     expect(result.nappletReleased).toBe(false);
     expect(kinds).toContain(1618);
@@ -159,6 +178,193 @@ test('Studio prepares unsigned proposals, shares exact reviewed source through G
       (await proposeReviewed(root, review, accounts, signal, true, 'local', check)).revision,
     ).toBe(result.revision);
     expect(kinds).toHaveLength(signed);
+    // Original authors can prepare a private merge, with no inference or publication.
+    const manifest = (
+      await client.query([{ kinds: [35129], authors: [ownerPubkey], '#d': ['studio-toy'] }])
+    )[0];
+    const mergeRoot = join(services.directory, 'merge-review');
+    const mergeRequest = { proposal: result.proposal, revision: result.revision, manifest };
+    await expect(
+      prepareMerge(mergeRoot, mergeRequest, pubkey, signal, async () => {}, 'local'),
+    ).rejects.toMatchObject({ code: 'STUDIO_MERGE_REVIEW' });
+    const prepared = await prepareMerge(
+      mergeRoot,
+      mergeRequest,
+      ownerPubkey,
+      signal,
+      async () => {},
+      'local',
+      services.targets,
+    );
+    expect(prepared.target).toBe(base);
+    expect(await Bun.file(join(mergeRoot, 'index.html')).text()).toContain('Better toy');
+    expect((await readProposals(client, repository))[0].status).toBe('open');
+    const mergedReview = await freezeMerge(mergeRoot, prepared, 'local');
+    const ownerBridge = new BrowserSigning(),
+      ownerSession = ownerBridge.connect(ownerPubkey);
+    const mergeKinds: number[] = [];
+    const ownerTimer = setInterval(() => {
+      const request = ownerBridge.next(ownerSession.id);
+      if (request) {
+        mergeKinds.push(request.template.kind);
+        ownerBridge.reply(
+          ownerSession.id,
+          request.id,
+          finalizeEvent(structuredClone(request.template), ownerKey),
+        );
+      }
+    }, 5);
+    try {
+      const ownerAccounts = ownerBridge.accounts(ownerSession.id, signal);
+      await expect(
+        submitMerge(
+          mergeRoot,
+          { ...mergedReview, state: '0'.repeat(64) },
+          ownerAccounts,
+          signal,
+          async () => {},
+          'local',
+        ),
+      ).rejects.toThrow('target branch advanced');
+      await expect(
+        submitMerge(
+          mergeRoot,
+          { ...mergedReview, revision: '0'.repeat(64) },
+          ownerAccounts,
+          signal,
+          async () => {},
+          'local',
+        ),
+      ).rejects.toThrow('proposal changed');
+      await expect(
+        submitMerge(mergeRoot, mergedReview, accounts, signal, async () => {}, 'local'),
+      ).rejects.toMatchObject({ code: 'STUDIO_MERGE_REVIEW' });
+      await Bun.write(join(mergeRoot, 'index.html'), '<p>Unreviewed change</p>');
+      await expect(
+        submitMerge(mergeRoot, mergedReview, ownerAccounts, signal, async () => {}, 'local'),
+      ).rejects.toThrow();
+      expect(mergeKinds).toHaveLength(0);
+      await sourceGit(mergeRoot, ['restore', 'index.html']);
+      const delivered = await submitMerge(
+        mergeRoot,
+        mergedReview,
+        ownerAccounts,
+        signal,
+        async () => {},
+        'local',
+      );
+      expect(delivered.nappletReleased).toBe(false);
+      expect(mergeKinds).toContain(30618);
+      expect(mergeKinds).toContain(1631);
+      expect(mergeKinds).not.toContain(35129);
+      expect((await readProposals(client, repository))[0].status).toBe('merged');
+      expect(
+        await sourceGit(mergeRoot, [
+          'ls-remote',
+          repository.clones[0],
+          `refs/heads/${prepared.branch}`,
+        ]),
+      ).toBe(`${mergedReview.commit}\trefs/heads/${prepared.branch}`);
+      const signedMergeCount = mergeKinds.length;
+      await submitMerge(mergeRoot, mergedReview, ownerAccounts, signal, async () => {}, 'local');
+      expect(mergeKinds).toHaveLength(signedMergeCount);
+      expect(
+        (await client.query([{ kinds: [35129], authors: [ownerPubkey], '#d': ['studio-toy'] }]))[0]
+          .id,
+      ).toBe(manifest.id);
+      // Separate publication preserves the author's existing listing coordinate.
+      await expect(
+        publishProject({ directory: mergeRoot, network: 'local', accounts: owner, check }),
+      ).rejects.toMatchObject({ code: 'REMOTE_CONFLICT' });
+      const wrongListing = finalizeEvent(
+        {
+          ...manifest,
+          tags: manifest.tags.map((t) => (t[0] === 'd' ? ['d', 'other-listing'] : t)),
+        },
+        ownerKey,
+      );
+      await expect(
+        publishProject({
+          directory: mergeRoot,
+          network: 'local',
+          accounts: owner,
+          check,
+          expectedCurrent: wrongListing,
+        }),
+      ).rejects.toMatchObject({ code: 'REMOTE_CONFLICT' });
+      // Studio's capture step creates another commit after merging; it must reach
+      // GRASP under the explicit release confirmation before the manifest can use it.
+      await Bun.write(
+        join(mergeRoot, 'release-cover.png'),
+        Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lS8AAAAASUVORK5CYII=',
+          'base64',
+        ),
+      );
+      const listing = await Bun.file(join(mergeRoot, 'napplet.json')).json();
+      listing.preview = { image: 'release-cover.png' };
+      await Bun.write(join(mergeRoot, 'napplet.json'), JSON.stringify(listing));
+      await checkpoint(mergeRoot, 'Reviewed release media', ownerPubkey);
+      const dryRelease = await publishProject({
+        directory: mergeRoot,
+        network: 'local',
+        accounts: owner,
+        check,
+        dryRun: true,
+      });
+      if (dryRelease.status !== 'dry_run') throw new Error('Expected dry release');
+      const releaseReview: ReleaseReview = {
+        id: crypto.randomUUID(),
+        preparedAt: new Date().toISOString(),
+        fingerprint: dryRelease.fingerprint,
+        plan: dryRelease.plan,
+        repository: dryRelease.sourceRepository,
+        media: [],
+        previousCurrent: manifest,
+      };
+      await expect(
+        shareReviewedRelease(
+          mergeRoot,
+          { ...releaseReview, previousCurrent: wrongListing },
+          ownerAccounts,
+          signal,
+          () => {},
+          'local',
+        ),
+      ).rejects.toMatchObject({ code: 'REMOTE_CONFLICT' });
+      await shareReviewedRelease(
+        mergeRoot,
+        releaseReview,
+        ownerAccounts,
+        signal,
+        () => {},
+        'local',
+      );
+      expect(
+        await sourceGit(mergeRoot, [
+          'ls-remote',
+          repository.clones[0],
+          `refs/heads/${prepared.branch}`,
+        ]),
+      ).toBe(`${releaseReview.plan.sourceCommit}\trefs/heads/${prepared.branch}`);
+      await publishProject({
+        directory: mergeRoot,
+        network: 'local',
+        accounts: owner,
+        check,
+        expectedCurrent: manifest,
+      });
+      const updated = (
+        await client.query([{ kinds: [35129], authors: [ownerPubkey], '#d': ['studio-toy'] }])
+      )[0];
+      expect(updated.id).not.toBe(manifest.id);
+      expect(updated.tags.find((t) => t[0] === 'source-commit')?.[1]).toBe(
+        releaseReview.plan.sourceCommit,
+      );
+    } finally {
+      clearInterval(ownerTimer);
+      ownerBridge.close();
+    }
     await expect(
       proposeReviewed(
         root,

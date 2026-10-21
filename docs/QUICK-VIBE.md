@@ -107,11 +107,12 @@ Optional configuration:
 ## Navigation and saved creations
 
 The shared shell header offers **Create in browser** and **Use soyLI locally**
-as separate actions. **My creations** opens the saved-project dashboard. The shell's
+as separate actions. **My work** opens `/manage`, combining private Studio drafts,
+published napplets, incoming proposals, submitted contributions and recent activity. The shell's
 `/create` page also explains both paths and retains its existing CLI setup guide.
 Browser links stay on the same site. In a development build on HTTP loopback, Studio
-connects to the configured local worker. Production builds show an availability
-explanation; they never probe localhost or expose this trusted local runner.
+connects to the configured local worker. Production builds use the configured
+hosted Studio service; they never probe localhost or expose this trusted local runner.
 
 Studio routes are `/studio` for the dashboard, `/studio/create` for a new draft,
 and `/studio/<project-id>` for an existing workspace. Direct links, reload and
@@ -454,12 +455,48 @@ Choose **Submit reviewed proposal** after reviewing and confirming the contribut
 Switching accounts clears confirmation and requires a review for the new author.
 Success links to `/proposals/<event-id>` in the shell, with a separate Nostr-client link.
 
+The proposal dialog reports actual preparation and delivery stages: project checks,
+review, preview upload, proposal signature, relay publication, Git source delivery,
+and read-back verification. Live detail identifies the current operation or signer
+request. Completion requires both the proposal and source to be read back. A failed
+attempt retains its diagnostic, reviewed bytes and journal for an explicit retry.
+
 Maintainers find contributions under **Proposed changes** in the original
 napplet's source section. They can refresh the list, select a revision, read the
 description and discussion, and play proposed and original builds. The review page
 also supplies `soyli review <event-id>` for the diff, discussion and merge flow.
-There is no global incoming-proposal inbox, notification service or browser merge
-action yet. Submission uses the local controller's authoritative Git repository;
+The original author also sees **Review & merge in Studio** for the latest open or
+draft proposal. This creates a separate private checkout of the current target
+branch, merges the exact reviewed proposal revision, then builds and checks it.
+The author inspects Changes and plays this rebuilt candidate before confirming
+**Merge and update source**. Confirmation rechecks the account, source fingerprint,
+proposal revision and signed upstream state, then shares the Git branch and NIP-34
+merged status. A conflict or stale review stops with a diagnostic. A delivered merge
+can be retried without signing another identical state or status event.
+
+This action updates source only. **Publish** is a separate explicit review that
+updates the original named napplet under its author's account. Its confirmation also
+shares the reviewed source commit containing the newly captured release media before
+publishing a manifest that points to it. A fresh merge checkout
+can continue the reviewed release without possessing the original publication
+journal, but only when the current manifest, author, identifier and linked repository
+still match. A concurrently published release is never overwritten. Browser merge
+management currently supports named kind-35129 releases and ordinary NIP-34 proposals;
+patch series and unsupported repository authority layouts retain the ngit path.
+Merge candidates use Studio's isolated server checks. Proposals changing protected
+dependencies, build configuration, guidance or tests require local soyLI/ngit review;
+Studio stops before sharing their source.
+
+**My work → Proposals** lists incoming and submitted proposals. **Activity** shows
+proposal/revision updates, comments, likes, validated zap receipts and authorized
+status changes from configured relays. The account button, My work link and Activity
+button share an unread dot. Read markers are explicit, browser-local and separated
+by account; they do not publish a new Nostr event. Refresh runs on focus and every
+minute while the page is visible. Partial results arrive independently, with warnings
+for unavailable repositories or unverifiable receipts. This is recent relay activity,
+not a complete historical inbox or background push notification service.
+
+Submission and merge use the local/hosted controller's authoritative Git repository;
 the experimental browser Git copy is not used for publication or proposals.
 
 ## Local limits and custody
