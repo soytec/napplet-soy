@@ -3,9 +3,37 @@
 Deployment is operator-run. Routine changes are verified and committed locally;
 do not deploy or upload releases unless the user explicitly requests deployment.
 
-Updated 2026-10-20. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
+Updated 2026-10-21. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-Latest verified website release: **`20261020133734312-91324`**, source
+Latest verified website release: **`20261021070722753-55473`**, source
+`d57f87421b6b3ab193bf6ff118f95eccc9e2535d`, installer still pinned to **soyLI 0.31.0**.
+[PR #29](https://github.com/zeSchlausKwab/napplet-soy/pull/29), squash-merged as
+`01e0ec989cf973f952e8f197a021ab943af64ab4` with an identical tree, fixes hosted
+remix imports failing before either build path. Credential-free Node workers use
+the existing public DNS/TLS guards without Bun's loopback tunnel, which Studio's
+egress firewall rejects. Worker code resolves from the trusted installation even
+when soyLI runs inside a private draft directory.
+
+TypeScript and 837 application tests passed locally and on the VPS, along with
+native service and production build checks. The deployed source passed
+[all four native platforms](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39559747945),
+[Nix/VM checks](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39559747947)
+and [Studio service CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39559747910).
+The new network-namespace regression exercises the real CLI under Studio's
+generated firewall, including private IP/DNS, redirect and certificate refusals.
+
+Live imports of both reported source releases completed under the Studio UID in
+5.7 and 5.4 seconds, preserving their exact upstream manifest and Git revisions.
+HTTPS health and the fresh catalog index identify the new release. Deployed source
+fingerprints match; Studio, CVM, TURN, Caddy and all five application processes
+are healthy. Existing draft/Git, private configuration and firewall fingerprints
+are unchanged, as is the worker image. Disposable import workspaces were removed.
+No paid inference or public test publication was performed. Refresh Studio and
+retry existing failed remix drafts; no republishing or soyLI update is needed.
+
+### Previous verified rollout — Studio timeout recovery, 2026-10-20
+
+Website release: **`20261020133734312-91324`**, source
 `fe512144ba1dcbe30da8379da37cd5ea1faef31f`, installer still pinned to **soyLI 0.31.0**.
 [PR #28](https://github.com/zeSchlausKwab/napplet-soy/pull/28) fixes hosted Studio
 timeouts and unreadable recovery diagnostics. The worker now receives the
