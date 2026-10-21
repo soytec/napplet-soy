@@ -5,7 +5,40 @@ do not deploy or upload releases unless the user explicitly requests deployment.
 
 Updated 2026-10-21. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-Latest verified website release: **`20261021070722753-55473`**, source
+Latest verified website release: **`20261021091028374-54156`**, source
+`e59f66710d14bcebef9310a5f568c5cd8cae9a17`, installer still pinned to **soyLI 0.31.0**.
+[PR #31](https://github.com/zeSchlausKwab/napplet-soy/pull/31) fixes hosted worker
+crashes under thread pressure. The old 128-slot process/thread limit triggered
+Bun's allocator failure during parallel browser checks. Node now supervises source
+recovery independently of the child runtime; Docker init and private-namespace
+cleanup release orphaned processes before export. The allowance is 512 slots and
+agent guidance requests sequential checks. CPU, memory and network isolation remain.
+
+TypeScript and all 839 application tests passed locally and on the VPS, followed by
+relay, Blossom and GRASP integration checks and the production build.
+[All four native platforms](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39573298364),
+[Nix/VM checks](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39573298377)
+and [Studio service CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39573298577)
+passed before merge. The merged tree matches the tested PR head.
+
+The deployed offline recovery regression passed thread exhaustion with 12 MiB of
+source export, Git exclusions, child signal exit 132 and subsequent job reuse.
+The unchanged pinned worker image,
+`sha256:78a1530841e748abf8229ccad04a6077e8c9e24dbeb8c0887138e4d00a730eb8`,
+also passed scripted OpenCode build repair, browser-check handoff, timeout recovery,
+media capture and cancellation acceptance before deployment. No paid inference,
+public test publication or edits to live drafts were performed.
+
+HTTPS health identifies the new release, the catalog index is fresh, and Studio,
+CVM, TURN, Caddy and all five application processes are healthy. Deployed source
+fingerprints match the merged code. The three reported draft records, existing Git
+repositories, private configuration and firewall fingerprints are unchanged; the
+other hosted site remains available. The temporary legacy CPU profile is retained.
+Refresh Studio and retry the failed turn; no CPU upgrade or soyLI release is needed.
+
+### Previous verified rollout — hosted remix networking, 2026-10-21
+
+Website release: **`20261021070722753-55473`**, source
 `d57f87421b6b3ab193bf6ff118f95eccc9e2535d`, installer still pinned to **soyLI 0.31.0**.
 [PR #29](https://github.com/zeSchlausKwab/napplet-soy/pull/29), squash-merged as
 `01e0ec989cf973f952e8f197a021ab943af64ab4` with an identical tree, fixes hosted
