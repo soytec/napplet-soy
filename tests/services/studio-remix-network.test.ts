@@ -6,6 +6,8 @@ import { sha256 } from '../../packages/protocol/src';
 import { freezeFixture } from '../../packages/publish/src/testing';
 
 const root = process.env.SPACE_TEST_REMIX_NETWORK;
+const uid = Number(process.env.SPACE_TEST_REMIX_UID ?? 65534);
+const gid = Number(process.env.SPACE_TEST_REMIX_GID ?? 65534);
 // scripts/test-studio-remix-network.sh supplies an isolated Linux network namespace,
 // real Studio nftables rules and a public-shaped TLS relay/Blossom fixture.
 test.skipIf(!root)(
@@ -13,7 +15,7 @@ test.skipIf(!root)(
   async () => {
     const cwd = join(root!, 'draft');
     await mkdir(cwd, { mode: 0o700 });
-    await chown(cwd, 65534, 65534);
+    await chown(cwd, uid, gid);
     const artifact = new TextEncoder().encode('<!doctype html><p>Exact published game</p>');
     const files = new Map(
       Object.entries({
@@ -86,8 +88,8 @@ test.skipIf(!root)(
       const child = Bun.spawn(
         [
           'setpriv',
-          '--reuid=65534',
-          '--regid=65534',
+          `--reuid=${uid}`,
+          `--regid=${gid}`,
           '--clear-groups',
           process.execPath,
           '--no-env-file',

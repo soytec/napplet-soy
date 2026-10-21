@@ -5,6 +5,11 @@ if [[ "${1:-}" != --inside ]]; then
   exec sudo unshare --net --mount --fork bash "$0" --inside "$(command -v bun)"
 fi
 studio_test_bun="$2"
+# CI checkouts can be private to the runner. Drop back to that unprivileged user;
+# root-operated VPS checks use nobody. The same UID receives the real firewall.
+studio_test_uid="${SUDO_UID:-65534}"
+studio_test_gid="${SUDO_GID:-65534}"
+if [[ "$studio_test_uid" == 0 ]]; then studio_test_uid=65534; studio_test_gid=65534; fi
 mount --make-rprivate /
 ip link set lo up
 # An isolated public-shaped fixture address. This namespace has no external route.
@@ -18,6 +23,7 @@ mount --bind "$studio_test_dir/hosts" /etc/hosts
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=soy-remix.example.com \
   -addext subjectAltName=DNS:soy-remix.example.com -keyout "$studio_test_dir/key.pem" \
   -out "$studio_test_dir/cert.pem" >/dev/null 2>&1
-"$studio_test_bun" apps/studio/hosting/egress.ts 65534 11.51.0.1 > "$studio_test_dir/policy.nft"
+"$studio_test_bun" apps/studio/hosting/egress.ts "$studio_test_uid" 11.51.0.1 > "$studio_test_dir/policy.nft"
 nft -f "$studio_test_dir/policy.nft"
-SPACE_TEST_REMIX_NETWORK="$studio_test_dir" "$studio_test_bun" test tests/services/studio-remix-network.test.ts
+SPACE_TEST_REMIX_NETWORK="$studio_test_dir" SPACE_TEST_REMIX_UID="$studio_test_uid" SPACE_TEST_REMIX_GID="$studio_test_gid" \
+  "$studio_test_bun" test tests/services/studio-remix-network.test.ts
