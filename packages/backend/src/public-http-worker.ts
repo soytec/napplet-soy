@@ -1,4 +1,5 @@
 import { fetchPublicBytesNative } from './blossom';
+import { diagnose, formatDiagnostic } from '../../diagnostics/src';
 
 try {
   const chunks: Buffer[] = [];
@@ -18,6 +19,7 @@ try {
     throw new Error('Invalid download input');
   const bytes = await fetchPublicBytesNative(new URL(url), AbortSignal.timeout(28000), maxBytes);
   process.stdout.write(bytes);
-} catch {
+} catch (error) {
+  console.error(formatDiagnostic(diagnose(error, 'download public HTTPS bytes')));
   process.exitCode = 1;
 }

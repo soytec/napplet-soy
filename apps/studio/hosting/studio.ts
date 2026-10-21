@@ -37,7 +37,11 @@ export async function isolatedStudio(options: {
     soyli: options.soyli,
     connections,
     browserLibraryRoot: options.browserLibraryRoot,
-    env: { ...cleanEnvironment(), SPACE_ACCOUNT_HOME: join(directory, 'unused-accounts') },
+    env: {
+      ...cleanEnvironment(),
+      SPACE_ACCOUNT_HOME: join(directory, 'unused-accounts'),
+      SPACE_PUBLIC_NETWORK_NODE: '1',
+    },
     preview: options.preview,
     sourcePolicy: (source) => {
       if (/^https?:/.test(source)) {

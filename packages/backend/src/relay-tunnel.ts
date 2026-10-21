@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { RelayPool, type RelayOptions } from 'applesauce-relay';
 import { publicLookup } from './blossom';
 import { publicRelayUrl, loopbackRelayUrl } from '../../nostr/src/relay-policy';
+import { PreviewWebSocket } from './preview-relay';
 
 /** A single-destination, authenticated loopback CONNECT tunnel. Bun performs TLS
  * for the original hostname; the TCP peer is pinned after guarded DNS resolution.
@@ -97,6 +98,8 @@ export async function openPlaybackRelay(value: string, signal: AbortSignal) {
     return new RelayPool();
   }
   publicRelayUrl(value);
+  if (typeof Bun === 'undefined')
+    return new RelayPool({ WebSocket: PreviewWebSocket as unknown as RelayOptions['WebSocket'] });
   const address = await new Promise<string>((resolve, reject) => {
     const stop = () => {
       cleanup();
