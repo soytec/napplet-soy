@@ -67,9 +67,12 @@ export function fetchPublicBytes(
   signal: AbortSignal,
   maxBytes = MAX_ARTIFACT_BYTES,
 ): Promise<Uint8Array> {
-  // Keep the workaround scoped to the VPS's pinned compatibility runtime.
+  // Hosted Studio also forbids the loopback transport used by Bun relay reads.
   // Never work around its TLS failure by disabling certificate validation.
-  if (typeof Bun !== 'undefined' && Bun.version === '1.3.8')
+  if (
+    typeof Bun !== 'undefined' &&
+    (Bun.version === '1.3.8' || process.env.SPACE_PUBLIC_NETWORK_NODE === '1')
+  )
     return fetchPublicBytesInNode(url, signal, maxBytes);
   return fetchPublicBytesNative(url, signal, maxBytes);
 }

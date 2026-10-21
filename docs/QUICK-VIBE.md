@@ -125,7 +125,8 @@ The browser link preselects the exact release source and a suggested title.
 Opening either creation link only opens a form: the user must submit a prompt to
 create a repository or start inference. Explicit loopback remix sources use soyLI's
 local network mode. Source resolution, attribution and publication still belong
-to soyLI. Full public-service remix acceptance remains to be verified.
+to soyLI. Hosted public imports use the guarded Node transport described in
+[Studio hosting](STUDIO-HOSTING.md); this setup happens before either build path.
 
 Existing drafts remain in the same private store; this navigation change requires
 no draft migration. The local controller still uses its token-protected loopback

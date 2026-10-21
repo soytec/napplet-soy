@@ -33,6 +33,21 @@ availability are reported separately. To contribute to an existing napplet, use
 its **Remix this** entry point and the Studio proposal flow. Existing proposals are
 listed in that napplet's source section; review and merging still use soyLI/Git.
 
+Both build modes first import the exact signed release and its published source
+using soyLI on the controller. Hosted imports use a credential-free Node worker
+for public WSS discovery and HTTPS downloads, with connection-time DNS checks and
+normal TLS verification. This avoids Bun's loopback relay tunnel, which the Studio
+firewall deliberately blocks. Workers load trusted installation code independently
+of the private draft directory and do not write into the installation. Source
+archives still require their signed hash, and unavailable exact releases retain
+actionable diagnostics rather than silently substituting a newer version.
+
+`bash scripts/test-studio-remix-network.sh` verifies the real CLI import under the
+generated Studio firewall in isolated Linux network/mount namespaces (sudo,
+nftables, iproute2, OpenSSL and Node required). Its local TLS fixtures require no
+external network or inference. It also checks private-address/DNS, redirect and
+certificate refusals; Studio service CI runs this regression.
+
 ## Responsibilities
 
 | Work                                                        | Browser build                                    | Server build                                |

@@ -97,6 +97,10 @@ export async function openPlaybackRelay(value: string, signal: AbortSignal) {
     return new RelayPool();
   }
   publicRelayUrl(value);
+  if (typeof Bun === 'undefined') {
+    const { PreviewWebSocket } = await import('./preview-relay');
+    return new RelayPool({ WebSocket: PreviewWebSocket as unknown as RelayOptions['WebSocket'] });
+  }
   const address = await new Promise<string>((resolve, reject) => {
     const stop = () => {
       cleanup();
