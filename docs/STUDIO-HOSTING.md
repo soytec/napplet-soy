@@ -133,8 +133,8 @@ The operator pins the worker image by its exact local SHA-256 ID. Containers run
 as UID/GID 1000, with no network, capabilities, privilege escalation, Docker socket,
 host home, live repository or controller secrets. Root/input filesystems are
 read-only; a one-GiB executable workspace and 128-MiB temporary directory are tmpfs.
-Limits are one CPU, two GiB memory, 128 processes and ten minutes of execution per
-job. The controller passes that same deadline to the worker; there is no shorter
+Limits are one CPU, two GiB memory, 512 process/thread slots and ten minutes of
+execution per job. The controller passes that same deadline to the worker; there is no shorter
 worker-only cutoff. A further 30 seconds allows recovery-file export before forced
 termination. Source
 transfers admit at most 2,048 ordinary files / 32 MiB, excluding private state,
@@ -142,6 +142,16 @@ Git internals and dependencies. Returned files are validated before applying;
 protected guidance/dependency files and concurrent edits are guarded. Failed jobs
 return recoverable edits when they can complete export; forced termination cannot
 guarantee recovery of edits that never left the container.
+
+The recovery supervisor uses the image's pinned Node runtime, independently of
+the Bun/OpenCode child. Docker init reaps orphaned processes; after a job exits,
+the supervisor stops remaining worker-owned processes in that container's private
+PID namespace before selecting and exporting source. Child runtime crashes retain
+their signal exit status and recoverable edits. This does not guarantee recovery
+if the entire container is killed or runs out of memory. The thread allowance
+includes Chromium and runtime threads, not just command processes. Agent guidance
+requires sequential verification commands because they share build output and
+browser resources.
 
 Execution timeouts retain the `STUDIO_TIMEOUT` classification across the worker
 boundary. Studio checks recovered edits without purchasing another inference turn;
@@ -209,6 +219,11 @@ and disposable projects: it checks agent guidance, build failure/repair, the bro
 check bridge, desktop/portrait capture, recoverable failures and cancellation.
 It does not call a paid model or publish events. The real browser compiler and
 private-preview round trip must also pass in a browser.
+
+Run `scripts/studio-worker-recovery-acceptance.ts` with the same image ID/profile
+to check forced process/thread exhaustion, orphan cleanup, source recovery after
+a runtime crash, Git exclusions and subsequent job reuse. It uses only disposable
+offline jobs and deliberately fills the configured process/thread allowance.
 
 After acceptance, run the operator-only installer from the verified checkout:
 

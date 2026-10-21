@@ -25,7 +25,13 @@ import { run } from './process';
 import { connectionInput, type Connections } from './connections';
 import { defaultSteps } from './connections-model';
 import { z } from 'zod';
-import { taskInstructions, inferenceTimeoutMs, type Agent, type AgentEvent } from './agent';
+import {
+  taskInstructions,
+  nativeCheckInstructions,
+  inferenceTimeoutMs,
+  type Agent,
+  type AgentEvent,
+} from './agent';
 import { reasoningLimits, working, type Check, type Project, type StudioState } from './types';
 import { recordWorkshop } from './workshop';
 import { publishProgress } from './publication-progress';
@@ -554,7 +560,7 @@ export class Studio {
       this.workspace(p.id),
       (browserSession
         ? taskInstructions.replace(
-            'Use soyli run verify, soyli check and soyli run test:conformance. Repair failures rather than weakening checks. The controller independently repeats verification and owns previews: do not start a dev server.',
+            nativeCheckInstructions,
             'This turn uses the experimental browser compiler. Use studio_check after your first playable edit and after fixes to get real TypeScript and build diagnostics. Wait for its result before editing again. Repair those errors in this turn, then finish your reply. Do not run soyli, package scripts, host build tools, tests or a dev server. Studio independently checks again at the end. Full soyLI/conformance verification is deferred to Publish. Never claim those full checks passed.',
           )
         : taskInstructions) +
