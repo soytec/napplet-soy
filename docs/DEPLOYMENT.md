@@ -5,7 +5,39 @@ do not deploy or upload releases unless the user explicitly requests deployment.
 
 Updated 2026-10-21. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-Latest verified website release: **`20261021121512046-56636`**, source
+Latest verified website release: **`20261021141802851-42000`**, source
+`af50f3c36d3413c6181fa00bbf1baa085415d707`, installer still pinned to **soyLI 0.31.0**.
+[PR #33](https://github.com/zeSchlausKwab/napplet-soy/pull/33) fixes missing My work
+proposals by retaining repository relay hints from manifest source links. It also
+fixes browser merge signing: the shell now shares Studio's event-kind policy,
+including standard NIP-34 kind 1631. Merge starts with an immediate spinner and
+**Merging…** label, with live delivery and signer status until completion or failure.
+
+TypeScript and all 848 application tests passed locally and on the VPS, followed
+by 5 relay, 18 Blossom and 9 GRASP checks and the production build.
+[All four native platforms](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39614132445),
+[Nix/VM checks](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39614132534)
+and [Studio service CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39614132480)
+passed before merge. The real-service regression now signs through the shell's
+account adapter and verifies retry after a refused merge-status signature, source
+merge and separate publication (48 assertions). Desktop/mobile browser checks
+verify immediate progress, disabled repeat submission, retry and completion states.
+
+HTTPS health and the refreshed catalog identify the deployed release. Studio,
+CVM, TURN, Caddy and all five application processes are healthy. Live read-only
+queries find the reported Obsidian Breaker proposal in both its page and My work,
+without repository warnings. The anonymous production page hydrates and opens
+account settings without browser console errors. Source fingerprints match.
+All four saved draft records, Git workspaces, private configuration and active
+Studio egress policy are unchanged. The worker image remains
+`sha256:78a1530841e748abf8229ccad04a6077e8c9e24dbeb8c0887138e4d00a730eb8`.
+The other hosted site remains available. No user proposal was merged, no paid
+inference was run, and no public test event was published. No soyLI update is needed.
+Refresh the shell and retry the existing reviewed merge.
+
+### Previous verified rollout — My work and author merges, 2026-10-21
+
+Website release: **`20261021121512046-56636`**, source
 `30d5e957e00f8dfb17e6784ba735a9f755edf68e`, installer still pinned to **soyLI 0.31.0**.
 [PR #32](https://github.com/zeSchlausKwab/napplet-soy/pull/32) adds proposal delivery
 progress, reviewed author merges in Studio, and **My work** with drafts, publications,
