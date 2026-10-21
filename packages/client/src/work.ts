@@ -159,15 +159,17 @@ export async function readWork(
         while (pending.length && !signal.aborted) {
           const address = pending.shift()!;
           try {
-            const ref = repositoryRef(address);
             const publication = incomingSources.get(address);
+            // The coordinate groups proposals, but the original source carries
+            // the Git relay hint needed to find its repository announcement.
+            const ref = repositoryRef(publication ? tag(publication.manifest, 'source')! : address);
             const repo = await readRepository(
               client,
               nip19.naddrEncode({
                 kind: 30617,
                 pubkey: ref.pubkey,
                 identifier: ref.identifier,
-                relays: publication?.relays ?? ref.relays,
+                relays: [...new Set([...ref.relays, ...(publication?.relays ?? [])])],
               }),
             );
             const roots = await read(

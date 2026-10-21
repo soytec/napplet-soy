@@ -9,6 +9,132 @@ import {
 } from '../../protocol/src/social';
 import { ProtocolClient } from './nostr';
 import { readWork, WorkReadState } from './work';
+import { readProposals, readRepository } from '../../collaboration/src/protocol';
+
+test.each(['clone URL', 'naddr', 'publication fallback'])(
+  'My work retains repository relay hints from the %s independently of catalog relays',
+  async (format) => {
+    const authorKey = new Uint8Array(32).fill(3),
+      contributor = new Uint8Array(32).fill(7),
+      author = getPublicKey(authorKey),
+      now = Math.floor(Date.now() / 1000);
+    type Event = ReturnType<typeof finalizeEvent>;
+    const serve = (events: Event[]) =>
+      Bun.serve({
+        hostname: '127.0.0.1',
+        port: 0,
+        fetch: (request, server) => (server.upgrade(request) ? undefined : new Response()),
+        websocket: {
+          message(socket, message) {
+            const m = JSON.parse(String(message));
+            if (m[0] !== 'REQ') return;
+            for (const event of events)
+              if (matchFilters(m.slice(2), event))
+                socket.send(JSON.stringify(['EVENT', m[1], event]));
+            socket.send(JSON.stringify(['EOSE', m[1]]));
+          },
+        },
+      });
+    const catalogEvents: Event[] = [],
+      gitEvents: Event[] = [],
+      catalogRelay = serve(catalogEvents),
+      gitRelay = serve(gitEvents);
+    const catalogUrl = `ws://127.0.0.1:${catalogRelay.port}`,
+      gitUrl = `ws://127.0.0.1:${gitRelay.port}`;
+    const address = `30617:${author}:toy`;
+    const repository = finalizeEvent(
+      {
+        kind: 30617,
+        created_at: now - 30,
+        content: '',
+        tags: [
+          ['d', 'toy'],
+          ['relays', gitUrl],
+          ['clone', 'https://git.example/toy.git'],
+        ],
+      },
+      authorKey,
+    );
+    const hintedSource =
+      format === 'naddr'
+        ? `nostr://${nip19.naddrEncode({ kind: 30617, pubkey: author, identifier: 'toy', relays: [gitUrl] })}`
+        : `nostr://${nip19.npubEncode(author)}/${encodeURIComponent(gitUrl)}/toy`;
+    const source =
+      format === 'publication fallback' ? `nostr://${nip19.npubEncode(author)}/toy` : hintedSource;
+    const manifest = finalizeEvent(
+      {
+        ...fixtures[0].current,
+        created_at: now - 20,
+        tags: [...fixtures[0].current.tags.filter((t) => t[0] !== 'source'), ['source', source]],
+      },
+      authorKey,
+    );
+    const proposal = finalizeEvent(
+      {
+        kind: 1618,
+        created_at: now - 10,
+        content: 'More blocks',
+        tags: [
+          ['a', address],
+          ['p', author],
+          ['c', 'a'.repeat(40)],
+          ['clone', 'https://git.example/toy.git'],
+          ['subject', 'More blocks'],
+        ],
+      },
+      contributor,
+    );
+    catalogEvents.push(manifest);
+    gitEvents.push(repository, proposal);
+    const localClient = () => {
+      const client = new ProtocolClient(() => [catalogUrl]);
+      // Public relay hints need no allowlisting. For this loopback-only fixture,
+      // authorize the Git endpoint only when the caller actually passes its hint.
+      client.query = async (filters, hints = [], ...options) => {
+        const transport = new ProtocolClient(() => [
+          catalogUrl,
+          ...hints.filter((hint) => hint === gitUrl),
+        ]);
+        try {
+          return await transport.query(filters, hints, ...options);
+        } finally {
+          transport.close();
+        }
+      };
+      return client;
+    };
+    const pageClient = localClient();
+    const dashboardClient = localClient();
+    try {
+      // The page has its own fresh client: success cannot depend on warming the
+      // dashboard cache. Repository events exist only on the separate Git relay.
+      const page = await readProposals(pageClient, await readRepository(pageClient, hintedSource));
+      expect(page.map((p) => p.root.id)).toEqual([proposal.id]);
+      const result = await readWork(
+        dashboardClient,
+        author,
+        [
+          {
+            manifest,
+            title: 'Toy',
+            href: '/n/toy',
+            relays: format === 'publication fallback' ? [gitUrl, catalogUrl] : [catalogUrl],
+          },
+        ],
+        AbortSignal.timeout(4000),
+      );
+      expect(result.proposals.map((p) => p.proposal.root.id)).toEqual([proposal.id]);
+      expect(result.proposals[0].incoming).toBe(true);
+      expect(result.warnings).toEqual([]);
+      expect(result.activity.map((a) => a.id)).toContain(proposal.id);
+    } finally {
+      pageClient.close();
+      dashboardClient.close();
+      catalogRelay.stop(true);
+      gitRelay.stop(true);
+    }
+  },
+);
 
 test('My work finds incoming/outgoing proposals and validates social and merge activity', async () => {
   const authorKey = new Uint8Array(32);
