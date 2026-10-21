@@ -59,6 +59,7 @@ export function Player({
   pinned = false,
   autoPlay = false,
   compact = false,
+  embedded = false,
   onStop,
   immersive = false,
   onEnter,
@@ -72,6 +73,8 @@ export function Player({
   pinned?: boolean;
   autoPlay?: boolean;
   compact?: boolean;
+  /** Fill the containing workspace and tuck controls into its corner. */
+  embedded?: boolean;
   onStop?: () => void;
   immersive?: boolean;
   onEnter?: () => void;
@@ -247,7 +250,7 @@ export function Player({
         ref={wrapper}
         tabIndex={-1}
         aria-label={`${napplet.title} player`}
-        className={`player-wrap${compact ? ' player-compact' : ''}${expanded ? ' player-expanded' : ''}`}
+        className={`player-wrap${compact ? ' player-compact' : ''}${embedded ? ' player-embedded' : ''}${expanded ? ' player-expanded' : ''}`}
       >
         <div className="player-stage">
           {!playing ? (
@@ -406,7 +409,8 @@ export function Player({
           )}
         </div>
         <PlayerChrome
-          expanded={expanded}
+          expanded={expanded || embedded}
+          embedded={embedded && !expanded}
           blocked={prompt !== null || settingsOpen}
           title={napplet.title}
           description={napplet.description}

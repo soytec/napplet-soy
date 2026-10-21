@@ -128,6 +128,16 @@ local network mode. Source resolution, attribution and publication still belong
 to soyLI. Hosted public imports use the guarded Node transport described in
 [Studio hosting](STUDIO-HOSTING.md); this setup happens before either build path.
 
+A remix workspace immediately opens its original published napplet in the shared
+verified player, independently of source import, inference and the selected build
+mode. The footer labels this **Original napplet** until the first passing draft
+preview is available. Import pins the preview to the exact selected manifest;
+existing initialized drafts recover that pin from their local source binding.
+Later edits keep the last passing draft visible. An unavailable original has its
+own retry control and does not block editing. Previewing performs no project build
+or AI call and creates no checkpoint or publication eligibility. New creations
+without a published source retain the empty preview until checks pass.
+
 Existing drafts remain in the same private store; this navigation change requires
 no draft migration. The local controller still uses its token-protected loopback
 HTTP adapter for connection settings and bounded binary asset uploads. Its CORS

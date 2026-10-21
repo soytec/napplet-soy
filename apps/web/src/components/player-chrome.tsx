@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 /** A small exit target; hover, keyboard focus and touch disclose the same controls. */
 export function PlayerChrome({
   expanded,
+  embedded = false,
   blocked,
   title,
   description,
@@ -13,6 +14,7 @@ export function PlayerChrome({
   children,
 }: {
   expanded: boolean;
+  embedded?: boolean;
   blocked: boolean;
   title: string;
   description: string;
@@ -52,13 +54,17 @@ export function PlayerChrome({
   function activate(event: MouseEvent) {
     if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
+    if (embedded) {
+      setOpen(true);
+      return;
+    }
     if (pointer.current === 'touch' && !open) {
       setOpen(true);
       return;
     }
     onExit();
   }
-  const exitLabel = detailPath ? 'Back to details' : returnLabel;
+  const exitLabel = embedded ? 'Player controls' : detailPath ? 'Back to details' : returnLabel;
   const triangle = (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M4 4h16v16Z" />
@@ -143,8 +149,9 @@ export function PlayerChrome({
             </Button>
           )}
           <span id={`${id}-hint`} className="sr-only">
-            Hover or focus to show player controls. On touch, tap once for controls and again to
-            return.
+            {embedded
+              ? 'Open player controls.'
+              : 'Hover or focus to show player controls. On touch, tap once for controls and again to return.'}
           </span>
         </>
       )}

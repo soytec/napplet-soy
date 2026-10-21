@@ -16,6 +16,8 @@ on:
       - 'tests/services/studio-browser-git.test.ts'
       - 'tests/services/studio-shell.test.ts'
       - 'tests/services/studio-preview.test.ts'
+      - 'tests/services/studio-original-preview.test.ts'
+      - 'tests/services/fixtures/studio-original-preview.tsx'
       - 'tests/services/studio-remix-network.test.ts'
       - 'scripts/test-studio-remix-network.sh'
       - 'tests/services/fixtures/studio-browser-git.worker.ts'
@@ -77,3 +79,5 @@ jobs:
         run: bun run test:studio:services
       - name: Verify production shell and Studio account composition
         run: bun run build && bun test tests/services/studio-shell.test.ts && bun test tests/services/studio-preview.test.ts
+      - name: Verify initial remix gameplay and preview transitions
+        run: bun test tests/services/studio-original-preview.test.ts
