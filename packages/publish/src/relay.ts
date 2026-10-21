@@ -1,5 +1,5 @@
 import { DiagnosticError } from '../../diagnostics/src';
-import { RelayPool } from 'applesauce-relay';
+import { AuthRequiredError, RelayPool } from 'applesauce-relay';
 import { matchFilter, type Filter } from 'nostr-tools';
 import { NEVER, firstValueFrom, fromEvent, takeUntil, timeout, type Subscription } from 'rxjs';
 import { verifiedEvent, type SignedEvent } from '../../protocol/src';
@@ -96,6 +96,8 @@ export class PublicationRelays {
     ).catch((cause) => {
       if (this.signal?.aborted)
         throw new PublishError('PUBLISH_CANCELLED', 'Publication cancelled.', 'relay', true, cause);
+      // Applesauce v7 raises auth-required refusals; keep reporting them as relay refusals.
+      if (cause instanceof AuthRequiredError) return { ok: false, from: url, message: cause.reason };
       throw cause;
     });
     this.signal?.throwIfAborted();
