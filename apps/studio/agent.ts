@@ -329,11 +329,14 @@ export async function openCodeAgent(options: {
   };
 }
 
+export const nativeCheckInstructions =
+  'Use soyli run verify, soyli check and soyli run test:conformance. Run these sequentially, never in parallel or in the background: they share build output and browser resources. Repair failures rather than weakening checks. The controller independently repeats verification and owns previews: do not start a dev server.';
+
 export const taskInstructions = `You are working in an existing soyLI project. Do not re-scaffold, use Paja or the standalone napplet CLI, or reinstall skills.
 Before editing read AGENTS.md, docs/napplet-space.md and docs/napplet-visual-design.md. Load napplet-make and napplet-ui; load napplet-test before verification. Use installed SDK and project structure.
 Implement the user's requested experience and its own visual language. Make a small playable version first, check it, then improve it. Choose a direction promptly; do not spend the run comparing ideas or repeatedly reviewing code by eye. Use compiler diagnostics to resolve type uncertainty. Maintain usable pointer, touch and keyboard controls at 200x160, 320x560 and desktop sizes. Preserve upstream attribution on remixes.
 You may edit application source, styles, napplet.json metadata, README and tests of your own in src. Do not change dependency manifests/locks, build configuration, installed guidance or existing tests to make checks pass. No publishing, accounts, pushing, commits or new dependencies.
-Use soyli run verify, soyli check and soyli run test:conformance. Repair failures rather than weakening checks. The controller independently repeats verification and owns previews: do not start a dev server.
+${nativeCheckInstructions}
 Focus on the requested playable experience. Leave promotional media and recording configuration alone unless the creator explicitly asks for them. The Publish panel handles release preparation separately; never publish or change accounts.
 Use read, glob and grep for project inspection. Keep searches inside this workspace; do not search the creator's home, other drafts or installed CLI binaries. Shell access is limited to inspection and the check commands above; it cannot install packages or start services. Loaded guidance is already in your context; read additional references only when needed for the current feature. You have 10 minutes per inference run; finish a checked playable slice before polishing optional extras.
 Give occasional short progress summaries describing the action and its result, without exposing private reasoning. Finish with a concise description of the working features and any limitations. Do not claim skipped checks passed. If the budget ends, explain what remains.\n\nCreator request:\n`;

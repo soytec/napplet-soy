@@ -2,6 +2,23 @@ import { expect, test } from 'bun:test';
 import { containerCommand, ContainerJobs, validateJobFiles } from './container';
 import { run } from '../process';
 
+test('both worker profiles isolate child processes and use an independent recovery runtime', () => {
+  for (const profile of ['standard', 'legacy-x64'] as const) {
+    const args = containerCommand(
+      'sha256:' + 'a'.repeat(64),
+      '/tmp/input',
+      'soy-studio-' + crypto.randomUUID(),
+      profile,
+    );
+    expect(args).toContain('--init');
+    expect(args).toContain('--network=none');
+    expect(args.some((arg) => arg.startsWith('--pid='))).toBe(false);
+    expect(args.at(-1)).toContain('exec /usr/local/bin/node /input/job.mjs');
+    expect(args.at(-1)).toContain('napplet_check_cpu');
+    if (profile === 'legacy-x64') expect(args.at(-1)).toContain('= 1.3.8');
+  }
+});
+
 test('large recovery frames never enter the failure diagnostic or displace the useful output', async () => {
   const execute: typeof run = async (args, options) => {
     if (args[1] !== 'run') return '';
@@ -62,7 +79,7 @@ test('private service umask still allows the isolated container user to read its
       const input = args[args.indexOf('--mount') + 1].split('source=')[1].split(',')[0];
       assert.equal((await stat(dirname(input))).mode & 0o777, 0o700, 'host parent must stay private');
       assert.equal((await stat(input)).mode & 0o007, 0o005, 'mounted input must be traversable');
-      for (const name of ['input.json', 'check-cpu.sh', 'job.js'])
+      for (const name of ['input.json', 'check-cpu.sh', 'job.mjs'])
         assert.equal((await stat(join(input, name))).mode & 0o007, 0o004, name + ' must be readable');
       options.onLine('SOY_JOB_DONE');
       return '';

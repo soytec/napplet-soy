@@ -9,7 +9,8 @@ import worker from './container-worker.js' with { type: 'text' };
 export const containerLimits = {
   memoryMiB: 2048,
   workspaceMiB: 1024,
-  pids: 128,
+  // Linux counts threads here, including Chromium, OpenCode, Bun and esbuild.
+  pids: 512,
   cpus: 1,
   timeoutMs: 600000,
 } as const;
@@ -76,6 +77,7 @@ export function containerCommand(
     'docker',
     'run',
     '--rm',
+    '--init',
     '--pull=never',
     '--name',
     name,
@@ -107,8 +109,8 @@ export function containerCommand(
     '--norc',
     '-c',
     profile === 'legacy-x64'
-      ? '. /input/check-cpu.sh; napplet_check_cpu Linux "$(uname -m)" /proc/cpuinfo legacy-x64 >/dev/null || exit 78; test "$(/usr/local/bin/bun --version)" = 1.3.8 || exit 78; exec /usr/local/bin/bun --no-env-file /input/job.js'
-      : '. /input/check-cpu.sh; napplet_check_cpu >/dev/null || exit 78; exec /usr/local/bin/bun --no-env-file /input/job.js',
+      ? '. /input/check-cpu.sh; napplet_check_cpu Linux "$(uname -m)" /proc/cpuinfo legacy-x64 >/dev/null || exit 78; test "$(/usr/local/bin/bun --version)" = 1.3.8 || exit 78; exec /usr/local/bin/node /input/job.mjs'
+      : '. /input/check-cpu.sh; napplet_check_cpu >/dev/null || exit 78; exec /usr/local/bin/node /input/job.mjs',
   ];
 }
 
@@ -158,8 +160,8 @@ export class ContainerJobs {
         mode: 0o644,
       });
       await writeFile(join(staging, 'check-cpu.sh'), cpuCheck, { mode: 0o644 });
-      await writeFile(join(staging, 'job.js'), worker, { mode: 0o644 });
-      for (const file of ['input.json', 'check-cpu.sh', 'job.js'])
+      await writeFile(join(staging, 'job.mjs'), worker, { mode: 0o644 });
+      for (const file of ['input.json', 'check-cpu.sh', 'job.mjs'])
         await chmod(join(staging, file), 0o644);
       dispose = await options.prepare?.(staging);
       let exitCode = 0,
