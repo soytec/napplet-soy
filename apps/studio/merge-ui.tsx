@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { LoaderCircle } from 'lucide-react';
 import type { Project } from './types';
 import type { usePublicationSigner } from './publication-ui';
 
@@ -7,16 +8,21 @@ export function MergePanel({
   busy,
   signer,
   api,
+  refresh,
 }: {
   project: Project;
   busy: boolean;
   signer: ReturnType<typeof usePublicationSigner>;
   api: <T>(path: string, body?: unknown) => Promise<T>;
+  refresh: () => Promise<void>;
 }) {
   const [confirmed, setConfirmed] = useState(false),
-    [error, setError] = useState('');
+    [error, setError] = useState(''),
+    [starting, setStarting] = useState(false);
   const merge = p.merge,
-    review = merge?.review;
+    review = merge?.review,
+    merging = starting || merge?.status === 'publishing',
+    disabled = busy || merging;
   useEffect(() => {
     setConfirmed(false);
     setError('');
@@ -25,8 +31,24 @@ export function MergePanel({
   return (
     <section className="merge-review-panel" aria-label="Author management">
       <span className="eyebrow">AUTHOR MANAGEMENT</span>
-      <h3>{merge.status === 'merged' ? 'Changes merged' : 'Review the merged build'}</h3>
-      <p role="status">{busy ? p.stage : merge.detail}</p>
+      <h3 className="merge-review-heading">
+        {merging && <LoaderCircle className="spin" size={18} aria-hidden="true" />}
+        {merging
+          ? 'Merging…'
+          : merge.status === 'merged'
+            ? 'Changes merged'
+            : 'Review the merged build'}
+      </h3>
+      <div role="status" aria-live="polite">
+        <p>
+          {starting && merge.status !== 'publishing'
+            ? 'Connecting your account and starting the reviewed merge…'
+            : busy
+              ? p.stage
+              : merge.detail}
+        </p>
+        {merging && signer.status && <p>{signer.status}</p>}
+      </div>
       {review && (
         <details>
           <summary>Source revision</summary>
@@ -52,16 +74,17 @@ export function MergePanel({
             <input
               type="checkbox"
               checked={confirmed}
-              disabled={busy}
+              disabled={disabled}
               onChange={(e) => setConfirmed(e.target.checked)}
             />{' '}
             I reviewed the diff and played the merged build.
           </label>
           <button
             className="primary"
-            disabled={busy || !confirmed || signer.pubkey !== review.pubkey}
+            disabled={disabled || !confirmed || signer.pubkey !== review.pubkey}
             onClick={() => {
               setError('');
+              setStarting(true);
               void (async () => {
                 const session = await signer.connect();
                 if (!session || session.pubkey !== review.pubkey)
@@ -71,12 +94,19 @@ export function MergePanel({
                   review: review.id,
                   confirmed: true,
                 });
-              })().catch((e) => setError(e.message));
+                await refresh();
+              })()
+                .catch((e) => setError(e.message))
+                .finally(() => setStarting(false));
             }}
           >
-            {merge.status === 'failed' ? 'Retry reviewed merge' : 'Merge and update source'}
+            {merging && <LoaderCircle className="spin" size={16} aria-hidden="true" />}
+            {merging
+              ? 'Merging…'
+              : merge.status === 'failed'
+                ? 'Retry reviewed merge'
+                : 'Merge and update source'}
           </button>
-          {busy && <p role="status">{signer.status}</p>}
         </>
       )}
       {error && <p role="alert">{error}</p>}

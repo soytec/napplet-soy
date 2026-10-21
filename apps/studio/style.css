@@ -2457,6 +2457,16 @@
   font-weight: 700;
   margin: 0.5rem 0;
 }
+.studio-surface .merge-review-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-surface .merge-review-panel .spin {
+    animation: none;
+  }
+}
 .studio-surface .merge-review-panel p {
   margin: 0.65rem 0;
   overflow-wrap: anywhere;

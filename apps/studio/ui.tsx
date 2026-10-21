@@ -632,7 +632,7 @@ export function StudioApp({
                 )}
               </div>
               <div className="messages">
-                <MergePanel project={p} busy={busy} signer={signer} api={api} />
+                <MergePanel project={p} busy={busy} signer={signer} api={api} refresh={refresh} />
                 {p.messages.map((m) => (
                   <article className={`message ${m.role}`} key={m.id}>
                     <div className="message-who">

@@ -13,6 +13,8 @@ import { prepareProposal, proposeReviewed } from '../../apps/studio/proposal';
 import { prepareMerge, freezeMerge, submitMerge } from '../../apps/studio/merge';
 import { shareReviewedRelease, type ReleaseReview } from '../../apps/studio/publication';
 import { BrowserSigning } from '../../apps/studio/signing';
+import { bindPublicationAccount } from '../../apps/studio/publication-account';
+import { BrowserIdentity } from '../../apps/web/src/lib/browser-identity';
 import { stack } from './publish-stack';
 
 test('Studio prepares unsigned proposals, shares exact reviewed source through GRASP and resumes without a new listing', async () => {
@@ -202,16 +204,36 @@ test('Studio prepares unsigned proposals, shares exact reviewed source through G
     const mergedReview = await freezeMerge(mergeRoot, prepared, 'local');
     const ownerBridge = new BrowserSigning(),
       ownerSession = ownerBridge.connect(ownerPubkey);
+    const identity = new BrowserIdentity('local');
+    await identity.importKey(nip19.nsecEncode(ownerKey));
+    const shellSigner = bindPublicationAccount({
+      pubkey: ownerPubkey,
+      currentPubkey: () => identity.state.pubkey,
+      connect: async () => {},
+      sign: (pubkey, template) => identity.sign(pubkey, template),
+    });
     const mergeKinds: number[] = [];
-    const ownerTimer = setInterval(() => {
+    let declineMergeStatus = true;
+    let signing = false;
+    const ownerTimer = setInterval(async () => {
+      if (signing) return;
       const request = ownerBridge.next(ownerSession.id);
       if (request) {
+        signing = true;
         mergeKinds.push(request.template.kind);
-        ownerBridge.reply(
-          ownerSession.id,
-          request.id,
-          finalizeEvent(structuredClone(request.template), ownerKey),
-        );
+        try {
+          if (declineMergeStatus && request.template.kind === 1631)
+            throw new Error('Simulated merge-status refusal');
+          ownerBridge.reply(
+            ownerSession.id,
+            request.id,
+            await shellSigner.signEvent(request.template),
+          );
+        } catch {
+          ownerBridge.reply(ownerSession.id, request.id);
+        } finally {
+          signing = false;
+        }
       }
     }, 5);
     try {
@@ -245,6 +267,12 @@ test('Studio prepares unsigned proposals, shares exact reviewed source through G
       ).rejects.toThrow();
       expect(mergeKinds).toHaveLength(0);
       await sourceGit(mergeRoot, ['restore', 'index.html']);
+      // A late refusal must be resumable from the same reviewed workspace.
+      await expect(
+        submitMerge(mergeRoot, mergedReview, ownerAccounts, signal, async () => {}, 'local'),
+      ).rejects.toMatchObject({ code: 'STUDIO_SIGNER' });
+      expect(identity.state.pubkey).toBe(ownerPubkey);
+      declineMergeStatus = false;
       const delivered = await submitMerge(
         mergeRoot,
         mergedReview,
@@ -364,6 +392,8 @@ test('Studio prepares unsigned proposals, shares exact reviewed source through G
     } finally {
       clearInterval(ownerTimer);
       ownerBridge.close();
+      shellSigner.close();
+      await identity.disconnect();
     }
     await expect(
       proposeReviewed(

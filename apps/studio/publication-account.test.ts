@@ -1,8 +1,39 @@
 import { expect, test } from 'bun:test';
 import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools';
 import { bindPublicationAccount } from './publication-account';
+import { BrowserIdentity } from '../web/src/lib/browser-identity';
+import { studioSigningKinds } from '../../packages/identity/src/studio-channel';
 
 const template = { kind: 35129, created_at: 1, tags: [['d', 'demo']], content: '' };
+test('the connected shell account signs every Studio publication and merge kind', async () => {
+  const identity = new BrowserIdentity('local');
+  const key = generateSecretKey(),
+    pubkey = getPublicKey(key);
+  await identity.importKey(Buffer.from(key).toString('hex'));
+  const signer = bindPublicationAccount({
+    pubkey,
+    currentPubkey: () => identity.state.pubkey,
+    connect: async () => {},
+    sign: (pubkey, template) => identity.sign(pubkey, template),
+  });
+  try {
+    expect(await identity.sign(pubkey, { ...template, kind: 7 })).toMatchObject({
+      pubkey,
+      kind: 7,
+    });
+    for (const kind of studioSigningKinds)
+      expect(await signer.signEvent({ ...template, kind })).toMatchObject({
+        ...template,
+        kind,
+        pubkey,
+      });
+    await expect(signer.signEvent({ ...template, kind: 1 })).rejects.toThrow();
+    await expect(identity.sign(pubkey, { ...template, kind: 9999 })).rejects.toThrow('permissions');
+  } finally {
+    signer.close();
+    await identity.disconnect();
+  }
+});
 test('shared shell publication preserves exact templates and rejects changes to account or permissions', async () => {
   const key = generateSecretKey(),
     pubkey = getPublicKey(key);

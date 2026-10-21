@@ -173,8 +173,15 @@ NIP-34 state/status outbox; no wrapper event is introduced. Retrying the same re
 browser merge reuses its signed events, even after delivery succeeded. Publishing the
 resulting napplet is a separate action, preserving its named coordinate and refusing
 a stale release anchor.
+The merge button shows **Merging…** immediately, with a spinner and live source/status
+delivery details until the result arrives. Merge signatures use the selected shell
+account, including standard NIP-34 kind-1631 merge status; signing permissions are
+shared with Studio's publication policy. Remote signers may request approval for
+that event kind.
 The shell's **My work** dashboard links incoming/outgoing proposals and recent public
-activity. Unread markers stay in the browser for each account. See
+activity. Repository lookups retain the relay hints in the manifest's source link
+alongside publication and configured fallback relays; Git proposals need not live
+on the napplet catalog's relays. Unread markers stay in the browser for each account. See
 [Studio collaboration](QUICK-VIBE.md#propose-changes-from-a-remix) for the UI flow.
 
 ## Optional runnable preview attachment
