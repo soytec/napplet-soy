@@ -5,6 +5,21 @@ The current published version is **0.31.1**. The repository has transferred to
 [`soytec/napplet-soy`](https://github.com/soytec/napplet-soy), including its history,
 issues, pull requests and releases.
 
+**0.31.2 — proposal status during publication (prepared):**
+
+`soyli publish` marks included open/draft NIP-34 Git proposals merged after
+confirming source delivery. It shares `soyli push`'s ancestry, target-branch and
+current-revision checks. Applied events are saved before delivery and reused by
+`publish --resume`; newer proposal revisions remain open.
+
+Linked repositories remain read-only. Discovery retains relay hints from source
+URLs even when the announcement omits `relays`. Pending statuses pin their target
+branch, and retries recheck its signed tip and served Git branch before sending
+anything. A release retained only by a tag cannot close a proposal whose target
+changed. No event kind or protocol wrapper is added.
+
+Release assets and native checks are pending; this entry does not imply deployment.
+
 **0.31.1 — Soytec repository transfer compatibility:**
 
 Release discovery uses GitHub repository ID `1370998066`, which stays with this
