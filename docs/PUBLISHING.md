@@ -410,5 +410,7 @@ Existing napplets remain valid; rebuild and publish to add links to a future rev
 After source confirmation, publication also delivers merged statuses for included
 Git proposals, using the same ancestry and revision checks as `soyli push`. A
 separate push is unnecessary for hosted releases. Signed statuses are journaled
-and retried with `publish --resume`; newer proposal revisions remain open.
+and retried with `publish --resume`; newer proposal revisions remain open. Linked
+source retries revalidate the saved target branch against signed state and the
+served Git branch before announcing a merge; a tag alone is not sufficient.
 See [proposal reconciliation and linked-source limits](COLLABORATION.md#proposal-status-during-publication).

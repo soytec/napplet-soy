@@ -953,28 +953,33 @@ export async function publishProject(options: PublishOptions) {
         if (!completed) await save();
         await guard();
         progress('source');
+        // Keep discovery hints: NIP-34 announcements need not repeat them in a relays tag.
+        const linkedSource = job.repository
+          ? await loadRepository(
+              latest,
+              { ...repositoryRef(job.repository.address), ...job.repository },
+              local,
+            )
+          : null;
+        const sourceRepository = linkedSource
+          ? repositoryFromEvent(
+              { ...repositoryRef(job.repository!.address), relays: linkedSource.repository.relays },
+              linkedSource.announcement,
+            )
+          : repositoryFromEvent(
+              repositoryRef(`30617:${account.pubkey}:${job.plan.identifier}`),
+              job.source!.announcement,
+            );
         const proposalClient =
           deps.proposalClient ??
           new ProtocolClient(() => [
+            ...sourceRepository.relays,
             job!.plan.targets.relay,
             sourceUrls(job!.plan.targets.grasp, account.pubkey, job!.plan.identifier, local).relay,
           ]);
         try {
           // Hosted source always publishes main. Linked source remains read-only;
           // reconcile only when its signed current branch names this exact release.
-          const linkedSource = job.repository
-            ? await loadRepository(
-                latest,
-                { ...repositoryRef(job.repository.address), ...job.repository },
-                local,
-              )
-            : null;
-          const sourceRepository = linkedSource
-            ? repositoryFromEvent(repositoryRef(job.repository!.address), linkedSource.announcement)
-            : repositoryFromEvent(
-                repositoryRef(`30617:${account.pubkey}:${job.plan.identifier}`),
-                job.source!.announcement,
-              );
           const sourceState = linkedSource ? linkedSource.state : job.source!.state;
           const sourceBranch = job.repository
             ? await sourceGit(root, ['rev-parse', '--abbrev-ref', 'HEAD'])
@@ -985,6 +990,7 @@ export async function publishProject(options: PublishOptions) {
             tag(sourceState, `refs/heads/${sourceBranch}`) === job.commit &&
             sourceRepository.maintainers.includes(account.pubkey)
           ) {
+            job.appliedBranch = sourceBranch;
             job.appliedStatuses = await prepareAppliedStatuses({
               directory: root,
               client: proposalClient,
@@ -1005,11 +1011,39 @@ export async function publishProject(options: PublishOptions) {
               { ...repositoryRef(job.repository.address), ...job.repository },
               local,
             );
+            const appliedRef = job.appliedStatuses?.length
+              ? job.appliedBranch && `refs/heads/${job.appliedBranch}`
+              : undefined;
+            if (
+              job.appliedStatuses?.length &&
+              (!appliedRef ||
+                !linked.state ||
+                tag(linked.state, appliedRef) !== job.commit ||
+                !repositoryFromEvent(
+                  { ...repositoryRef(job.repository.address), relays: linked.repository.relays },
+                  linked.announcement,
+                ).maintainers.includes(account.pubkey))
+            )
+              throw new RepositoryError(
+                'PROPOSAL_TARGET_CHANGED',
+                'The linked repository no longer confirms the reviewed proposal target.',
+                {
+                  operation: 'confirm applied proposal target',
+                  target: `${job.repository.address}#${appliedRef ?? 'unknown branch'}`,
+                  detail: `Reviewed release commit: ${job.commit}`,
+                  recovery:
+                    'Review the target branch and maintainer list. Resume only after the same branch serves the reviewed commit again. If the change is intentional, prepare a new publication from a fresh checkout. No merged status was sent.',
+                },
+                'source',
+                true,
+              );
             await verifyReleaseReachable({
               directory: root,
               repository: linked.repository,
               state: linked.state,
               commit: job.commit,
+              // A tag retaining the release is not evidence that its target branch was merged.
+              ref: appliedRef,
               lsRemote: deps.lsRemote,
             });
           } else

@@ -317,9 +317,11 @@ One remix supports both paths, in either order:
   Merge on the upstream target branch. soyli push publishes that branch and
   confirmed applied status, preserving other refs. soyli publish also marks
   included proposals merged after hosted Git delivery, so a release needs no
-  separate push. Linked Git remains read-only; automatic status requires the
-  checked-out branch's signed tip to equal the release commit. Retry a failed
-  release with publish --resume; retry a failed push from the same tip.
+  separate push. Linked Git remains read-only: merged statuses require the
+  reviewed branch's signed and served tips to equal the release commit. Resume
+  rechecks that saved branch; retaining the commit under a tag is not enough.
+  Source URL relay hints are preserved. Retry a failed release with publish
+  --resume; retry a failed push from the same tip.
 Use the same selected revision for testing and merge. A changed target or proposal
 requires another review. Ordinary Git/ngit remain available for branches, patches,
 conflicts and maintainer layouts outside this simple creator workflow.

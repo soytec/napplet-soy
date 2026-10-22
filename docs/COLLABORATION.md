@@ -248,4 +248,12 @@ For hosted source, this applies to the published `main` branch. Linked repositor
 remain read-only for Git/state: status reconciliation applies when the checked-out
 branch's signed tip equals the release commit and the selected author is an
 announced maintainer. Other linked branch layouts remain publishable without
-automatic status changes. Implemented in source; no CLI release is implied.
+automatic status changes. Relay hints from the source URL remain usable even when
+the announcement omits its optional `relays` tag.
+
+The release journal pins the reviewed target branch alongside its signed statuses.
+Before sending them, including on resume, soyLI rechecks that branch's signed tip,
+maintainer authority and the clone's served branch. A tag retaining the release
+commit does not prove the target was merged. A changed or unknown target stops
+status delivery with an actionable error; correcting the target lets resume reuse
+the original signatures. Switching local branches does not retarget saved statuses.
