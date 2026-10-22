@@ -1,11 +1,11 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The current published version is **0.31.1**. The repository has transferred to
+The current published version is **0.31.2**. The repository has transferred to
 [`soytec/napplet-soy`](https://github.com/soytec/napplet-soy), including its history,
 issues, pull requests and releases.
 
-**0.31.2 — proposal status during publication (prepared):**
+**0.31.2 — proposal status during publication:**
 
 `soyli publish` marks included open/draft NIP-34 Git proposals merged after
 confirming source delivery. It shares `soyli push`'s ancestry, target-branch and
@@ -18,7 +18,23 @@ branch, and retries recheck its signed tip and served Git branch before sending
 anything. A release retained only by a tag cannot close a proposal whose target
 changed. No event kind or protocol wrapper is added.
 
-Release assets and native checks are pending; this entry does not imply deployment.
+Published **2026-10-22 (Europe/Vienna)** from
+`ca157eb8cb1d201cd93088ccae0c000e2d91c334`, the squash merge of
+[PR #23](https://github.com/soytec/napplet-soy/pull/23).
+[Release](https://github.com/soytec/napplet-soy/releases/tag/soyli-v0.31.2),
+[four-platform release CI](https://github.com/soytec/napplet-soy/actions/runs/39826124140),
+[Nix package/VM CI](https://github.com/soytec/napplet-soy/actions/runs/39826087289)
+and [Studio service CI](https://github.com/soytec/napplet-soy/actions/runs/39826087240)
+passed. Local type checking and **858 tests / 6,850 assertions** passed, along with
+the real two-creator publication/review flow and both forkless recovery cases.
+The first tag run was cancelled during slow Ubuntu mirror downloads; the unchanged
+tag passed on retry.
+
+All 11 public assets match their checksums and GitHub digests; the release manifest
+and installer match the tagged source. An isolated macOS ARM64 fresh installation
+passed `doctor` and `update`, and a real **0.31.1 → 0.31.2** upgrade preserved account
+and project markers and the legacy command. No website or Studio deployment was
+performed for this CLI release.
 
 **0.31.1 — Soytec repository transfer compatibility:**
 
