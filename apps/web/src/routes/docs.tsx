@@ -126,7 +126,7 @@ function Documentation() {
             <p>
               Prefer Rust or Bevy? soyLI also supports a pinned Rust/WASM build recipe using the
               same setup, build, preview and publishing commands. Read{' '}
-              <a href="https://github.com/zeSchlausKwab/napplet-soy/blob/main/docs/WASM.md">
+              <a href="https://github.com/soytec/napplet-soy/blob/main/docs/WASM.md">
                 the Rust/WASM guide
               </a>{' '}
               or <code>docs/napplet-wasm.md</code> in your project. The initial profile uses
@@ -276,7 +276,7 @@ function Documentation() {
               Simply dropping a file next to the napplet or using a <code>/assets/…</code> path does
               not make it available after publication. Larger external resources need the supported
               resource/media capabilities and their declared requirements. See the{' '}
-              <a href="https://github.com/zeSchlausKwab/napplet-soy/blob/main/docs/ASSETS.md">
+              <a href="https://github.com/soytec/napplet-soy/blob/main/docs/ASSETS.md">
                 asset guide
               </a>{' '}
               for supported workflows and limits.
@@ -383,7 +383,7 @@ function Documentation() {
               Merging and releasing are separate steps. <code>soyli push</code> shares Git state;{' '}
               <code>soyli publish</code> releases the updated napplet. The website’s Proposed
               changes section also lets people play and discuss a proposal.{' '}
-              <a href="https://github.com/zeSchlausKwab/napplet-soy/blob/main/docs/COLLABORATION.md">
+              <a href="https://github.com/soytec/napplet-soy/blob/main/docs/COLLABORATION.md">
                 Full collaboration reference
               </a>
               .
@@ -408,7 +408,7 @@ function Documentation() {
             <p>
               This does not deploy arbitrary server code. It provides the shared service contract
               described in the{' '}
-              <a href="https://github.com/zeSchlausKwab/napplet-soy/blob/main/docs/BACKEND-CREATOR.md">
+              <a href="https://github.com/soytec/napplet-soy/blob/main/docs/BACKEND-CREATOR.md">
                 backend guide
               </a>
               , including multiplayer test scenarios. Test guest responsiveness as well as
@@ -432,7 +432,7 @@ function Documentation() {
             </p>
             <p>
               Check your intended controllers and browsers before sharing. See the{' '}
-              <a href="https://github.com/zeSchlausKwab/napplet-soy/blob/main/docs/CONTROLLERS.md">
+              <a href="https://github.com/soytec/napplet-soy/blob/main/docs/CONTROLLERS.md">
                 controller guide
               </a>{' '}
               for mappings and supported behavior.
@@ -466,7 +466,7 @@ function Documentation() {
             <p>
               This installs the latest stable GitHub release without creating a project. If your CLI
               does not have update yet, use the installer from the{' '}
-              <a href="https://github.com/zeSchlausKwab/napplet-soy/releases/latest">
+              <a href="https://github.com/soytec/napplet-soy/releases/latest">
                 latest release
               </a>{' '}
               once. Restart running previews. Then run <code>soyli skills update</code> in an
@@ -514,7 +514,7 @@ function Documentation() {
             </dl>
             <p>
               For all flags and implementation limits, see the{' '}
-              <a href="https://github.com/zeSchlausKwab/napplet-soy/blob/main/docs/CLI.md">
+              <a href="https://github.com/soytec/napplet-soy/blob/main/docs/CLI.md">
                 CLI reference
               </a>
               . For the bigger picture, visit the{' '}
