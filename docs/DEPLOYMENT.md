@@ -5,6 +5,39 @@ do not deploy or upload releases unless the user explicitly requests deployment.
 
 Updated 2026-10-22. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
+### Most recent application deployment — Remix preview and relay counts, 2026-10-22
+
+Verified website release: **`20261022145224492-95376`**, source
+`bca22941e22ea4ac8cbebf06f29a09f7a49d4fd0`, with the installer still pinned to
+**soyLI 0.31.1**. [PR #30](https://github.com/soytec/napplet-soy/pull/30) lets
+Studio play the original published napplet before the first remix build, retaining
+its exact revision and switching to the draft after successful checks. This works
+with both browser and server builds. [PR #34](https://github.com/soytec/napplet-soy/pull/34)
+updates Applesauce and relay COUNT/negentropy support; COUNT refusals preserve their
+cause, and multiple filters count a deduplicated union. [PR #36](https://github.com/soytec/napplet-soy/pull/36)
+makes the installer transfer test independent of the host CPU while explicitly
+verifying that the real installer still refuses unsupported CPUs.
+
+TypeScript, all 854 application tests, 5 relay, 18 Blossom and 9 GRASP checks, and
+the production build passed on the VPS. Original-preview browser checks passed in
+both build modes (30 assertions), with shell/account and private-preview regressions.
+[Studio CI](https://github.com/soytec/napplet-soy/actions/runs/39794596139),
+[Nix/VM validation](https://github.com/soytec/napplet-soy/actions/runs/39799493653)
+and [all four native platforms](https://github.com/soytec/napplet-soy/actions/runs/39799493351)
+passed before activation.
+
+HTTPS health and the fresh catalog identify this release. Live read-only relay
+checks verify NIP-45/77 advertisement, deduplicated multi-filter counts, ignored
+COUNT limits, explicit invalid-filter refusal, and a genuine empty count. Studio,
+CVM, TURN, Caddy and all five application processes are healthy. Source fingerprints
+match; all five saved draft records and Git workspaces, private configuration and
+Studio egress policy are preserved. The worker image remains
+`sha256:78a1530841e748abf8229ccad04a6077e8c9e24dbeb8c0887138e4d00a730eb8`.
+The other hosted site remains available. The catalog still reports pre-existing
+query timeouts from `nostr.oxtr.dev`; its refresh completes through the other relays.
+The production Studio page hydrates and opens account settings without browser
+console errors. No paid inference, public test events or new soyLI release were needed.
+
 ### Installer-only refresh — Soytec transfer, 2026-10-22
 
 The hosted `/install.sh` now serves **soyLI 0.31.1**, verified byte-for-byte against
@@ -12,8 +45,8 @@ the [published release asset](https://github.com/soytec/napplet-soy/releases/tag
 SHA-256: `00fdc18b4b46b9f4a089681ae470b8a38a6aebc0c19ee650de85fd988c99ae78`.
 Both the public source copy and built client copy in the active release were
 updated atomically after checking their previous hashes; original files are backed
-up outside the web root. No application process was restarted. The active application
-release remains `20261021141802851-42000`; this was not a full website deployment.
+up outside the web root. No application process was restarted. At that point the application
+release remained `20261021141802851-42000`; this was not a full website deployment.
 
 The installer was activated after the real 0.31.0 → 0.31.1 upgrade passed, before
 the native GitHub repository transfer to `soytec/napplet-soy`. Post-transfer tests
@@ -21,9 +54,9 @@ verify release discovery, fresh installation and recovery for an old updater tha
 missed the transition. See [release verification and recovery](CLI-RELEASES.md).
 Existing Studio workspaces and the worker compatibility profile were not changed.
 
-### Most recent application deployment — My work and signing, 2026-10-21
+### Previous application deployment — My work and signing, 2026-10-21
 
-Latest verified website release: **`20261021141802851-42000`**, source
+Website release: **`20261021141802851-42000`**, source
 `af50f3c36d3413c6181fa00bbf1baa085415d707`, originally shipped with **soyLI 0.31.0**
 before the installer-only refresh above.
 [PR #33](https://github.com/zeSchlausKwab/napplet-soy/pull/33) fixes missing My work
