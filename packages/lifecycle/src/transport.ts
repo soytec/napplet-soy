@@ -54,7 +54,7 @@ export class LifecycleTransport implements LifecycleIO {
       this.signal?.addEventListener('abort', abort, { once: true });
       subscription = this.pool
         .relay(relay)
-        .req(filter, { reconnect: false, resubscribe: false })
+        .req(filter)
         .subscribe({
           next: (m) => {
             if (m.type === 'EOSE') return finish();

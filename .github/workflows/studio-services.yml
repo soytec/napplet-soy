@@ -71,6 +71,8 @@ jobs:
           go version
       - name: Install browser test prerequisites
         run: bunx playwright install --with-deps chromium
+      - name: Verify relay COUNT, synchronization and compatibility patches
+        run: bun run test:relay
       - name: Build pinned services and verify proposals and browser Git
         # Keep Chromium and Bun's embedded service servers in separate processes;
         # combining the suites can stall service teardown on Linux.

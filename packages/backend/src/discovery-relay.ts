@@ -31,7 +31,7 @@ export async function queryDiscoveryEvents(
         (relay) =>
           new Promise<void>((resolve) => {
             pool
-              .req([relay], filters, { reconnect: false, waitForAuth: false })
+              .req([relay], filters)
               .pipe(
                 takeWhile((m) => m.type !== 'EOSE' && m.type !== 'CLOSED', true),
                 take(100),

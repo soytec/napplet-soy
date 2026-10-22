@@ -96,7 +96,7 @@ export async function queryPreviewMetadata(
         for (let job = jobs.shift(); job && !signal.aborted; job = jobs.shift()) {
           await new Promise<void>((resolve) => {
             pool
-              .req([job.relay], job.filters, { reconnect: false, waitForAuth: false })
+              .req([job.relay], job.filters)
               .pipe(
                 takeWhile((m) => m.type !== 'EOSE' && m.type !== 'CLOSED', true),
                 take(250),
