@@ -31,7 +31,7 @@ test('worker exports complete binary chunks after a child makes stdout non-block
       .replaceAll("'/workspace'", JSON.stringify(workspace));
     const entry = join(directory, 'worker.mjs');
     await writeFile(entry, script);
-    const child = Bun.spawn([process.execPath, '--no-env-file', entry], {
+    const child = Bun.spawn([Bun.which('node')!, entry], {
       stdout: 'pipe',
       stderr: 'pipe',
     });
@@ -81,7 +81,7 @@ test('failed worker exports edits and reports its original failure for controlle
         .replaceAll("'/workspace/.git/HEAD'", JSON.stringify(join(workspace, '.git/HEAD')))
         .replaceAll("'/workspace'", JSON.stringify(workspace)),
     );
-    const child = Bun.spawn([process.execPath, '--no-env-file', entry], {
+    const child = Bun.spawn([Bun.which('node')!, entry], {
       stdout: 'pipe',
       stderr: 'pipe',
     });
@@ -102,5 +102,50 @@ test('failed worker exports edits and reports its original failure for controlle
     expect(Buffer.from(frame.data, 'base64').toString()).toBe('recoverable');
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('worker preserves signal failures and recovers after a missing executable without leaking arguments', async () => {
+  const node = Bun.which('node');
+  if (!node) throw new Error('The Studio toolchain regression requires Node.');
+  for (const [command, status, cause] of [
+    [[node, '-e', 'process.kill(process.pid, "SIGKILL")'], 137, ''],
+    [['/does-not-exist/private-provider-key', 'API_KEY=private-provider-key'], 127, 'ENOENT'],
+  ] as const) {
+    const root = await mkdtemp(join(tmpdir(), 'studio-worker-crash-'));
+    try {
+      const workspace = join(root, 'workspace'),
+        input = join(root, 'input.json');
+      await mkdir(workspace);
+      await writeFile(
+        input,
+        JSON.stringify({
+          files: { 'src/saved.ts': Buffer.from('saved source').toString('base64') },
+          command,
+        }),
+      );
+      const entry = join(root, 'worker.mjs');
+      await writeFile(
+        entry,
+        worker
+          .replaceAll("'/input/input.json'", JSON.stringify(input))
+          .replaceAll("'/workspace/.git/HEAD'", JSON.stringify(join(workspace, '.git/HEAD')))
+          .replaceAll("'/workspace'", JSON.stringify(workspace)),
+      );
+      const child = Bun.spawn([node, entry], { stdout: 'pipe', stderr: 'pipe' });
+      const [out, err, exit] = await Promise.all([
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+        child.exited,
+      ]);
+      expect(exit, err).toBe(0);
+      expect(out).toContain('SOY_JOB_STATUS:' + status);
+      expect(out).toContain('SOY_JOB_DONE');
+      expect(out).toContain(Buffer.from('saved source').toString('base64'));
+      expect(err).toContain(cause);
+      expect(out + err).not.toContain('private-provider-key');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   }
 });

@@ -20,7 +20,6 @@ export async function discoverNapplets(relays: string[], timeoutMs = 5000) {
                   { kinds: [15129], limit: 25 },
                   { kinds: [5129], limit: 25 },
                 ],
-                { reconnect: false, waitForAuth: false },
               )
               .pipe(
                 takeWhile((message) => message.type !== 'EOSE' && message.type !== 'CLOSED', true),

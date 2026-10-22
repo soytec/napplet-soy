@@ -23,6 +23,8 @@ import { CreateKeyPanel, KeyBackup } from './key-backup';
 import { useStudio } from './studio-provider';
 import { IntentHandlerSettings } from './intent-handler-settings';
 
+import { WorkDot } from './work-provider';
+
 export function IdentityMenu({
   open,
   setOpen,
@@ -173,7 +175,7 @@ export function IdentityMenu({
             </Button>
             <Button variant="outline" asChild>
               <Link to="/manage" onClick={() => changeOpen(false)}>
-                Your napplets
+                My work <WorkDot />
               </Link>
             </Button>
             {adminAccess === 'authorized' && (

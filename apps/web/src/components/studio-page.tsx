@@ -41,7 +41,7 @@ export function StudioPage() {
           Hosted access is still being built. Your local drafts stay on the computer running Studio.
         </p>
         <p>
-          <a href="https://github.com/zeSchlausKwab/napplet-soy/blob/main/docs/QUICK-VIBE.md#start">
+          <a href="https://github.com/soytec/napplet-soy/blob/main/docs/QUICK-VIBE.md#start">
             Local Studio setup and requirements →
           </a>
         </p>

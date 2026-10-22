@@ -22,6 +22,7 @@ import {
 import type { StudioState } from './types';
 import { working } from './types';
 import { ProposalDialog } from './proposal-ui';
+import { MergePanel } from './merge-ui';
 import { PublicationDialog, usePublicationSigner } from './publication-ui';
 import { ActivityPanel, ChatText } from './activity-ui';
 import { BrowserGitPanel } from './browser-git-ui';
@@ -573,12 +574,12 @@ export function StudioApp({
               </span>
               <button
                 className="primary publish-entry"
-                disabled={busy || !p.preview}
+                disabled={busy || !p.preview || (!!p.merge && p.merge.status !== 'merged')}
                 onClick={() => setPublishOpen(true)}
               >
                 Publish
               </button>
-              {p.source && (
+              {p.source && !p.merge && (
                 <button
                   className="outline"
                   disabled={busy || !p.preview}
@@ -637,6 +638,7 @@ export function StudioApp({
                 )}
               </div>
               <div className="messages">
+                <MergePanel project={p} busy={busy} signer={signer} api={api} refresh={refresh} />
                 {p.messages.map((m) => (
                   <article className={`message ${m.role}`} key={m.id}>
                     <div className="message-who">

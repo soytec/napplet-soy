@@ -1,7 +1,59 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The current published version is **0.31.0**.
+The current published version is **0.31.1**. The repository has transferred to
+[`soytec/napplet-soy`](https://github.com/soytec/napplet-soy), including its history,
+issues, pull requests and releases.
+
+**0.31.1 — Soytec repository transfer compatibility:**
+
+Release discovery uses GitHub repository ID `1370998066`, which stays with this
+repository when its owner changes. API redirects remain refused. The bundled
+installer first downloads from `soytec/napplet-soy`; before the transfer, a missing
+checksum (HTTP 404 only) allows the original `zeSchlausKwab/napplet-soy` location.
+The checksum and archive always come from the same selected location. Explicit
+alternate download hosts, authentication failures, rate limits, network failures
+and corrupt archives do not trigger that fallback. Existing checksum, executable
+version, installation-lock and atomic command-switch checks remain in force.
+
+Clients upgraded before the transfer continue using `soyli update`. An older
+binary that missed this release cannot follow the old release API redirect;
+recover once with the latest release installer, then use `soyli update` normally:
+
+```sh
+curl -fsSL https://github.com/soytec/napplet-soy/releases/latest/download/install.sh | sh
+```
+
+The installer preserves managed installations, accounts and unfinished projects.
+Nix users continue updating through their package manager. soyLI source and
+releases remain in this repository for now; extraction into `soytec/soyli` is a
+separate future change. Repository transfer does not deploy the website. The
+website's version-pinned installer was refreshed after release verification.
+
+Published **2026-10-22 (Europe/Vienna)** from
+`d5e4bd7fd02a0a55804a4b48c560f88a58a768f2`, the squash merge of
+[PR #35](https://github.com/soytec/napplet-soy/pull/35).
+[Release](https://github.com/soytec/napplet-soy/releases/tag/soyli-v0.31.1),
+[four-platform release CI](https://github.com/soytec/napplet-soy/actions/runs/39776718423),
+[Nix package/VM CI](https://github.com/soytec/napplet-soy/actions/runs/39776671158)
+and [Studio service CI](https://github.com/soytec/napplet-soy/actions/runs/39776670896)
+passed for the released source. All 11 public assets have verified checksums;
+the release manifest and installer match the tagged source.
+
+An isolated macOS ARM64 installation completed a real **0.31.0 → 0.31.1** upgrade
+before the transfer, preserving account/project markers and the legacy command.
+A fresh installation exercised the original-repository fallback. After transfer,
+the same upgraded client reports current through the stable repository-ID API,
+and a fresh installation uses Soytec without fallback. A separate old installation
+reproduced the rejected redirect and recovered through the installer above,
+preserving its account marker. The release ID and all asset IDs/digests are
+unchanged after transfer.
+
+The hosted installer is byte-identical to the release asset; no Studio process
+restart or draft migration was needed. See the [installer activation record](DEPLOYMENT.md).
+The existing VPS lacks SSE4.2 and correctly rejects standalone CLI installation;
+its separate Studio compatibility profile is unchanged. Native Linux execution
+was verified by release CI, not by bypassing that CPU guard.
 
 **0.31.0 — hosted BYOK Studio:**
 
@@ -884,15 +936,16 @@ soyli skills update
 An older CLI needs the new installer once, after the first GitHub release exists:
 
 ```sh
-curl -fsSL https://github.com/zeSchlausKwab/napplet-soy/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/soytec/napplet-soy/releases/latest/download/install.sh | sh
 ```
 
 The same script accepts `new my-napplet` or `remix <link> my-remix`. Inspect it before
 executing it if preferred. `https://napplet.soy/install.sh` remains a version-pinned
 copy which changes on website deployment; the GitHub URL follows the latest release.
 
-Updates only use stable `soyli-vX.Y.Z` releases from
-[zeSchlausKwab/napplet-soy](https://github.com/zeSchlausKwab/napplet-soy/releases).
+Updates only use stable `soyli-vX.Y.Z` releases from this repository
+([soytec/napplet-soy](https://github.com/soytec/napplet-soy/releases), repository ID
+`1370998066`). The numeric API channel survives the ownership transfer.
 Prereleases, incomplete platform assets and downgrades are refused. Doctor checks
 GitHub with a five-second deadline; no release, offline, malformed or rate-limited
 responses are reported as unavailable alongside the working local diagnostics.

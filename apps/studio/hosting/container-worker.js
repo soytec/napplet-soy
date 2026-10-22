@@ -1,7 +1,36 @@
 // Runs inside the pinned toolchain container; never imported by the controller.
 import { mkdir, writeFile, readdir, lstat, readFile } from 'node:fs/promises';
 import { write as writeDescriptor } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { readlinkSync, readdirSync, readFileSync } from 'node:fs';
+import { spawn, execFile } from 'node:child_process';
+import { constants } from 'node:os';
+import { promisify } from 'node:util';
+import { basename, dirname, join } from 'node:path';
+
+// Only the disposable container's private PID namespace may be swept. Never do
+// this when the worker is relocated for a local test or invoked on the host.
+async function stopContainerChildren() {
+  if (process.platform !== 'linux' || process.ppid !== 1) return;
+  if (basename(readlinkSync('/proc/1/exe')) !== 'docker-init') return;
+  const deadline = Date.now() + 2000;
+  while (Date.now() < deadline) {
+    let remaining = false;
+    for (const entry of readdirSync('/proc')) {
+      if (!/^\d+$/.test(entry) || Number(entry) === 1 || Number(entry) === process.pid) continue;
+      try {
+        const uid = /^Uid:\s+(\d+)/m.exec(readFileSync(`/proc/${entry}/status`, 'utf8'))?.[1];
+        if (Number(uid) !== process.getuid()) continue;
+        remaining = true;
+        process.kill(Number(entry), 'SIGKILL');
+      } catch (error) {
+        if (!['ENOENT', 'ESRCH'].includes(error.code)) throw error;
+      }
+    }
+    if (!remaining) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('Isolated child processes did not stop before source recovery.');
+}
 async function protocolLine(line) {
   const bytes = Buffer.from(line + '\n');
   let offset = 0;
@@ -17,12 +46,12 @@ async function protocolLine(line) {
     else offset += written;
   }
 }
-const { files, command } = await Bun.file('/input/input.json').json();
+const { files, command } = JSON.parse(await readFile('/input/input.json', 'utf8'));
 for (const [path, data] of Object.entries(files)) {
   await mkdir(dirname(join('/workspace', path)), { recursive: true });
   await writeFile(join('/workspace', path), Buffer.from(data, 'base64'), { flag: 'wx' });
 }
-const child = Bun.spawn(command, {
+const child = spawn(command[0], command.slice(1), {
   cwd: '/workspace',
   env: {
     PATH: '/usr/local/bin:/usr/bin:/bin',
@@ -33,11 +62,28 @@ const child = Bun.spawn(command, {
     PLAYWRIGHT_BROWSERS_PATH: '/opt/browsers',
     PLAYWRIGHT_SKIP_BROWSER_GC: '1',
   },
-  stdin: 'ignore',
-  stdout: 'inherit',
-  stderr: 'inherit',
+  detached: true,
+  stdio: ['ignore', 'inherit', 'inherit'],
 });
-const code = await child.exited;
+const code = await new Promise((resolve) => {
+  child.once('error', (error) => {
+    // Do not print arbitrary arguments/environment from an OS exception.
+    console.error('Could not start isolated command: ' + (error.code ?? 'UNKNOWN'));
+    resolve(127);
+  });
+  child.once('exit', (status, signal) => resolve(status ?? 128 + (constants.signals[signal] ?? 1)));
+});
+// A failed browser/tool may leave descendants (including detached groups) alive.
+// Stop them before source export needs threads or a new Git process. Docker init
+// reaps orphaned children; Node keeps recovery independent of a child Bun crash.
+if (child.pid) {
+  try {
+    process.kill(-child.pid, 'SIGKILL');
+  } catch (error) {
+    if (error.code !== 'ESRCH') throw error;
+  }
+}
+await stopContainerChildren();
 // Export recoverable edits even when verification or inference fails. The
 // controller reports the exit status after validating and saving these files.
 // The controller validates paths and bytes again. Do not follow symlinks or
@@ -46,10 +92,18 @@ const result = Object.create(null);
 let size = 0,
   count = 0;
 let selected;
-if (await Bun.file('/workspace/.git/HEAD').exists()) {
-  const listing = Bun.spawn(
+if (
+  await lstat('/workspace/.git/HEAD').then(
+    () => true,
+    (error) => {
+      if (error.code === 'ENOENT') return false;
+      throw error;
+    },
+  )
+) {
+  const { stdout: text } = await promisify(execFile)(
+    'git',
     [
-      'git',
       '-c',
       'core.hooksPath=/dev/null',
       '-c',
@@ -60,10 +114,8 @@ if (await Bun.file('/workspace/.git/HEAD').exists()) {
       '--others',
       '--exclude-standard',
     ],
-    { cwd: '/workspace', stdout: 'pipe', stderr: 'pipe' },
+    { cwd: '/workspace', maxBuffer: 4 * 1024 * 1024, timeout: 10000 },
   );
-  const text = await new Response(listing.stdout).text();
-  if (await listing.exited) throw new Error('Could not select isolated source output.');
   selected = new Set(text.split('\0').filter(Boolean));
 }
 async function walk(directory, prefix = '') {

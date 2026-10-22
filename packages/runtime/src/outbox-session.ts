@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
-import { RelayPool } from 'applesauce-relay';
+import { AuthRequiredError, RelayPool } from 'applesauce-relay';
 import { redactDiagnostic } from '../../diagnostics/src';
 import type { SignedEvent } from '../../protocol/src';
 import { outboxPublishOptions } from '../../nostr/src/outbox-routing';
@@ -64,7 +64,13 @@ export class OutboxPublisher implements OutboxPublishIO {
                           `Relay rejected event: ${redactDiagnostic(response.message ?? 'No reason supplied', 400)}`,
                         ),
                       ),
-                error: reject,
+                // Applesauce v7 raises auth-required refusals instead of resolving them.
+                error: (error) =>
+                  reject(
+                    error instanceof AuthRequiredError
+                      ? new Error(`Relay rejected event: ${redactDiagnostic(error.reason, 400)}`)
+                      : error,
+                  ),
               });
             if (signal.aborted) abort();
           });

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { compareVersions, parseRelease } from './update';
@@ -24,6 +24,13 @@ test('release selection compares numeric versions and requires complete stable p
   for (const invalid of ['01.2.3', '1.2.3-beta', '1.2', 'foo'])
     expect(() => compareVersions(invalid, '1.0.0')).toThrow();
   expect(parseRelease(metadata()).version).toBe('99.0.0');
+  for (const repository of ['zeSchlausKwab/napplet-soy', 'soytec/napplet-soy']) {
+    const url = `https://github.com/${repository}/releases/tag/soyli-v99.0.0`;
+    expect(parseRelease({ ...metadata(), html_url: url }).url).toBe(url);
+  }
+  expect(parseRelease({ ...metadata(), html_url: 'https://untrusted.invalid/install' }).url).toBe(
+    'https://github.com/soytec/napplet-soy/releases/tag/soyli-v99.0.0',
+  );
   for (const invalid of [
     null,
     { ...metadata(), draft: true },
@@ -110,6 +117,79 @@ test('doctor reports GitHub release availability and redacted service failures t
       expect(refused.stdout).toContain('UPDATE_INSTALLATION');
       expect(refused.stdout).toContain('source checkout');
     }
+  } finally {
+    server.stop(true);
+    await rm(root, { recursive: true, force: true });
+  }
+}, 30000);
+
+test('the real CLI uses the same repository-ID channel before and after ownership transfer', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'soyli-transfer-discovery-'));
+  let repository = 'zeSchlausKwab/napplet-soy';
+  let redirect = false;
+  let requests = 0;
+  const server = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch() {
+      requests++;
+      return redirect
+        ? Response.redirect('https://untrusted.invalid/releases/latest')
+        : Response.json({
+            ...metadata(),
+            html_url: `https://github.com/${repository}/releases/tag/soyli-v99.0.0`,
+          });
+    },
+  });
+  try {
+    const preload = join(root, 'github-fixture.ts');
+    await writeFile(
+      preload,
+      `
+      const realFetch = globalThis.fetch;
+      globalThis.fetch = (url, options) => {
+        if (String(url) !== 'https://api.github.com/repositories/1370998066/releases/latest')
+          throw new Error('Unexpected release channel: ' + url);
+        return realFetch(${JSON.stringify(server.url.href)}, options);
+      };
+    `,
+    );
+    for (repository of ['zeSchlausKwab/napplet-soy', 'soytec/napplet-soy', 'soytec/napplet-soy']) {
+      const child = Bun.spawn(
+        [
+          process.execPath,
+          '--preload',
+          preload,
+          new URL('./index.ts', import.meta.url).pathname,
+          'doctor',
+          '--json',
+        ],
+        {
+          env: {
+            PATH: process.env.PATH,
+            SPACE_ACCOUNT_HOME: join(root, 'accounts'),
+            PLAYWRIGHT_BROWSERS_PATH: join(root, 'browsers'),
+          },
+          stdout: 'pipe',
+          stderr: 'pipe',
+          stdin: 'ignore',
+        },
+      );
+      const [code, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      expect(code, stderr).toBe(0);
+      const result = JSON.parse(stdout).release;
+      if (redirect) expect(result.status).toBe('unavailable');
+      else {
+        expect(result.latest).toBe('99.0.0');
+        expect(result.url).toBe(`https://github.com/${repository}/releases/tag/soyli-v99.0.0`);
+      }
+      if (repository === 'soytec/napplet-soy') redirect = true;
+    }
+    expect(requests).toBe(3);
   } finally {
     server.stop(true);
     await rm(root, { recursive: true, force: true });

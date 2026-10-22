@@ -13,6 +13,8 @@ import { pathToFileURL } from 'node:url';
 import { generateSecretKey, getPublicKey } from 'nostr-tools';
 import { reasoningLimits } from './types';
 import { writeBinding } from '../../packages/publish/src/binding';
+import { dispatchStudio } from './dispatch';
+import catalog from '../../packages/backend/data/catalog.json';
 
 const cleanup: Array<() => Promise<unknown>> = [];
 
@@ -46,6 +48,48 @@ test('an existing remix remembers its imported manifest before inference without
   expect(loaded.preview).toBeUndefined();
   expect(loaded.checkpoints).toHaveLength(0);
   expect(calls).toBe(1);
+});
+
+test('merge dispatch requires explicit confirmation and refuses non-author reviews without inference', async () => {
+  let calls = 0;
+  const { studio } = await fixture({
+    model: 'fixture',
+    async run() {
+      calls++;
+    },
+  });
+  const session = studio.signing.connect(getPublicKey(generateSecretKey()));
+  const response = await dispatchStudio(studio, 'merge-reviews', {
+    session: session.id,
+    review: { proposal: 'a'.repeat(64), revision: 'a'.repeat(64), manifest: catalog[0].current },
+  });
+  const { id } = await response.json();
+  const project = await settled(studio);
+  expect(project.id).toBe(id);
+  expect(project.phase).toBe('failed');
+  expect(project.error?.code).toBe('STUDIO_MERGE_REVIEW');
+  expect(project.error?.message).toContain('original napplet author');
+  expect(project.preview).toBeUndefined();
+  expect(calls).toBe(0);
+  const confirmSession = studio.signing.connect(getPublicKey(generateSecretKey()));
+  await expect(
+    dispatchStudio(studio, `projects/${id}/merge-proposal`, {
+      session: confirmSession.id,
+      review: crypto.randomUUID(),
+      confirmed: false,
+    }),
+  ).rejects.toThrow();
+  await expect(
+    dispatchStudio(studio, `projects/${id}/merge-proposal`, {
+      session: confirmSession.id,
+      review: crypto.randomUUID(),
+      confirmed: true,
+    }),
+  ).rejects.toThrow('Prepare and play');
+  await expect(studio.send(id, 'Edit this review')).rejects.toMatchObject({
+    code: 'STUDIO_MERGE_PENDING',
+  });
+  await expect(studio.check(id)).rejects.toMatchObject({ code: 'STUDIO_MERGE_PENDING' });
 });
 
 test('a recording preparation prompt mentioning Publish reaches the maker', async () => {

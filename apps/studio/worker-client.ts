@@ -111,6 +111,8 @@ export class StudioWorker {
       preparePublication: (...args) => call('preparePublication', ...args),
       prepareProposal: (...args) => call('prepareProposal', ...args),
       propose: (...args) => call('propose', ...args),
+      reviewMerge: (...args) => call('reviewMerge', ...args),
+      mergeProposal: (...args) => call('mergeProposal', ...args),
       publish: (...args) => call('publish', ...args),
       refreshPublication: (...args) => call('refreshPublication', ...args),
       fixPublication: (...args) => call('fixPublication', ...args),

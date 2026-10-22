@@ -129,6 +129,8 @@ process.on('message', async (value: any) => {
         publish: studio.publish.bind(studio),
         prepareProposal: studio.prepareProposal.bind(studio),
         propose: studio.propose.bind(studio),
+        reviewMerge: studio.reviewMerge.bind(studio),
+        mergeProposal: studio.mergeProposal.bind(studio),
         refreshPublication: studio.refreshPublication.bind(studio),
         fixPublication: studio.fixPublication.bind(studio),
         publicationMedia: studio.publicationMedia.bind(studio),

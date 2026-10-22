@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { StudioSurface } from './surface';
 import { proposalInput } from './proposal';
+import { mergeInput } from './merge';
 import { listingSchema } from './publication';
 import { validSource } from './navigation';
 
@@ -97,6 +98,9 @@ export async function dispatchStudio(
         .parse(body);
       await studio.signing.reply(url.pathname.split('/').pop()!, input.requestId, input.event);
       result = { ok: true };
+    } else if (url.pathname === '/api/merge-reviews') {
+      const input = z.object({ session: z.uuid(), review: mergeInput }).strict().parse(body);
+      result = { id: await studio.reviewMerge(input.session, input.review) };
     } else if (url.pathname === '/api/projects') {
       const input = createSchema.parse(body);
       result = {
@@ -104,11 +108,18 @@ export async function dispatchStudio(
       };
     } else {
       const match =
-        /^\/api\/projects\/([a-f0-9-]{36})\/(messages|stop|check|restore|prepare-publication|publish|prepare-proposal|propose|refresh-publication|fix-publication)$/.exec(
+        /^\/api\/projects\/([a-f0-9-]{36})\/(messages|stop|check|restore|prepare-publication|publish|prepare-proposal|propose|merge-proposal|refresh-publication|fix-publication)$/.exec(
           url.pathname,
         );
       if (!match) return json({ error: 'Not found.' }, 404);
       const [, id, action] = match;
+      if (action === 'merge-proposal') {
+        const input = z
+          .object({ session: z.uuid(), review: z.uuid(), confirmed: z.literal(true) })
+          .strict()
+          .parse(body);
+        await studio.mergeProposal(id, input.session, input.review);
+      }
       if (action === 'messages') {
         const input = promptSchema
           .extend({

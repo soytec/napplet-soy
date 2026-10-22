@@ -211,7 +211,7 @@ function Create() {
         <p className="command-note">
           Run <code>soyli update</code> to install the latest stable GitHub release. Older versions
           without this command can rerun the installer from the{' '}
-          <a href="https://github.com/zeSchlausKwab/napplet-soy/releases/latest">latest release</a>.
+          <a href="https://github.com/soytec/napplet-soy/releases/latest">latest release</a>.
           Your identities, backups and project state stay in place; the old napplet-space command
           remains a compatibility alias. Restart running preview sessions, then run{' '}
           <code>soyli skills update</code> in each project to refresh its coding guidance.
@@ -227,13 +227,13 @@ function Create() {
           {(['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64'] as const).map((platform) => (
             <li key={platform}>
               <a
-                href={`https://github.com/zeSchlausKwab/napplet-soy/releases/download/soyli-v${release.version}/soyli-${platform}.tar.gz`}
+                href={`https://github.com/soytec/napplet-soy/releases/download/soyli-v${release.version}/soyli-${platform}.tar.gz`}
               >
                 {platform.replace('darwin', 'macOS')}
               </a>
               {' · '}
               <a
-                href={`https://github.com/zeSchlausKwab/napplet-soy/releases/download/soyli-v${release.version}/soyli-${platform}.tar.gz.sha256`}
+                href={`https://github.com/soytec/napplet-soy/releases/download/soyli-v${release.version}/soyli-${platform}.tar.gz.sha256`}
               >
                 SHA-256
               </a>

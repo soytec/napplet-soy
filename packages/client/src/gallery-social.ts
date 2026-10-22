@@ -4,7 +4,6 @@ import { validateManifest } from '../../protocol/src/manifest';
 import { socialScope, socialView, targetManifest } from '../../protocol/src/social';
 import { latestProfile } from '../../protocol/src/profile';
 import type { PublicNapplet } from '../../backend/src/public-model';
-import type { GallerySocialData, SocialCounts } from '../../backend/src/gallery-social';
 import type { ProtocolClient } from './nostr';
 import { resolveZapEndpoint, zapTotals, type ZapEndpoint } from './zaps';
 import type { ZapTotalsStore } from './zap-totals';
@@ -13,11 +12,18 @@ const chunks = <T>(items: T[], size: number) =>
   Array.from({ length: Math.ceil(items.length / size) }, (_, i) =>
     items.slice(i * size, (i + 1) * size),
   );
-type Counts = Omit<SocialCounts, 'liked'> & { likes: string[] };
+type Zaps = { zapCount: number | null; msats: number | null };
+export type GalleryCardState = Zaps & { liked: boolean };
+/** Like and comment totals come from NIP-45 COUNT; this covers what COUNT cannot answer. */
+export type GalleryZapData = {
+  counts: Record<string, GalleryCardState>;
+  zapped: PublicNapplet[];
+  refreshing: boolean;
+};
 
-/** Gallery summaries share relay reads; full conversation/profile hydration belongs to details. */
+/** Gallery summaries share relay reads for verified zap totals and the viewer's own likes. */
 export class GallerySocialReader {
-  private counts = new Map<string, Counts>();
+  private zaps = new Map<string, Zaps>();
   private endpoints = new Map<string, { until: number; value: Promise<ZapEndpoint> }>();
   private cursor = 0;
   constructor(
@@ -36,54 +42,66 @@ export class GallerySocialReader {
     return value;
   }
 
+  /** The viewer's likes and deletions are cached by the shared store, so this is synchronous. */
+  private liked(n: PublicNapplet, viewer: string) {
+    const scope = socialScope(n.manifest);
+    const events = this.client
+      .cached([
+        { kinds: [7], authors: [viewer], '#e': [n.revisionId] },
+        ...(scope.address ? [{ kinds: [7], authors: [viewer], '#a': [scope.address] }] : []),
+        { kinds: [5], authors: [viewer] },
+      ])
+      .filter(this.client.allowed);
+    return socialView(scope, events, new Map([[n.revisionId, n.manifest]])).likes.length > 0;
+  }
+
+  /** Reads up to 64 entries per call, visible cards first, rotating through the rest. */
   async read(
     entries: PublicNapplet[],
     viewer?: string,
     signal = AbortSignal.timeout(30000),
-    onUpdate?: (data: GallerySocialData) => void,
-  ): Promise<GallerySocialData> {
+    onUpdate?: (data: GalleryZapData) => void,
+    priority: ReadonlySet<string> = new Set(),
+  ): Promise<GalleryZapData> {
     signal.throwIfAborted();
     entries = entries.filter((n) => this.client.allowed(n.manifest));
     let running = true;
-    const snapshot = (): GallerySocialData => {
-      const rank = (field: 'likeCount' | 'commentCount' | 'msats') =>
-        entries
-          .filter((n) => (this.counts.get(socialScope(n.manifest).key)?.[field] ?? 0) > 0)
-          .sort(
-            (a, b) =>
-              (this.counts.get(socialScope(b.manifest).key)?.[field] ?? 0) -
-                (this.counts.get(socialScope(a.manifest).key)?.[field] ?? 0) ||
-              b.manifest.created_at - a.manifest.created_at ||
-              a.revisionId.localeCompare(b.revisionId),
-          )
-          .slice(0, 12);
-      return {
-        counts: Object.fromEntries(
-          entries.flatMap((n) => {
-            const count = this.counts.get(socialScope(n.manifest).key);
-            if (!count) return [];
-            const { likes, ...totals } = count;
-            return [[n.revisionId, { ...totals, liked: !!viewer && likes.includes(viewer) }]];
-          }),
-        ),
-        rankings: {
-          liked: rank('likeCount'),
-          commented: rank('commentCount'),
-          zapped: rank('msats'),
-        },
-        refreshing: running || entries.some((n) => !this.counts.has(socialScope(n.manifest).key)),
-      };
-    };
+    const snapshot = (): GalleryZapData => ({
+      counts: Object.fromEntries(
+        entries.flatMap((n) => {
+          const zaps = this.zaps.get(socialScope(n.manifest).key);
+          const liked = !!viewer && this.liked(n, viewer);
+          if (!zaps && !liked) return [];
+          return [[n.revisionId, { zapCount: null, msats: null, ...zaps, liked }]];
+        }),
+      ),
+      zapped: entries
+        .filter((n) => (this.zaps.get(socialScope(n.manifest).key)?.msats ?? 0) > 0)
+        .sort(
+          (a, b) =>
+            (this.zaps.get(socialScope(b.manifest).key)?.msats ?? 0) -
+              (this.zaps.get(socialScope(a.manifest).key)?.msats ?? 0) ||
+            b.manifest.created_at - a.manifest.created_at ||
+            a.revisionId.localeCompare(b.revisionId),
+        )
+        .slice(0, 12),
+      refreshing: running || entries.some((n) => !this.zaps.has(socialScope(n.manifest).key)),
+    });
     const emit = () => {
       if (!signal.aborted) onUpdate?.(snapshot());
     };
-    // Immediately reuse known counts on navigation/filter/account changes.
+    // Immediately reuse known totals on navigation/filter/account changes.
     emit();
-    const batch = Array.from(
-      { length: Math.min(64, entries.length) },
-      (_, i) => entries[(this.cursor + i) % entries.length],
-    );
-    this.cursor += batch.length;
+    const visible = entries.filter((n) => priority.has(n.revisionId));
+    const rest = entries.filter((n) => !priority.has(n.revisionId));
+    const batch = [
+      ...visible.slice(0, 64),
+      ...Array.from(
+        { length: Math.min(64 - Math.min(64, visible.length), rest.length) },
+        (_, i) => rest[(this.cursor + i) % rest.length],
+      ),
+    ];
+    this.cursor += batch.length - Math.min(64, visible.length);
     // Share compatible relay sets without dropping a publication's own hints to fit a batch.
     const groups: { entries: PublicNapplet[]; hints: string[] }[] = [];
     for (const n of batch) {
@@ -102,7 +120,7 @@ export class GallerySocialReader {
           while (next < groups.length) {
             signal.throwIfAborted();
             const group = groups[next++];
-            await this.readGroup(group.entries, group.hints, signal, emit);
+            await this.readGroup(group.entries, group.hints, viewer, signal, emit);
           }
         }),
       );
@@ -111,7 +129,7 @@ export class GallerySocialReader {
         throw failed.reason;
     } finally {
       running = false;
-      while (this.counts.size > 1000) this.counts.delete(this.counts.keys().next().value!);
+      while (this.zaps.size > 1000) this.zaps.delete(this.zaps.keys().next().value!);
     }
     signal.throwIfAborted();
     emit();
@@ -121,6 +139,7 @@ export class GallerySocialReader {
   private async readGroup(
     group: PublicNapplet[],
     hints: string[],
+    viewer: string | undefined,
     signal: AbortSignal,
     emit: () => void,
   ) {
@@ -128,92 +147,59 @@ export class GallerySocialReader {
     const scopes = group.map((n) => socialScope(n.manifest));
     const ids = group.map((n) => n.revisionId);
     const addresses = [...new Set(scopes.flatMap((s) => (s.address ? [s.address] : [])))];
-    const pinned = scopes.filter((s) => !s.address).map((s) => s.eventId);
     const filters: Filter[] = [
-      { kinds: [7, 9735], '#e': ids, limit: 500 },
-      ...(addresses.length
+      { kinds: [9735], '#e': ids, limit: 500 },
+      ...(addresses.length ? [{ kinds: [9735], '#a': addresses, limit: 500 }] : []),
+      ...(viewer
         ? [
-            { kinds: [1111], '#A': addresses, limit: 500 },
-            { kinds: [7, 9735], '#a': addresses, limit: 500 },
+            { kinds: [7], authors: [viewer], '#e': ids, limit: 200 },
+            ...(addresses.length
+              ? [{ kinds: [7], authors: [viewer], '#a': addresses, limit: 200 }]
+              : []),
+            { kinds: [5], authors: [viewer], limit: 200 },
           ]
         : []),
-      ...(pinned.length ? [{ kinds: [1111], '#E': pinned, limit: 500 }] : []),
     ];
     const raw = new Map(
-      this.client.store
-        .getByFilters(filters)
+      this.client
+        .cached(filters)
         .slice(0, 1000)
         .map((e) => [e.id, e]),
     );
     const manifests = new Map(group.map((n) => [n.revisionId, n.manifest]));
     const allowedEvents = () => [...raw.values()].filter(this.client.allowed);
-    let complete = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const update = () => {
-      clearTimeout(timer);
-      timer = undefined;
-      if (signal.aborted) return;
-      const events = allowedEvents();
-      for (const [i, n] of group.entries()) {
-        const view = socialView(scopes[i], events, manifests);
-        const previous = this.counts.get(socialScope(n.manifest).key);
-        // Until a relay has answered, absent data remains unknown, not a fabricated zero.
-        if (!complete && !previous && !view.likes.length && !view.comments.length) continue;
-        this.counts.set(socialScope(n.manifest).key, {
-          likeCount: view.likeCount,
-          likes: view.likes.map((e) => e.pubkey),
-          commentCount: view.comments.filter((e) => !e.deleted).length,
-          zapCount: previous?.zapCount ?? null,
-          msats: previous?.msats ?? null,
-        });
-      }
-      emit();
-    };
-    const cachedAuthors = new Set<string>();
     const add = (event: SignedEvent) => {
       if (signal.aborted || raw.size >= 2000 || !this.client.allowed(event)) return;
       raw.set(event.id, event);
-      if ([7, 1111].includes(event.kind) && !cachedAuthors.has(event.pubkey)) {
-        cachedAuthors.add(event.pubkey);
-        for (const deletion of this.client
-          .cached([{ kinds: [5], authors: [event.pubkey] }])
-          .slice(0, 200)) {
-          if (raw.size < 2000 && this.client.allowed(deletion)) raw.set(deletion.id, deletion);
-        }
-      }
       // Coalesce a relay's event burst into one render, without waiting for EOSE.
-      timer ??= setTimeout(update, 40);
+      timer ??= setTimeout(() => {
+        timer = undefined;
+        emit();
+      }, 40);
     };
     const dependencies = () => {
+      const receipts = [...raw.values()].filter((e) => e.kind === 9735);
       const refs = [
         ...new Set(
-          [...raw.values()].flatMap((e) =>
-            e.tags
-              .filter((t) => ['e', 'E'].includes(t[0]) && /^[a-f0-9]{64}$/.test(t[1]))
-              .map((t) => t[1]),
+          receipts.flatMap((e) =>
+            e.tags.filter((t) => t[0] === 'e' && /^[a-f0-9]{64}$/.test(t[1])).map((t) => t[1]),
           ),
         ),
       ]
         .filter((id) => !manifests.has(id) && !raw.has(id))
         .slice(0, 128);
-      const authors = [
-        ...new Set(
-          [...raw.values()].filter((e) => [7, 1111].includes(e.kind)).map((e) => e.pubkey),
-        ),
-      ].slice(0, 256);
       const zapAuthors = group
         .filter((n, i) =>
-          [...raw.values()].some(
+          receipts.some(
             (e) =>
-              e.kind === 9735 &&
-              (e.tags.some((t) => t[0] === 'a' && t[1] === scopes[i].address) ||
-                e.tags.some((t) => t[0] === 'e' && t[1] === n.revisionId)),
+              e.tags.some((t) => t[0] === 'a' && t[1] === scopes[i].address) ||
+              e.tags.some((t) => t[0] === 'e' && t[1] === n.revisionId),
           ),
         )
         .map((n) => n.pubkey);
       return [
-        ...chunks(refs, 64).map((ids) => ({ ids, kinds: [35129, 15129, 5129, 1111], limit: 200 })),
-        ...chunks(authors, 64).map((authors) => ({ kinds: [5], authors, limit: 200 })),
+        ...chunks(refs, 64).map((ids) => ({ ids, kinds: [35129, 15129, 5129], limit: 200 })),
         ...(zapAuthors.length
           ? [{ kinds: [0], authors: [...new Set(zapAuthors)], limit: 64 }]
           : []),
@@ -229,21 +215,14 @@ export class GallerySocialReader {
         }
     };
     try {
-      // Cached deletions/revisions must apply before rendering cached reactions.
-      const cached = dependencies();
-      if (cached.length) this.client.cached(cached).forEach(add);
-      await validateReferences();
-      update();
       await this.client.query(filters, hints, signal, add);
-      complete = true;
-      update();
+      emit();
       const related = dependencies();
       if (related.length) {
         await this.client.query(related, hints, signal, add);
         await validateReferences();
       }
-      update();
-      // Receipt verification never gates likes/comments, and empty threads need no LNURL request.
+      // Receipt verification is per napplet; threads without receipts need no LNURL request.
       let next = 0;
       await Promise.all(
         Array.from({ length: 3 }, async () => {
@@ -252,7 +231,7 @@ export class GallerySocialReader {
               n = group[i],
               scope = scopes[i];
             signal.throwIfAborted();
-            let totals: { zapCount: number; msats: number } | null = null;
+            let totals: Zaps = { zapCount: null, msats: null };
             if (!n.manifest.tags.some((t) => t[0] === 'zap')) {
               const events = allowedEvents().filter(
                 (e) => e.kind !== 9735 || targetManifest(e, scope, manifests),
@@ -270,12 +249,7 @@ export class GallerySocialReader {
                 } catch {}
             }
             signal.throwIfAborted();
-            const value = this.counts.get(socialScope(n.manifest).key)!;
-            this.counts.set(socialScope(n.manifest).key, {
-              ...value,
-              zapCount: totals?.zapCount ?? null,
-              msats: totals?.msats ?? null,
-            });
+            this.zaps.set(scope.key, totals);
             emit();
           }
         }),

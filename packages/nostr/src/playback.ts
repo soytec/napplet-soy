@@ -71,7 +71,7 @@ export interface PlaybackReadPool {
 }
 export function directReadPool(pool = new RelayPool()): PlaybackReadPool {
   return {
-    req: (relays, filters) => pool.req(relays, filters, { reconnect: false, waitForAuth: false }),
+    req: (relays, filters) => pool.req(relays, filters),
     close: () => pool.close(),
   };
 }

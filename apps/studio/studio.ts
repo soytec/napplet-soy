@@ -25,7 +25,13 @@ import { run } from './process';
 import { connectionInput, type Connections } from './connections';
 import { defaultSteps } from './connections-model';
 import { z } from 'zod';
-import { taskInstructions, inferenceTimeoutMs, type Agent, type AgentEvent } from './agent';
+import {
+  taskInstructions,
+  nativeCheckInstructions,
+  inferenceTimeoutMs,
+  type Agent,
+  type AgentEvent,
+} from './agent';
 import { reasoningLimits, working, type Check, type Project, type StudioState } from './types';
 import { recordWorkshop } from './workshop';
 import { publishProgress } from './publication-progress';
@@ -41,6 +47,9 @@ import {
   type PublicationHooks,
 } from './publication';
 import { prepareProposal, proposeReviewed } from './proposal';
+import { proposalProgress } from './proposal-progress';
+import { mergeInput, prepareMerge, freezeMerge, submitMerge } from './merge';
+import { nip19 } from 'nostr-tools';
 import { publicationStatus, type PublishOptions } from '../../packages/publish/src';
 import { BrowserBuilds, browserBuildInput } from './browser-build';
 import { builtConfiguration } from '../../packages/publish/src/artifact';
@@ -114,6 +123,8 @@ export class Studio {
         }
         if (project.proposal?.attempt?.status === 'running')
           project.proposal.attempt.status = 'failed';
+        if (project.merge && ['preparing', 'publishing'].includes(project.merge.status))
+          project.merge.status = 'failed';
         if (project.publication?.attempt?.status === 'running') {
           project.publication.attempt.status = 'failed';
           project.publication.attempt.stage =
@@ -232,6 +243,7 @@ export class Studio {
   async importAsset(id: string, input: unknown, bytes: Uint8Array) {
     return this.exclusive(async () => {
       const p = this.project(id);
+      this.editable(p);
       if (!p.initialized)
         throw new DiagnosticError(
           'STUDIO_ASSET',
@@ -340,9 +352,129 @@ export class Studio {
     this.launch(p, (signal) => this.turn(p, prompt, signal, browserSession));
     return p.id;
   }
+  private editable(p: Project) {
+    if (p.merge && p.merge.status !== 'merged')
+      throw new DiagnosticError(
+        'STUDIO_MERGE_PENDING',
+        'This workspace is a pinned merge review.',
+        {
+          recovery:
+            'Finish the reviewed merge before editing or publishing. For a changed proposal, prepare a fresh review from the original napplet.',
+        },
+      );
+  }
+  async reviewMerge(session: string, raw: unknown) {
+    this.available();
+    const input = mergeInput.parse(raw),
+      pubkey = this.signing.pubkey(session);
+    const p: Project = {
+      id: crypto.randomUUID(),
+      title: 'Proposal merge review',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      phase: 'preparing',
+      stage: 'Preparing a private merge review',
+      messages: [],
+      activity: [],
+      checks: [],
+      checkpoints: [],
+      estimatedCost: 0,
+      steps: 0,
+      merge: { status: 'preparing', detail: 'Checking the original author and source.' },
+    };
+    this.projects.unshift(p);
+    this.launch(p, async (signal) => {
+      try {
+        const review = await prepareMerge(
+          this.workspace(p.id),
+          input,
+          pubkey,
+          signal,
+          async (detail) => {
+            p.merge!.detail = detail;
+            await this.stage(p, 'preparing', detail);
+          },
+        );
+        p.merge!.review = review;
+        p.initialized = true;
+        p.baseline = review.target;
+        p.source =
+          'nostr:' +
+          nip19.naddrEncode({
+            kind: 35129,
+            pubkey,
+            identifier: review.manifest.tags.find((t) => t[0] === 'd')![1],
+          });
+        p.title =
+          'Review: ' + (review.manifest.tags.find((t) => t[0] === 'title')?.[1] ?? 'proposal');
+        await this.prepare(p, signal);
+        p.merge!.detail = 'Building and checking the actual merged source in isolation.';
+        await this.verify(p, signal);
+        p.merge!.review = await freezeMerge(this.workspace(p.id), review);
+        p.merge!.status = 'review';
+        p.merge!.detail =
+          'Play the merged build and inspect Changes, then confirm the source update.';
+        this.message(
+          p,
+          'system',
+          'This is a private merge candidate rebuilt from the proposal and current target branch. Review its changes and play it before confirming. The upstream and published napplet have not changed.',
+        );
+        await this.stage(p, 'ready', 'Merge ready for your review');
+      } catch (error) {
+        p.merge!.status = 'failed';
+        throw error;
+      } finally {
+        this.signing.end(session);
+      }
+    });
+    return p.id;
+  }
+  async mergeProposal(id: string, session: string, reviewId: string) {
+    this.available();
+    const p = this.project(id),
+      review = p.merge?.review;
+    if (
+      !review?.commit ||
+      review.id !== reviewId ||
+      !p.preview ||
+      !['review', 'failed'].includes(p.merge!.status)
+    )
+      throw new Error('Prepare and play the checked merge candidate first.');
+    if (this.signing.pubkey(session) !== review.pubkey)
+      throw new Error('Connect the original author account.');
+    p.error = undefined;
+    p.merge!.status = 'publishing';
+    p.phase = 'publishing';
+    this.launch(p, async (signal) => {
+      try {
+        const result = await submitMerge(
+          this.workspace(id),
+          review,
+          this.signing.accounts(session, signal),
+          signal,
+          async (detail) => {
+            p.merge!.detail = detail;
+            await this.stage(p, 'publishing', detail);
+          },
+        );
+        p.merge!.status = 'merged';
+        p.merge!.detail = result.supersededProposals.length
+          ? 'Source updated. A newer proposal revision arrived during delivery; its status was not changed. Review it from My work.'
+          : 'Source merged and proposal status confirmed. Use Publish to update the original napplet when ready.';
+        this.message(p, 'system', p.merge!.detail);
+        await this.stage(p, 'ready', 'Source merged · release not published');
+      } catch (error) {
+        p.merge!.status = 'failed';
+        throw error;
+      } finally {
+        this.signing.end(session);
+      }
+    });
+  }
   async send(id: string, prompt: string, browserSession?: string, reviewPublication = false) {
     this.available();
     const p = this.project(id);
+    this.editable(p);
     this.message(p, 'user', prompt);
     delete p.publicationIntent;
     if (
@@ -566,7 +698,7 @@ export class Studio {
       this.workspace(p.id),
       (browserSession
         ? taskInstructions.replace(
-            'Use soyli run verify, soyli check and soyli run test:conformance. Repair failures rather than weakening checks. The controller independently repeats verification and owns previews: do not start a dev server.',
+            nativeCheckInstructions,
             'This turn uses the experimental browser compiler. Use studio_check after your first playable edit and after fixes to get real TypeScript and build diagnostics. Wait for its result before editing again. Repair those errors in this turn, then finish your reply. Do not run soyli, package scripts, host build tools, tests or a dev server. Studio independently checks again at the end. Full soyLI/conformance verification is deferred to Publish. Never claim those full checks passed.',
           )
         : taskInstructions) +
@@ -701,10 +833,14 @@ export class Studio {
     if (await this.protectedFiles(p, signal))
       throw new DiagnosticError(
         'STUDIO_GUARDRAIL',
-        'The agent changed protected guidance, dependencies or checks.',
+        p.merge && p.merge.status !== 'merged'
+          ? 'This proposal changes guidance, dependencies or checks outside Studio’s merge profile.'
+          : 'The agent changed protected guidance, dependencies or checks.',
         {
           recovery:
-            'Inspect Changes and restore the affected files before continuing. No preview was promoted.',
+            p.merge && p.merge.status !== 'merged'
+              ? 'Review and merge this proposal locally with soyLI or ngit. The upstream was not changed.'
+              : 'Inspect Changes and restore the affected files before continuing. No preview was promoted.',
         },
       );
     await this.requireImplementation(p, signal);
@@ -770,6 +906,8 @@ export class Studio {
       p.stage = name;
       if (p.publication?.progress?.step === 0)
         p.publication.progress = { ...p.publication.progress, detail: name, at: Date.now() };
+      if (p.proposal?.progress?.step === 0)
+        p.proposal.progress = { ...p.proposal.progress, detail: name, at: Date.now() };
       await this.save();
       try {
         const result = await this.command(p, [...this.options.soyli, ...args], signal, name);
@@ -923,6 +1061,7 @@ export class Studio {
   async check(id: string, browserSession?: string) {
     this.available();
     const p = this.project(id);
+    this.editable(p);
     if (p.publication) delete p.publication.review;
     if (p.proposal) delete p.proposal.review;
     p.error = undefined;
@@ -935,6 +1074,7 @@ export class Studio {
   async restore(id: string, commit: string) {
     this.available();
     const p = this.project(id);
+    this.editable(p);
     if (p.publication) delete p.publication.review;
     if (p.proposal) delete p.proposal.review;
     if (!p.checkpoints.some((c) => c.commit === commit))
@@ -966,11 +1106,13 @@ export class Studio {
     this.available();
     const p = this.project(id),
       pubkey = this.signing.pubkey(session);
+    this.editable(p);
     p.proposal ??= {};
     delete p.proposal.review;
     p.error = undefined;
     p.phase = 'preparing_release';
     p.stage = 'Preparing your proposal';
+    p.proposal.progress = proposalProgress('check', 'Checking your source, build and sandbox.');
     this.launch(p, async (signal) => {
       p.proposal!.review = await prepareProposal(
         this.workspace(id),
@@ -987,6 +1129,11 @@ export class Studio {
         'system',
         'Your proposal is ready for review. Confirm its source revision and upstream repository before submitting.',
       );
+      p.proposal!.progress = {
+        step: 1,
+        detail: 'Play the preview and review your changes. Nothing is shared until you confirm.',
+        at: Date.now(),
+      };
       await this.stage(p, 'ready', 'Proposal ready for review');
     });
   }
@@ -1002,6 +1149,7 @@ export class Studio {
     p.phase = 'publishing';
     p.stage = 'Submitting your proposal';
     p.proposal!.attempt = { review, status: 'running' };
+    p.proposal!.progress = proposalProgress('check', 'Rechecking the reviewed revision.');
     this.launch(p, async (signal) => {
       try {
         const result = await proposeReviewed(
@@ -1013,8 +1161,18 @@ export class Studio {
           'public',
           this.options.publicationCheck &&
             ((contents) => this.options.publicationCheck!(contents, signal)),
+          async (stage, detail) => {
+            p.proposal!.progress = proposalProgress(stage, detail);
+            await this.stage(p, 'publishing', detail);
+          },
         );
         p.proposal!.attempt = { review, status: 'proposed', result };
+        p.proposal!.progress = {
+          step: 6,
+          complete: true,
+          detail: 'The proposal and its exact source revision were fetched back successfully.',
+          at: Date.now(),
+        };
         this.message(
           p,
           'system',
@@ -1039,6 +1197,7 @@ export class Studio {
   async preparePublication(id: string, session: string, input: Listing) {
     this.available();
     const p = this.project(id);
+    this.editable(p);
     const pubkey = this.signing.pubkey(session);
     p.publication ??= {};
     delete p.publication.review;
@@ -1082,6 +1241,7 @@ export class Studio {
         p.publication!.preparationFailed = true;
         throw error;
       }
+      if (p.merge?.status === 'merged') review.previousCurrent = p.merge.review?.manifest;
       p.publication!.review = review;
       p.publication!.progress = {
         step: 2,

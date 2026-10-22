@@ -71,12 +71,19 @@ test('gallery social locks, counts, ranking rails, focused comments and anonymou
     port: 0,
     fetch(request, server) {
       if (server.upgrade(request)) return;
-      return new Response('relay');
+      // Gallery like/comment totals use NIP-45 COUNT, selected through NIP-11.
+      return Response.json(
+        { supported_nips: [1, 11, 45] },
+        { headers: { 'access-control-allow-origin': '*' } },
+      );
     },
     websocket: {
       message(socket, raw) {
         const message = JSON.parse(String(raw));
-        if (message[0] === 'REQ') {
+        if (message[0] === 'COUNT') {
+          const count = [...events.values()].filter((e) => matchFilters(message.slice(2), e));
+          socket.send(JSON.stringify(['COUNT', message[1], { count: count.length }]));
+        } else if (message[0] === 'REQ') {
           for (const e of events.values())
             if (matchFilters(message.slice(2), e))
               socket.send(JSON.stringify(['EVENT', message[1], e]));
@@ -143,6 +150,13 @@ test('gallery social locks, counts, ranking rails, focused comments and anonymou
     }, getPublicKey(key));
     const walletOptions = { plainDescription: false };
     const wallet = await directWallet(page, events, key, relayUrl, walletOptions);
+    // directWallet aliases wss://relay.example's WebSocket; its NIP-11 document is HTTP.
+    await page.route('https://relay.example/', async (route) =>
+      route.fulfill({
+        json: await (await fetch(`http://127.0.0.1:${relay.port}/`)).json(),
+        headers: { 'access-control-allow-origin': '*' },
+      }),
+    );
     await page.route('http://localhost:19348/*', async (route) => {
       const hash = new URL(route.request().url()).pathname.slice(1);
       const file = Bun.file(join(root, 'packages/backend/data/artifacts', `${hash}.html`));

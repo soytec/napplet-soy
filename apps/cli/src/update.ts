@@ -10,7 +10,11 @@ import {
 import { packagedBy, standalone, version } from './distribution';
 import installer from '../../web/public/install.sh' with { type: 'text' };
 
-export const releaseRepository = 'zeSchlausKwab/napplet-soy';
+export const releaseRepository = 'soytec/napplet-soy';
+const previousReleaseRepository = 'zeSchlausKwab/napplet-soy';
+// Repository IDs survive ownership transfers without an API redirect. Keep the
+// update channel tied to this repository until soyLI is extracted separately.
+const releaseRepositoryId = 1370998066;
 export const releasesUrl = `https://github.com/${releaseRepository}/releases`;
 export const stableVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const platforms = ['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64'];
@@ -27,7 +31,8 @@ export function compareVersions(left: string, right: string) {
 function releaseEndpoint() {
   // Loopback override exercises the real entrypoint without contacting GitHub in tests.
   const override = process.env.SOYLI_RELEASE_API;
-  if (!override) return `https://api.github.com/repos/${releaseRepository}/releases/latest`;
+  if (!override)
+    return `https://api.github.com/repositories/${releaseRepositoryId}/releases/latest`;
   const url = new URL(override);
   if (
     url.protocol !== 'http:' ||
@@ -53,6 +58,7 @@ export function parseRelease(data: unknown, platform = `${process.platform}-${pr
     draft?: unknown;
     prerelease?: unknown;
     assets?: unknown;
+    html_url?: unknown;
   } | null;
   const latest =
     typeof release?.tag_name === 'string' ? release.tag_name.replace(/^soyli-v/, '') : '';
@@ -82,7 +88,11 @@ export function parseRelease(data: unknown, platform = `${process.platform}-${pr
       'UPDATE_ASSETS',
       `Release ${latest} is missing the archive or checksum for ${platform}.`,
     );
-  return { version: latest, url: `${releasesUrl}/tag/soyli-v${latest}` };
+  const url = `${releasesUrl}/tag/soyli-v${latest}`;
+  const previousUrl = `https://github.com/${previousReleaseRepository}/releases/tag/soyli-v${latest}`;
+  // Display the pre-transfer location while it is still canonical. Never use
+  // arbitrary metadata URLs as installer sources or recovery links.
+  return { version: latest, url: release.html_url === previousUrl ? previousUrl : url };
 }
 
 export async function latestRelease(signal?: AbortSignal) {

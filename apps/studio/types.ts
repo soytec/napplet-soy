@@ -4,6 +4,7 @@ import type { ProposalState } from './proposal';
 import type { PublicationState } from './publication';
 import type { StudioJob } from './store';
 import type { AgentFinishReason } from './agent';
+import type { MergeState } from './merge';
 
 export type Phase =
   | 'idle'
@@ -62,6 +63,7 @@ export type Project = {
   error?: Diagnostic;
   publication?: PublicationState;
   proposal?: ProposalState;
+  merge?: MergeState;
   publicationIntent?: string;
   estimatedCost: number;
   steps: number;

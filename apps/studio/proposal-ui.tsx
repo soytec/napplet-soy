@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { nip19 } from 'nostr-tools';
 import type { Project } from './types';
 import type { usePublicationSigner } from './publication-ui';
+import { ProposalProgressPanel } from './proposal-progress-ui';
 
 export function ProposalDialog({
   project: p,
@@ -23,7 +24,12 @@ export function ProposalDialog({
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(false);
   const review = retry ? p.proposal?.attempt?.review : p.proposal?.review;
-  const result = p.proposal?.attempt?.status === 'proposed' ? p.proposal.attempt.result : undefined;
+  const result =
+    p.proposal?.attempt?.status === 'proposed' &&
+    (p.proposal.progress?.complete ||
+      (!p.proposal.progress && p.proposal.review?.id === p.proposal.attempt.review.id))
+      ? p.proposal.attempt.result
+      : undefined;
   useEffect(() => {
     dialog.current?.showModal();
   }, []);
@@ -91,9 +97,9 @@ export function ProposalDialog({
             {p.error?.recovery}
           </p>
         )}
+        <ProposalProgressPanel project={p} signing={signer.status} />
         {busy && (
           <p role="status">
-            {p.stage}{' '}
             <button onClick={() => void call(() => api(`projects/${p.id}/stop`, {}))}>Stop</button>
           </p>
         )}
