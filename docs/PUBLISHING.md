@@ -406,3 +406,11 @@ older jobs. Editable legacy HTML and committed source archives stay source; buil
 write the declarations into `dist/index.html`. See [asset coverage and backup limits](ASSETS.md#related-resource-links--soyli-0253).
 soyLI 0.25.3 prepares these declarations without requiring a host deployment.
 Existing napplets remain valid; rebuild and publish to add links to a future revision.
+
+After source confirmation, publication also delivers merged statuses for included
+Git proposals, using the same ancestry and revision checks as `soyli push`. A
+separate push is unnecessary for hosted releases. Signed statuses are journaled
+and retried with `publish --resume`; newer proposal revisions remain open. Linked
+source retries revalidate the saved target branch against signed state and the
+served Git branch before announcing a merge; a tag alone is not sufficient.
+See [proposal reconciliation and linked-source limits](COLLABORATION.md#proposal-status-during-publication).

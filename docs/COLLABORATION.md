@@ -125,8 +125,8 @@ An agent can merge the exact reviewed revision and target:
 
 ```sh
 soyli merge <proposal-id> --revision <reviewed-event-id> --target <reviewed-local-HEAD>
-soyli push       # publish Git state and merged status, without a napplet release
-soyli publish    # deliberately release the merged napplet
+soyli publish    # publish hosted Git source, mark included proposals merged, and release
+# Or use soyli push to publish Git state and merged status without a napplet release
 ```
 
 Merging does not delete the proposal, its revisions or discussion. `soyli push`
@@ -234,3 +234,26 @@ order, filtering unsupported alternatives before applying that limit. An SSH or
 other unsupported alternative does not block a usable HTTPS host (loopback HTTP
 in the explicit local profile). No eligible host produces an actionable error before
 preview preparation or upload. The repository announcement is unchanged.
+
+### Proposal status during publication
+
+`soyli publish` also marks included open/draft Git proposals merged after confirming
+source delivery. It shares `push`'s ancestry, target-branch and current-revision
+checks; unrelated proposals and patches are left alone. Signed applied events are
+saved in the release journal before source delivery and reused by
+`soyli publish --resume` after a failure. A newer proposal revision is never closed
+by an older saved acceptance.
+
+For hosted source, this applies to the published `main` branch. Linked repositories
+remain read-only for Git/state: status reconciliation applies when the checked-out
+branch's signed tip equals the release commit and the selected author is an
+announced maintainer. Other linked branch layouts remain publishable without
+automatic status changes. Relay hints from the source URL remain usable even when
+the announcement omits its optional `relays` tag.
+
+The release journal pins the reviewed target branch alongside its signed statuses.
+Before sending them, including on resume, soyLI rechecks that branch's signed tip,
+maintainer authority and the clone's served branch. A tag retaining the release
+commit does not prove the target was merged. A changed or unknown target stops
+status delivery with an actionable error; correcting the target lets resume reuse
+the original signatures. Switching local branches does not retarget saved statuses.

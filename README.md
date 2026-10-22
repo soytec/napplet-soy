@@ -140,7 +140,8 @@ soyli review
 
 The review workbench lists proposals, runs the original and proposed versions, and
 shows the diff and discussion. Accepting merges locally. `soyli push` shares the
-Git update; `soyli publish` releases the improved napplet. Ordinary Git and ngit
+Git update; `soyli publish` releases the improved napplet and marks included
+proposals merged after hosted source delivery, without a separate push. Ordinary Git and ngit
 remain available. [Full collaboration workflow](docs/COLLABORATION.md).
 
 ## Open source. Open infrastructure.
