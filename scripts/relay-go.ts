@@ -1,6 +1,7 @@
 import { cp, chmod, mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
+import { countPatches } from './relay-count-patches';
 import { DiagnosticError, ToolOutput, diagnose, formatDiagnostic } from '../packages/diagnostics/src';
 
 const root = resolve(import.meta.dir, '..');
@@ -69,6 +70,7 @@ export async function relayGo(args: string[]) {
     if ((await writable.exited) !== 0)
       throw new Error('Could not prepare the isolated relay dependency copy.');
     const patches = [
+      ...countPatches,
       {
         file: 'event.go',
         sha256: '41f74d5ac62e18df2bd84c829e44ef71716482e45d462800e1c04613cde9afe1',

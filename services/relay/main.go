@@ -101,11 +101,15 @@ func newRelayWithBudgetClock(store *eventStore, now func() time.Time) *khatru.Re
 	// events are never counted. Budgets are applied inside Count; see waitCount.
 	relay.OnCount = func(ctx context.Context, f nostr.Filter) (bool, string) { return filterLimits(f) }
 	relay.Count = func(ctx context.Context, f nostr.Filter) (uint32, error) {
-		total, _, err := countEvents(ctx, store, budgets, f, -1)
+		total, _, err := countEvents(ctx, store, budgets, []nostr.Filter{f}, -1)
+		return total, err
+	}
+	relay.CountFilters = func(ctx context.Context, filters []nostr.Filter) (uint32, error) {
+		total, _, err := countEvents(ctx, store, budgets, filters, -1)
 		return total, err
 	}
 	relay.CountHLL = func(ctx context.Context, f nostr.Filter, offset int) (uint32, *hyperloglog.HyperLogLog, error) {
-		return countEvents(ctx, store, budgets, f, offset)
+		return countEvents(ctx, store, budgets, []nostr.Filter{f}, offset)
 	}
 	relay.PreventBroadcast = func(ws *khatru.WebSocket, f nostr.Filter, e nostr.Event) bool {
 		if store.moderation.blocked(e) {
@@ -138,27 +142,44 @@ func filterLimits(f nostr.Filter) (bool, string) {
 // The most events a COUNT or NIP-77 session reads; larger sets report this cap.
 const maxCount = 5000
 
-func countEvents(ctx context.Context, store *eventStore, budgets *connectionBudgets, f nostr.Filter, offset int) (uint32, *hyperloglog.HyperLogLog, error) {
+func countEvents(ctx context.Context, store *eventStore, budgets *connectionBudgets, filters []nostr.Filter, offset int) (uint32, *hyperloglog.HyperLogLog, error) {
 	if !budgets.waitCount(ctx) {
 		return 0, nil, fmt.Errorf("rate-limited: count budget exceeded")
 	}
 	if err := store.check(); err != nil {
 		return 0, nil, err
 	}
-	// A COUNT limit is not a page size; count the whole visible set.
-	f.Limit = 0
 	var hll *hyperloglog.HyperLogLog
 	if offset >= 0 {
 		hll = hyperloglog.New(offset)
 	}
-	total := uint32(0)
-	for e := range store.queryStored(f, maxCount, false) {
-		total++
-		if hll != nil {
-			hll.Add(e.PubKey)
+	seen := make(map[nostr.ID]struct{})
+	for _, f := range filters {
+		// COUNT ignores paging limits, including an explicit limit of zero.
+		f.Limit, f.LimitZero = 0, false
+		for e := range store.queryStored(f, maxCount, false) {
+			if _, duplicate := seen[e.ID]; duplicate {
+				continue
+			}
+			seen[e.ID] = struct{}{}
+			if hll != nil {
+				hll.Add(e.PubKey)
+			}
+			if len(seen) == maxCount {
+				break
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			return 0, nil, err
+		}
+		if len(seen) == maxCount {
+			break
 		}
 	}
-	return total, hll, nil
+	if err := store.check(); err != nil {
+		return 0, nil, err
+	}
+	return uint32(len(seen)), hll, nil
 }
 
 func main() {

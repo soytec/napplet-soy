@@ -66,6 +66,17 @@ func TestCountMatchesVisibleEvents(t *testing.T) {
 	if got != 3 || !hll {
 		t.Fatalf("expected 3 likes with HyperLogLog registers, got %d (hll %v)", got, hll)
 	}
+	// Even with an HLL-eligible first filter, a multi-filter answer counts the
+	// union once and omits registers rather than applying that filter's offset.
+	ws.WriteJSON([]any{"COUNT", "overlapping-hll", byEvent, byAddress})
+	msg := read(t, ws)
+	var union struct {
+		Count uint32 `json:"count"`
+		HLL   string `json:"hll"`
+	}
+	if len(msg) != 3 || string(msg[0]) != `"COUNT"` || json.Unmarshal(msg[2], &union) != nil || union.Count != 3 || union.HLL != "" {
+		t.Fatalf("expected 3 distinct visible reactions without HLL, got %s", msg)
+	}
 	// A COUNT limit is not a page size.
 	limited := byAddress
 	limited.Limit = 1

@@ -22,7 +22,8 @@ export async function relayBuildID() {
   ].sort();
   for (const file of files)
     hash.update(file).update(await Bun.file(resolve(root, 'services/relay', file)).bytes());
-  hash.update(await Bun.file(resolve(root, 'scripts/relay-go.ts')).bytes());
+  for (const file of ['scripts/relay-go.ts', 'scripts/relay-count-patches.ts'])
+    hash.update(file).update(await Bun.file(resolve(root, file)).bytes());
   return hash.digest('hex').slice(0, 16);
 }
 export async function buildRelay(output = relayBinary) {
