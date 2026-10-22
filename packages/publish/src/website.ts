@@ -17,6 +17,7 @@ export async function confirmWebsite(
   options: {
     signal?: AbortSignal;
     timeoutMs?: number;
+    wait?: boolean;
     fetch?: (url: URL, init: RequestInit) => Promise<Response>;
   } = {},
 ): Promise<WebsiteCheck> {
@@ -81,6 +82,7 @@ export async function confirmWebsite(
         break;
       }
       reason = 'pending';
+      if (options.wait === false) break;
       await new Promise<void>((resolve) => {
         if (signal.aborted) return resolve();
         const finish = () => {

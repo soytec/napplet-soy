@@ -6,7 +6,7 @@ export const getProjectLinks = createServerFn({ method: 'GET' }).handler(() => {
   for (const [label, value, host] of [
     [
       'GitHub',
-      process.env.SPACE_SOURCE_GITHUB_URL ?? 'https://github.com/zeSchlausKwab/napplet-soy',
+      process.env.SPACE_SOURCE_GITHUB_URL ?? 'https://github.com/soytec/napplet-soy',
       'github.com',
     ],
     ['Gitworkshop', process.env.SPACE_SOURCE_GITWORKSHOP_URL, 'gitworkshop.dev'],

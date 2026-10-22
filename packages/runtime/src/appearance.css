@@ -1,85 +1,123 @@
-/* Shared shell and local workshop palette. Artwork and iframe contents are independent. */
+/* Shared theme: edit colors, type families and shell geometry here.
+   Used by the website, Studio and the local soyLI workshop. Napplet iframe artwork
+   stays independent. Web font files are loaded in apps/web/src/styles.css. */
 :root {
+  --font-body: 'DM Sans', sans-serif;
+  --font-display: 'Fredoka', var(--font-body);
+  --font-editorial: Georgia, 'Times New Roman', serif;
+  --font-code: 'DM Mono', monospace;
+  --mono: var(--font-code);
+  --font-mono: var(--font-code);
+  --shell-width: 1440px;
+  --shell-gutter: 64px;
+  /* Echo the landing film's forest backdrop in light-mode dark surfaces. */
+  --code-background: #122725;
+  --code-foreground: #f0f5f1;
+  --code-muted: #b8c9bf;
+  --brand-foreground: #ffffff;
+  --brand-outline: #10221c;
+  --overlay: #122725a8;
+
   color-scheme: light;
-  --background: #f5f1e4;
-  --foreground: #1e261c;
-  --card: #fffdf7;
-  --primary: #28573d;
-  --primary-foreground: #fffdf7;
-  --secondary: #e4e7d9;
-  --muted: #e9e8dd;
-  --muted-foreground: #515b4c;
-  --accent: #dce4cf;
-  --border: #718367;
-  --subtle-border: #b9c2ad;
-  --header: #2b3b2d;
-  --header-foreground: #f8f3e6;
-  --header-border: #8c9b80;
-  --band: #dce4cf;
-  --section-label: #2b3b2d;
-  --section-label-foreground: #f8f3e6;
-  --section-label-muted: #d4dec6;
-  --coral: #9f3d2b;
-  --gold: #79570e;
-  --mint: #28573d;
-  --blue: #3c628e;
-  --lilac: #6c5690;
-  --destructive: #a8342b;
+  --background: #fcfcfd;
+  --foreground: #1b2822;
+  --card: #ffffff;
+  --primary: #006461;
+  --primary-foreground: #ffffff;
+  --secondary: #e8edf5;
+  --muted: #edf0f6;
+  --muted-foreground: #48534c;
+  --accent: #dff2ee;
+  --border: #6d7870;
+  --subtle-border: #b0bbb4;
+  --header: #20372e;
+  --header-foreground: #fafafa;
+  --header-border: #92a399;
+  --band: #e9eef8;
+  --section-label: #20372e;
+  --section-label-foreground: #fafafa;
+  --section-label-muted: #cbd9cf;
+  --coral: #b93850;
+  --gold: #865d0b;
+  --mint: #006461;
+  --blue: #315fc1;
+  --lilac: #7450ba;
+  --destructive: #ba3048;
   --destructive-foreground: #ffffff;
-  --error-surface: #f6dfd7;
-  --warning: #784614;
-  --warning-surface: #f8eacc;
-  --warning-border: #b88841;
-  --avatar-background: #ecd3bd;
-  --avatar-foreground: #513b2b;
-  --note-background: #e1e8b7;
-  --note-foreground: #34432b;
-  --panel-glass: #f5f1e4f5;
-  --shadow: #18251d24;
-  --brand-coral: #ec765d;
-  --hover-coral: #f5a082;
-  --hover-mint: #afd9b7;
-  --hover-gold: #f0cf70;
-  --hover-blue: #b5d3ef;
-  --hover-lilac: #d2c3f0;
-  --hover-ink: #21281f;
+  --error-surface: #fce7ed;
+  --warning: #80520b;
+  --warning-surface: #fff1cf;
+  --warning-border: #b48931;
+  --avatar-background: #e5def8;
+  --avatar-foreground: #523e81;
+  --note-background: #e6dffc;
+  --note-foreground: #49366f;
+  --panel-glass: #fcfcfdf5;
+  --shadow: #12272524;
+  --brand-coral: #f47486;
+  --hover-coral: #ffb3c0;
+  --hover-mint: #a7ebd6;
+  --hover-gold: #ffdd89;
+  --hover-blue: #bad8ff;
+  --hover-lilac: #dbccff;
+  --hover-ink: #1b2822;
+
+  /* Colored surfaces keep their contrast in both appearances. */
+  --tint-blue: #e7edf9;
+  --tint-coral: #f9e9ed;
+  --tint-mint: #ddf2eb;
+  --tint-lilac: #eee6f8;
+  --tint-gold: #fbf0d8;
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --background: #171e1a;
-  --foreground: #f5f1e5;
-  --card: #222d26;
-  --primary: #9ad4bb;
-  --primary-foreground: #17251c;
-  --secondary: #303d32;
-  --muted: #27332b;
-  --muted-foreground: #b2bcaf;
-  --accent: #354637;
-  --border: #708270;
-  --subtle-border: #435447;
-  --header: #29372d;
-  --header-border: #8c9b80;
-  --band: #1e2922;
-  --section-label: #b7cbaa;
-  --section-label-foreground: #17251c;
-  --section-label-muted: #364b36;
-  --coral: #ff9b82;
-  --gold: #ecd77e;
-  --mint: #9ad4bb;
-  --blue: #a4c8ee;
-  --lilac: #c2b7e5;
-  --destructive: #ffaaa0;
-  --destructive-foreground: #411510;
-  --error-surface: #462d29;
-  --warning: #f0cd87;
-  --warning-surface: #393323;
-  --warning-border: #a3894c;
-  --avatar-background: #574337;
-  --avatar-foreground: #f3d8be;
-  --note-background: #37442b;
-  --note-foreground: #e1e8b7;
-  --panel-glass: #222d26f5;
-  --shadow: #00000040;
+  /* Preserve the slate dark palette independently of light-mode chrome. */
+  --code-background: #182236;
+  --code-foreground: #edf3fc;
+  --code-muted: #afbed5;
+  --brand-outline: #111a2b;
+  --overlay: #101827a8;
+  --header-foreground: #f5f8ff;
+  --hover-ink: #141d2b;
+  --background: #0d1420;
+  --foreground: #f7f9fc;
+  --card: #1b2639;
+  --primary: #8de2cd;
+  --primary-foreground: #112d2a;
+  --secondary: #28364c;
+  --muted: #223047;
+  --muted-foreground: #c0ccdf;
+  --accent: #21423f;
+  --border: #8092ad;
+  --subtle-border: #52637e;
+  --header: #192338;
+  --header-border: #8393ae;
+  --band: #182338;
+  --section-label: #b9c9eb;
+  --section-label-foreground: #182338;
+  --section-label-muted: #344766;
+  --coral: #ffa6b6;
+  --gold: #f7d588;
+  --mint: #8de2cd;
+  --blue: #a9c8ff;
+  --lilac: #d1b7ff;
+  --destructive: #ffacbb;
+  --destructive-foreground: #421326;
+  --error-surface: #422639;
+  --warning: #f7d588;
+  --warning-surface: #393024;
+  --warning-border: #b4995c;
+  --avatar-background: #403655;
+  --avatar-foreground: #e8dafa;
+  --note-background: #3a3255;
+  --note-foreground: #e6dffc;
+  --panel-glass: #1b2639f5;
+  --shadow: #03091480;
+  --tint-blue: #21334d;
+  --tint-coral: #3b2b39;
+  --tint-mint: #203d37;
+  --tint-lilac: #342d47;
+  --tint-gold: #393326;
 }
 .appearance-control {
   display: inline-flex;
@@ -152,4 +190,20 @@
 
 [data-tone]:not(:disabled):is(:hover, :focus-visible) .text-muted-foreground {
   color: inherit;
+}
+
+@media (max-width: 1100px) {
+  :root {
+    --shell-gutter: 35px;
+  }
+}
+@media (max-width: 760px) {
+  :root {
+    --shell-gutter: 22px;
+  }
+}
+@media (max-width: 410px) {
+  :root {
+    --shell-gutter: 17px;
+  }
 }

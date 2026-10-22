@@ -3,12 +3,16 @@ import type { SignedEvent, GallerySearch } from '../../../../packages/protocol/s
 import { validateManifest } from '../../../../packages/protocol/src/manifest';
 import { socialScope, socialView, rootComment } from '../../../../packages/protocol/src/social';
 import { latestProfile, profileView } from '../../../../packages/protocol/src/profile';
-import { GallerySocialReader } from '../../../../packages/client/src/gallery-social';
+import {
+  GallerySocialReader,
+  type GalleryZapData,
+} from '../../../../packages/client/src/gallery-social';
 import { protocolClient, network, manifestAllowed, publicEventCacheReady } from './network';
 import { queryCatalog, availableCatalog, featured } from './protocol-catalog';
 import { matchesGallery } from '../../../../packages/protocol/src/topics';
 import { zapTotalsStore } from './zap-totals';
-import type { GallerySocialData } from '../../../../packages/backend/src/gallery-social';
+import { socialCounts } from './social-counts';
+import { countTarget } from '../../../../packages/client/src/social-counts';
 
 const history = new Map<string, SignedEvent[]>();
 const chunks = <T>(items: T[], size = 64) =>
@@ -167,7 +171,11 @@ export async function socialSnapshot(
   };
 }
 export async function publishSocial(event: SignedEvent, relays: string[]) {
+  // Resolve before publishing: a seeded deletion removes its reaction from the store.
+  const counted = countedTargets(event);
   const accepted = await protocolClient().publish(event, relays);
+  const counts = socialCounts();
+  for (const target of counted) void counts?.invalidate(target).catch(() => {});
   // Acknowledged events survive relays' eventual read visibility.
   for (const [key, events] of history) {
     const ids = new Set(events.map((e) => e.id));
@@ -183,20 +191,45 @@ export async function publishSocial(event: SignedEvent, relays: string[]) {
   return accepted;
 }
 let galleryReader: GallerySocialReader | undefined;
-export async function gallerySocial(
-  search: GallerySearch,
-  viewer?: string,
-  signal?: AbortSignal,
-  onUpdate?: (data: GallerySocialData) => void,
-): Promise<GallerySocialData> {
+/** The napplets a gallery search shows, shared by its zap reader and COUNT rankings. */
+export async function galleryEntries(search: GallerySearch) {
   protocolClient();
   await publicEventCacheReady();
-  const entries = (availableCatalog().length ? availableCatalog() : await queryCatalog()).filter(
+  return (availableCatalog().length ? availableCatalog() : await queryCatalog()).filter(
     (n) =>
       matchesGallery(n, search) &&
       (search.sort !== 'featured' || featured(n)) &&
       (search.unavailable || n.availability === 'ready'),
   );
+}
+export async function gallerySocial(
+  search: GallerySearch,
+  viewer?: string,
+  signal?: AbortSignal,
+  onUpdate?: (data: GalleryZapData) => void,
+  visible?: ReadonlySet<string>,
+): Promise<GalleryZapData> {
+  const entries = await galleryEntries(search);
   galleryReader ??= new GallerySocialReader(protocolClient(), undefined, zapTotalsStore);
-  return galleryReader.read(entries, viewer, signal, onUpdate);
+  return galleryReader.read(entries, viewer, signal, onUpdate, visible);
+}
+
+/** A like, unlike or comment changes its napplet's counts; re-ask the relay that has it now. */
+function countedTargets(event: SignedEvent) {
+  // An unlike deletes the reaction, so follow deletions to the napplet it referenced.
+  const store = protocolClient().store;
+  const events = [
+    event,
+    ...(event.kind === 5
+      ? event.tags.flatMap((t) => (t[0] === 'e' ? [store.getEvent(t[1])].filter((e) => !!e) : []))
+      : []),
+  ];
+  const referenced = new Set(
+    events.flatMap((e) =>
+      e.tags.filter((t) => ['a', 'A', 'e', 'E'].includes(t[0])).map((t) => t[1]),
+    ),
+  );
+  return availableCatalog()
+    .filter((n) => referenced.has(n.revisionId) || referenced.has(socialScope(n.manifest).key))
+    .map((n) => countTarget(n.manifest));
 }

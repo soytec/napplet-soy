@@ -9,6 +9,15 @@ kind-5129 publication. The returned `/r/<current-event-id>` link already pins an
 exact signed named revision without requiring that additional snapshot. Back up
 the journal and index: relays may prune replaced named events.
 
+The experimental [local Quick Vibe studio](QUICK-VIBE.md#publish-from-the-studio)
+also uses this publisher. Its Publish dialog prepares real captures, reviews exact
+source/metadata/destinations, and requests signatures through the shell's existing
+account picker after confirmation (extension, remote signer or browser-held key).
+It retains the same journal and listing identity. Remixed projects can also prepare
+and submit reviewed NIP-34 proposals through the existing GRASP collaboration flow,
+including a playable build, without creating another napplet listing. Hosted browser
+execution remains separate work; the local controller must stay on loopback.
+
 ## Commands available from this checkout
 
 ```sh

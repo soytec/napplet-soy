@@ -5,6 +5,57 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { screenshotProject } from '../../apps/cli/src/project-config';
+import { recordingSchema } from '../../packages/publish/src/config';
+import { RUNTIME_PROFILE } from '../../packages/runtime/src/capabilities';
+
+test('scripted captures focus keyboard controls, scale portrait clicks and take the cover during play', async () => {
+  const config = new TextEncoder().encode(
+    JSON.stringify({
+      schema: 'space-local-project/v1',
+      name: 'Start screen fixture',
+      license: 'MIT',
+      previewId: crypto.randomUUID(),
+      entry: 'index.html',
+      preview: { delayMs: 250 },
+    }),
+  );
+  const html = new TextEncoder().encode(`<!doctype html><style>
+    html,body{margin:0;width:100%;height:100%;background:rgb(180,20,20)}
+    button{position:absolute;left:40%;top:40%;width:20%;height:20%}
+    </style><button>Play</button><script>
+    const play=()=>{document.body.style.background='rgb(20,180,20)';document.querySelector('button').remove()};
+    document.querySelector('button').onclick=play;
+    window.addEventListener('keydown',e=>{if(e.code==='Space')play()});
+    </script>`);
+  for (const portrait of [false, true]) {
+    const result = await checkPublication(
+      new Map([
+        ['napplet.json', config],
+        ['index.html', html],
+      ]),
+      true,
+      recordingSchema.parse({
+        durationMs: 2000,
+        actions: portrait
+          ? [{ type: 'click', atMs: 0, x: 480, y: 300 }]
+          : [
+              { type: 'keyDown', atMs: 0, key: 'Space' },
+              { type: 'keyUp', atMs: 100, key: 'Space' },
+            ],
+      }),
+      false,
+      undefined,
+      portrait ? { width: 360, height: 640 } : undefined,
+    );
+    const pixel = await sharp(result.preview)
+      .extract({ left: 10, top: 10, width: 1, height: 1 })
+      .removeAlpha()
+      .raw()
+      .toBuffer();
+    expect([...pixel]).toEqual([20, 180, 20]);
+    expect(result.video?.length).toBeGreaterThan(1000);
+  }
+}, 45000);
 
 async function checkCli(contents: Map<string, Uint8Array>) {
   const directory = await mkdtemp(join(tmpdir(), 'napplet-startup-check-'));
@@ -80,7 +131,7 @@ test.each([
       expect(outcome.out).toContain(errorMessage);
     } else {
       expect(outcome.code, outcome.out + outcome.err).toBe(0);
-      expect(outcome.data).toMatchObject({ profile: 'space-playback-4' });
+      expect(outcome.data).toMatchObject({ profile: RUNTIME_PROFILE });
     }
   },
   15000,

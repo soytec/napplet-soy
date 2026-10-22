@@ -137,7 +137,7 @@ export function createPlaybackRelayResponder(
             if (stopped) return;
             group.add(
               pool
-                .req([input.relay], input.filters, { reconnect: false, waitForAuth: false })
+                .req([input.relay], input.filters)
                 .subscribe({
                   next(message) {
                     if (message.type === 'EVENT') send({ type: 'EVENT', event: message.event });

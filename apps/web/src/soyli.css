@@ -134,9 +134,7 @@
 }
 .soyli-ipa {
   font:
-    18px/1.4 Georgia,
-    'Times New Roman',
-    serif;
+    18px/1.4 var(--font-editorial);
   letter-spacing: 0.025em;
   color: var(--muted-foreground);
 }

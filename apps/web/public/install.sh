@@ -3,14 +3,14 @@ set -eu
 
 # napplet soyLI creator CLI. Inspect this script before running it if you prefer.
 # Downloads are immutable by version; the archive is verified before extraction.
-version=0.29.0
+version=0.31.1
 # The updater uses this bundled installer with an explicitly checked stable release.
 version=${NAPPLET_RELEASE_VERSION:-$version}
 printf '%s\n' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || { printf '%s\n' 'Invalid release version.' >&2; exit 1; }
 if [ -n "${NAPPLET_DOWNLOAD_BASE:-}" ]; then
   base="$NAPPLET_DOWNLOAD_BASE/$version"
 else
-  base="https://github.com/zeSchlausKwab/napplet-soy/releases/download/soyli-v$version"
+  base="https://github.com/soytec/napplet-soy/releases/download/soyli-v$version"
 fi
 install_root=${NAPPLET_INSTALL_DIR:-"$HOME/.local/share/napplet-space"}
 bin_dir=${NAPPLET_BIN_DIR:-"$HOME/.local/bin"}
@@ -57,9 +57,20 @@ fi
 stage=$(mktemp -d "$install_root/.install.XXXXXXXX")
 name="soyli-$os-$arch"
 archive="$name.tar.gz"
-fetch() { curl --fail --show-error --location --proto '=https,http' --proto-redir '=https' --connect-timeout 15 --max-time 300 "$1" -o "$2"; }
+fetch() { curl --fail --show-error --location --proto '=https,http' --proto-redir '=https' --connect-timeout 15 --max-time 300 --write-out "${3:-}" "$1" -o "$2"; }
 printf 'Downloading napplet soyLI %s for %s…\n' "$version" "$os-$arch"
-fetch "$base/$archive.sha256" "$stage/checksum"
+if checksum_status=$(fetch "$base/$archive.sha256" "$stage/checksum" '%{http_code}'); then
+  :
+elif [ -z "${NAPPLET_DOWNLOAD_BASE:-}" ] && [ "$checksum_status" = 404 ]; then
+  # The compatibility release is published before the ownership transfer.
+  # Only a missing canonical checksum permits this temporary legacy location;
+  # network/authentication errors and explicit alternate hosts never fall back.
+  base="https://github.com/zeSchlausKwab/napplet-soy/releases/download/soyli-v$version"
+  printf '%s\n' 'Release not at Soytec yet; checking the original repository.' >&2
+  fetch "$base/$archive.sha256" "$stage/checksum"
+else
+  fail "Could not download the release checksum from $base (HTTP $checksum_status). Existing installation was kept."
+fi
 expected=$(cut -d ' ' -f 1 < "$stage/checksum")
 case "$expected" in *[!a-f0-9]*|'') fail 'Invalid release checksum.' ;; esac
 [ "${#expected}" -eq 64 ] || fail 'Invalid release checksum length.'

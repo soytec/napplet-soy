@@ -1,13 +1,16 @@
-import { gallerySocial, publishSocial } from '@/lib/protocol-social';
+import { galleryEntries, gallerySocial, publishSocial } from '@/lib/protocol-social';
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
+import { asapScheduler, subscribeOn, Subscription, type Observable } from 'rxjs';
+import { use$ } from 'applesauce-react/hooks';
 import { Link } from '@tanstack/react-router';
 import { Heart, MessageCircle, Zap, ChevronLeft, ChevronRight, LockKeyhole } from 'lucide-react';
 import { Button } from './ui/button';
@@ -22,14 +25,18 @@ import {
   socialScope,
 } from '../../../../packages/protocol/src/social';
 import type { GallerySearch, SignedEvent } from '../../../../packages/protocol/src';
-import type { GallerySocialData } from '../../../../packages/backend/src/gallery-social';
+import type { GalleryZapData } from '../../../../packages/client/src/gallery-social';
+import { countTarget, likesMetric } from '../../../../packages/client/src/social-counts';
+import { socialCounts } from '@/lib/social-counts';
 import { publicLink, type PublicNapplet } from '../../../../packages/backend/src/public-model';
 import { protocolClient } from '@/lib/network';
 import { readLikeState } from '../../../../packages/client/src/social';
 import { useZapTotals, zapTotalsStore } from '@/lib/zap-totals';
 
+type Rankings = Record<'liked' | 'commented', PublicNapplet[]> & { loading: boolean };
 const Context = createContext<{
-  data: GallerySocialData | null;
+  data: GalleryZapData | null;
+  rankings: Rankings;
   error: string;
   busy: boolean;
   active: string;
@@ -52,13 +59,17 @@ export function GallerySocialProvider({
   const { pubkey } = useNostr();
   const key = useRef(pubkey);
   key.current = pubkey;
-  const [data, setData] = useState<GallerySocialData | null>(null);
+  const [data, setData] = useState<GalleryZapData | null>(null);
+  const [entries, setEntries] = useState<PublicNapplet[] | null>(null);
+  const rankings = useCountRankings(entries);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [active, setActive] = useState('');
   const [phase, setPhase] = useState('');
   const [cards, setCards] = useState<Record<string, number>>({});
+  const visible = useRef(cards);
+  visible.current = cards;
   const register = useCallback((id: string) => {
     setCards((v) => ({ ...v, [id]: (v[id] ?? 0) + 1 }));
     return () => setCards((v) => ({ ...v, [id]: Math.max(0, (v[id] ?? 1) - 1) }));
@@ -84,6 +95,16 @@ export function GallerySocialProvider({
     setData(null);
   }, [query]);
   useEffect(() => {
+    let current = true;
+    void galleryEntries(search).then(
+      (value) => current && setEntries(value),
+      () => {},
+    );
+    return () => {
+      current = false;
+    };
+  }, [query, revision]);
+  useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     const refresh = async () => {
@@ -99,13 +120,15 @@ export function GallerySocialProvider({
             setData(value);
             setError('');
           },
+          // Cards on screen get their zap totals and like state first.
+          new Set(Object.keys(visible.current).filter((id) => visible.current[id] > 0)),
         );
         if (controller.signal.aborted) return;
         setData(value);
         setError('');
         delay = value.refreshing ? 5000 : 30000;
       } catch {
-        if (!controller.signal.aborted) setError('Social counts are temporarily unavailable.');
+        if (!controller.signal.aborted) setError('Zap totals are temporarily unavailable.');
       } finally {
         if (!controller.signal.aborted) timer = setTimeout(refresh, delay);
       }
@@ -158,6 +181,7 @@ export function GallerySocialProvider({
     <Context.Provider
       value={{
         data,
+        rankings,
         error,
         busy,
         active,
@@ -226,6 +250,7 @@ export function GalleryCardSocial({
   const social = useContext(Context),
     { pubkey, ready } = useNostr();
   const zaps = useZapTotals(socialScope(napplet.manifest).key);
+  const conversation = useNappletCounts(napplet);
   useEffect(() => social?.register(napplet.revisionId), [social?.register, napplet.revisionId]);
   if (!social)
     return (
@@ -233,7 +258,7 @@ export function GalleryCardSocial({
         {children}
       </div>
     );
-  const counts = { ...social.data?.counts[napplet.revisionId], ...zaps };
+  const counts = { ...conversation, ...social.data?.counts[napplet.revisionId], ...zaps };
   const feedback = social.message?.id === napplet.revisionId ? social.message.text : undefined;
   const ownsPending = social.pending?.napplet.revisionId === napplet.revisionId;
   return (
@@ -330,7 +355,10 @@ export function SocialRankings({
   return (
     <div className="social-discovery">
       <div className="social-discovery-note">
-        <p>From the conversation · recent activity found on this client’s relays.</p>
+        <p>
+          From the conversation · counts from this client’s NIP-45 relay; zaps are verified
+          receipts.
+        </p>
         {!pubkey && (
           <span>
             <LockKeyhole size={12} /> Sign in to like or comment. Anyone can zap.
@@ -346,8 +374,12 @@ export function SocialRankings({
         <SocialRail
           key={kind}
           kind={kind}
-          entries={social?.data?.rankings[kind] ?? []}
-          loading={(!social?.data && !social?.error) || !!social?.data?.refreshing}
+          entries={(kind === 'zapped' ? social?.data?.zapped : social?.rankings[kind]) ?? []}
+          loading={
+            kind === 'zapped'
+              ? (!social?.data && !social?.error) || !!social?.data?.refreshing
+              : (social?.rankings.loading ?? true)
+          }
           active={active}
           setActive={setActive}
         />
@@ -456,4 +488,79 @@ function SocialRail({
       )}
     </section>
   );
+}
+
+const deferred = <T,>(source: Observable<T>) =>
+  // Defer past use$'s synchronous render probe so abandoned renders start no relay work.
+  source.pipe(subscribeOn(asapScheduler));
+
+/** Raw NIP-45 totals for one card; undefined stays distinct from a counted zero. */
+function useNappletCounts(napplet: PublicNapplet) {
+  const target = useMemo(() => countTarget(napplet.manifest), [napplet.manifest]);
+  const likes = use$(() => {
+    const counts = socialCounts();
+    return counts && deferred(counts.event(target).metric(likesMetric));
+  }, [target]);
+  const comments = use$(() => {
+    const counts = socialCounts();
+    return counts && deferred(counts.event(target).comments);
+  }, [target]);
+  return {
+    ...(likes?.value !== undefined ? { likeCount: likes.value } : {}),
+    ...(comments?.value !== undefined ? { commentCount: comments.value } : {}),
+  };
+}
+
+/** Rank a gallery by COUNT answers; cards observing the same metrics share each request. */
+function useCountRankings(entries: PublicNapplet[] | null): Rankings {
+  const [rankings, setRankings] = useState<Rankings>({ liked: [], commented: [], loading: true });
+  const key = entries?.map((n) => n.revisionId).join(',');
+  useEffect(() => {
+    const counts = socialCounts();
+    if (!counts || !entries) return;
+    const values = new Map<string, { likes?: number; comments?: number }>();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const rank = (field: 'likes' | 'comments') =>
+      entries
+        .filter((n) => (values.get(n.revisionId)?.[field] ?? 0) > 0)
+        .sort(
+          (a, b) =>
+            values.get(b.revisionId)![field]! - values.get(a.revisionId)![field]! ||
+            b.manifest.created_at - a.manifest.created_at ||
+            a.revisionId.localeCompare(b.revisionId),
+        )
+        .slice(0, 12);
+    const publish = () => {
+      timer = undefined;
+      setRankings({
+        liked: rank('likes'),
+        commented: rank('comments'),
+        loading: entries.some((n) => {
+          const v = values.get(n.revisionId);
+          return v?.likes === undefined || v.comments === undefined;
+        }),
+      });
+    };
+    const subscriptions = new Subscription();
+    for (const n of entries) {
+      const handle = counts.event(countTarget(n.manifest));
+      for (const [field, metric] of [
+        ['likes', handle.metric(likesMetric)],
+        ['comments', handle.comments],
+      ] as const)
+        subscriptions.add(
+          metric.subscribe((state) => {
+            values.set(n.revisionId, { ...values.get(n.revisionId), [field]: state.value });
+            // Coalesce hundreds of answers into a few renders.
+            timer ??= setTimeout(publish, 100);
+          }),
+        );
+    }
+    publish();
+    return () => {
+      clearTimeout(timer);
+      subscriptions.unsubscribe();
+    };
+  }, [key]);
+  return rankings;
 }

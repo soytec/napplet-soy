@@ -6,6 +6,8 @@ import { enableWasmVerification } from '../../../../packages/protocol/src/verify
 import { browserIdentity, type IdentityState } from '../lib/browser-identity';
 import { useAdminAccess, type AdminAccess } from '../lib/admin-client';
 import { IdentityMenu } from './identity-menu';
+import { StudioProvider } from './studio-provider';
+import { WorkProvider } from './work-provider';
 
 if (typeof window !== 'undefined') void enableWasmVerification();
 
@@ -74,15 +76,20 @@ export function NostrProvider({ children }: { children: ReactNode }) {
       }}
     >
       <EventStoreProvider eventStore={client.store}>
-        <IdentityMenu
-          adminAccess={admin.access}
-          refreshAdminAccess={admin.refresh}
-          open={open}
-          setOpen={setOpen}
-          identity={identity}
-        >
-          {children}
-        </IdentityMenu>
+        {/* Studio consumes identity; the account menu consumes Studio settings. */}
+        <StudioProvider>
+          <WorkProvider>
+            <IdentityMenu
+              adminAccess={admin.access}
+              refreshAdminAccess={admin.refresh}
+              open={open}
+              setOpen={setOpen}
+              identity={identity}
+            >
+              {children}
+            </IdentityMenu>
+          </WorkProvider>
+        </StudioProvider>
       </EventStoreProvider>
     </Context.Provider>
   );

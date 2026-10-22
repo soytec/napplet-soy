@@ -1,7 +1,130 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The current published version is **0.29.0**.
+The current published version is **0.31.1**. The repository has transferred to
+[`soytec/napplet-soy`](https://github.com/soytec/napplet-soy), including its history,
+issues, pull requests and releases.
+
+**0.31.1 — Soytec repository transfer compatibility:**
+
+Release discovery uses GitHub repository ID `1370998066`, which stays with this
+repository when its owner changes. API redirects remain refused. The bundled
+installer first downloads from `soytec/napplet-soy`; before the transfer, a missing
+checksum (HTTP 404 only) allows the original `zeSchlausKwab/napplet-soy` location.
+The checksum and archive always come from the same selected location. Explicit
+alternate download hosts, authentication failures, rate limits, network failures
+and corrupt archives do not trigger that fallback. Existing checksum, executable
+version, installation-lock and atomic command-switch checks remain in force.
+
+Clients upgraded before the transfer continue using `soyli update`. An older
+binary that missed this release cannot follow the old release API redirect;
+recover once with the latest release installer, then use `soyli update` normally:
+
+```sh
+curl -fsSL https://github.com/soytec/napplet-soy/releases/latest/download/install.sh | sh
+```
+
+The installer preserves managed installations, accounts and unfinished projects.
+Nix users continue updating through their package manager. soyLI source and
+releases remain in this repository for now; extraction into `soytec/soyli` is a
+separate future change. Repository transfer does not deploy the website. The
+website's version-pinned installer was refreshed after release verification.
+
+Published **2026-10-22 (Europe/Vienna)** from
+`d5e4bd7fd02a0a55804a4b48c560f88a58a768f2`, the squash merge of
+[PR #35](https://github.com/soytec/napplet-soy/pull/35).
+[Release](https://github.com/soytec/napplet-soy/releases/tag/soyli-v0.31.1),
+[four-platform release CI](https://github.com/soytec/napplet-soy/actions/runs/39776718423),
+[Nix package/VM CI](https://github.com/soytec/napplet-soy/actions/runs/39776671158)
+and [Studio service CI](https://github.com/soytec/napplet-soy/actions/runs/39776670896)
+passed for the released source. All 11 public assets have verified checksums;
+the release manifest and installer match the tagged source.
+
+An isolated macOS ARM64 installation completed a real **0.31.0 → 0.31.1** upgrade
+before the transfer, preserving account/project markers and the legacy command.
+A fresh installation exercised the original-repository fallback. After transfer,
+the same upgraded client reports current through the stable repository-ID API,
+and a fresh installation uses Soytec without fallback. A separate old installation
+reproduced the rejected redirect and recovered through the installer above,
+preserving its account marker. The release ID and all asset IDs/digests are
+unchanged after transfer.
+
+The hosted installer is byte-identical to the release asset; no Studio process
+restart or draft migration was needed. See the [installer activation record](DEPLOYMENT.md).
+The existing VPS lacks SSE4.2 and correctly rejects standalone CLI installation;
+its separate Studio compatibility profile is unchanged. Native Linux execution
+was verified by release CI, not by bypassing that CPU guard.
+
+**0.31.0 — hosted BYOK Studio:**
+
+This release enables Studio in the shared shell with a user's own cloud
+provider key. Browser builds use the tab's Web Worker; server builds and the maker
+run in a bounded, offline container with a private inference broker. Both paths
+retain account-owned drafts, Git history, reviewed publication and GRASP proposals.
+The shell account signs publication; provider credentials are encrypted outside
+projects. There is no platform-paid inference or billing in this release.
+
+Private preview hosts use relative runtime and revision URLs so they work beneath
+account-authorized routes. This also updates the soyLI preview bundle; local
+creators should restart previews after upgrading. Existing drafts, repositories,
+local model connections and soyLI commands remain supported. The experimental
+browser Git path is not authoritative for publication. See [hosted limits and
+operation](STUDIO-HOSTING.md) and [local Studio](QUICK-VIBE.md).
+
+Published **2026-10-19 (Europe/Vienna)** from source
+`c05b6fc7b7975e30cc31ad792e3efe7d7fc7ecc7`, the squash merge of
+[PR #25](https://github.com/zeSchlausKwab/napplet-soy/pull/25).
+[GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.31.0),
+[native release CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39275681961),
+[Nix package/VM CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39275671629)
+and [Studio service CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39275672088)
+passed for the released source. All four native packages and 11 public assets
+have verified checksums; the manifest and installer match the tagged source.
+A fresh isolated macOS ARM64 install reports 0.31.0. GitHub rate-limited the
+unauthenticated doctor/update lookup with HTTP 403; its actionable diagnostic was
+preserved, and the latest release was independently verified through GitHub's
+authenticated API. No upgrade was falsely reported successful.
+
+Hosted Studio is deployed with the subsequent web-only account-provider and
+storage-label corrections. See the [live rollout evidence](DEPLOYMENT.md).
+
+**0.30.0 — local Studio beta and publication feedback:**
+
+Published **2026-10-19 (Europe/Vienna)** from source
+`14e9343dff5eb27815eaa9fe64f50490f01c0ffb`, the squash merge of
+[PR #24](https://github.com/zeSchlausKwab/napplet-soy/pull/24).
+[GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/tag/soyli-v0.30.0),
+[native release CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39249208939),
+[Nix package/VM CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39249155519)
+and [Studio service CI](https://github.com/zeSchlausKwab/napplet-soy/actions/runs/39249155484)
+passed for the released source. All four native packages and 11 public assets are
+present. An isolated macOS ARM64 installation verifies the manifest/source and
+installer bytes; version and doctor report 0.30.0 current, with Git and browser ready.
+
+Studio brings chat, playable previews, assets, Git checkpoints and reviewed
+publication/proposals into the shared shell. It runs from a local checkout with
+the user's inference connection and shell account. Hosted Studio is not enabled;
+production entry points link to the local setup. Browser compilation and Git
+experiments remain opt-in, with native source and release checks authoritative.
+See [Studio setup and limits](QUICK-VIBE.md).
+
+The soyLI capture path focuses keyboard input on the napplet, scales recording
+coordinates to the capture viewport, and takes the listing cover during gameplay.
+Publication feedback distinguishes relay delivery from website verification;
+an unrelated relay outage no longer prevents a fresh, verified creation from
+being reported ready. Studio shows publication milestones and checks availability
+without republishing. Recording requests return to review after the agent finishes.
+
+Model discovery and a quick model picker, streamed activity, bounded agent repair
+and the shared visual theme round out the local beta. Proposal submission uses
+ordinary GRASP/NIP-34 and links to the shell's existing review page; diff review
+and merging remain in soyLI/Git. Existing local drafts and soyLI workflows remain.
+
+The source passes TypeScript and 812 tests locally. Real GRASP/relay service tests
+cover proposal submission and the opt-in browser Git path in separate processes;
+gameplay capture has its own browser regression suite. Upgrade with `soyli update`,
+restart previews and run `soyli skills update` in existing projects. Application
+source is not rewritten. See the [website deployment record](DEPLOYMENT.md).
 
 **0.29.0 — OUTBOX, intent handlers and native maps:**
 
@@ -813,15 +936,16 @@ soyli skills update
 An older CLI needs the new installer once, after the first GitHub release exists:
 
 ```sh
-curl -fsSL https://github.com/zeSchlausKwab/napplet-soy/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/soytec/napplet-soy/releases/latest/download/install.sh | sh
 ```
 
 The same script accepts `new my-napplet` or `remix <link> my-remix`. Inspect it before
 executing it if preferred. `https://napplet.soy/install.sh` remains a version-pinned
 copy which changes on website deployment; the GitHub URL follows the latest release.
 
-Updates only use stable `soyli-vX.Y.Z` releases from
-[zeSchlausKwab/napplet-soy](https://github.com/zeSchlausKwab/napplet-soy/releases).
+Updates only use stable `soyli-vX.Y.Z` releases from this repository
+([soytec/napplet-soy](https://github.com/soytec/napplet-soy/releases), repository ID
+`1370998066`). The numeric API channel survives the ownership transfer.
 Prereleases, incomplete platform assets and downgrades are refused. Doctor checks
 GitHub with a five-second deadline; no release, offline, malformed or rate-limited
 responses are reported as unavailable alongside the working local diagnostics.

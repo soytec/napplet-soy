@@ -53,6 +53,7 @@ test('application ports reserve a separate smoke port and cannot collide with na
     '19349',
     '19350',
     '19351',
+    '19352',
     '3477',
     '3478',
     '3000;id',

@@ -16,8 +16,17 @@ import {
 } from '../../../../packages/collaboration/src/protocol';
 import type { SignedEvent } from '../../../../packages/protocol/src';
 import { switchMap, Subscription } from 'rxjs';
+import { useNostr } from './nostr-provider';
+import { useStudio } from './studio-provider';
+import { useNavigate, useLocation } from '@tanstack/react-router';
 
 export function Proposals({ manifest, reference }: { manifest?: SignedEvent; reference?: string }) {
+  const identity = useNostr();
+  const { client: studio } = useStudio();
+  const navigate = useNavigate();
+  const search = useLocation({ select: (location) => location.searchStr });
+  const requested = new URLSearchParams(search).get('proposal');
+  const [preparingMerge, setPreparingMerge] = useState(false);
   const source = manifest && tag(manifest, 'source');
   const playback = useRef(0);
   const [repository, setRepository] = useState<Repository>();
@@ -37,7 +46,7 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
     return () => {
       playback.current++;
     };
-  }, [source, reference]);
+  }, [source, reference, requested]);
   useEffect(() => {
     if (!source?.startsWith('nostr://') && !reference) return;
     let active = true;
@@ -48,7 +57,7 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
     void (async () => {
       const client = protocolClient();
       let repoRef = source!,
-        id: string | undefined;
+        id = requested && /^[a-f0-9]{64}$/.test(requested) ? requested : undefined;
       if (reference) {
         id = proposalId(reference);
         const root = await client.queryEvent(id, [1618, 1617], [], controller.signal);
@@ -62,7 +71,7 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
           .pipe(
             switchMap((repo) => {
               setRepository(repo);
-              return observeProposals(client, repo, id);
+              return observeProposals(client, repo, reference ? id : undefined);
             }),
           )
           .subscribe({
@@ -94,7 +103,7 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
       controller.abort();
       subscription.unsubscribe();
     };
-  }, [source, reference, generation]);
+  }, [source, reference, generation, requested]);
   const proposal = rows.find((p) => p.root.id === selected);
   const chosen = proposal?.revisions.find((r) => r.id === revision) ?? proposal?.revision;
   async function play(original = false) {
@@ -128,7 +137,7 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
   if (!source?.startsWith('nostr://') && !reference) return null;
   const command = proposal ? `soyli review ${proposal.root.id}` : undefined;
   return (
-    <section className="proposal-section" aria-label="Proposed changes">
+    <section id="proposals" className="proposal-section" aria-label="Proposed changes">
       <div className="source-section-heading">
         <div>
           <span className="eyebrow">BUILD ON EACH OTHER</span>
@@ -147,10 +156,21 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
           <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
         </Button>
       </div>
+      {manifest?.pubkey === identity.pubkey &&
+        repository?.maintainers.includes(identity.pubkey!) && (
+          <div className="author-management">
+            <h3>Your project</h3>
+            <p>
+              Select a proposal to review its changes and prepare a merge.{' '}
+              <a href="/manage">All your work ↗</a>
+            </p>
+          </div>
+        )}
       {!rows.length && !loading && !error && (
         <p className="muted">
-          No proposals yet. Remix the source, make a change, then use{' '}
-          <code>soyli propose "Description"</code>. No website account needed.
+          No proposals yet. Remix the source and make a change, then choose{' '}
+          <strong>Propose changes</strong> in local Studio or run{' '}
+          <code>soyli propose "Description"</code> with soyLI.
         </p>
       )}
       <div className="proposal-list">
@@ -248,6 +268,46 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
             </div>
           )}
           <a href={`/proposals/${proposal.root.id}`}>Link to this proposal ↗</a>
+          {manifest?.pubkey === identity.pubkey &&
+            repository?.maintainers.includes(identity.pubkey!) && (
+              <section className="author-management">
+                <h3>Manage this proposal</h3>
+                <p>
+                  Build a private merge candidate from the current upstream branch. Play it and
+                  inspect the diff in Studio before confirming the merge.
+                </p>
+                <Button
+                  disabled={
+                    preparingMerge ||
+                    !studio ||
+                    proposal.patch ||
+                    chosen.id !== proposal.revision.id ||
+                    !['open', 'draft'].includes(proposal.status)
+                  }
+                  onClick={() => {
+                    if (!studio) return;
+                    const pubkey = identity.pubkey;
+                    setPreparingMerge(true);
+                    setError('');
+                    void (async () => {
+                      const session = await studio.api<{ id: string }>('signers', { pubkey });
+                      const result = await studio.api<{ id: string }>('merge-reviews', {
+                        session: session.id,
+                        review: { proposal: proposal.root.id, revision: chosen.id, manifest },
+                      });
+                      await navigate({ href: `/studio/${result.id}` });
+                    })()
+                      .catch((e) => setError(e.message))
+                      .finally(() => setPreparingMerge(false));
+                  }}
+                >
+                  {preparingMerge ? 'Opening merge review…' : 'Review & merge in Studio'}
+                </Button>
+                {proposal.patch && (
+                  <p>This patch series can be merged with ngit using the review command below.</p>
+                )}
+              </section>
+            )}
         </div>
       )}
       {command && (

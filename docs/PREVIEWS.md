@@ -280,8 +280,12 @@ scene; the reported output duration is authoritative for the resulting file.
 
 Actions are bounded data, never a project script: at most 32, timed within the
 recording interval. Keys are arrows, Space, Enter, lowercase letters or digits.
-Coordinates refer to the recording viewport. Use the start/duration controls to
-select the captured interval; there is no separate editing timeline or audio track.
+Coordinates use the 960 × 600 capture space and scale proportionally for Studio's
+portrait captures. The recorder focuses the app before sending keyboard inputs.
+When a fresh cover is requested together with a clip, it is captured halfway
+through the action window rather than before the start action. An explicitly
+selected cover remains unchanged. Use the start/duration controls to select the
+captured interval; there is no separate editing timeline or audio track.
 `soyli record preview-2.webm` preserves an existing clip and selects the new file.
 The saved `preview.video` contains `file` and `artifactHash`. Publishing rejects an
 older-build selection; record again or remove `preview.video` for a static-only
@@ -383,3 +387,14 @@ This view does not enumerate files inside executable packages, invent preview
 metadata, or expand the supported video profile. It renders in SSR, fits phone
 widths, and needs no website login. The focused browser fixture verifies actual
 image/clip responses and source-archive bytes without publishing any events.
+
+## Local studio captures
+
+[Quick Vibe](QUICK-VIBE.md#publish-from-the-studio) uses the existing sandbox capture
+helper for listing media and optional 360×640 portrait captures. The helper accepts
+a bounded viewport (200–1200 wide, 160–750 high); existing CLI default sizes remain
+unchanged. The studio shows actual media before publication. Landscape cover/clip
+use the existing manifest presentation format. Portrait files are promotional
+downloads included in the source, with no additional protocol fields. Capture
+recipes still need to demonstrate the app: idle animation alone is not evidence
+of gameplay or a successful interaction.

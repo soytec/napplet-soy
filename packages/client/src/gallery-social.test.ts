@@ -50,7 +50,7 @@ function relayFixture(events: SignedEvent[], allowed: (e: SignedEvent) => boolea
   };
 }
 
-test('a 48-napplet collection fills in one sweep with shared queries, not one conversation read per card', async () => {
+test('a 48-napplet collection reads zap totals in one sweep with shared queries, not one read per card', async () => {
   const entries = await Promise.all(
     Array.from({ length: 48 }, (_, i) =>
       publicNapplet(
@@ -75,16 +75,52 @@ test('a 48-napplet collection fills in one sweep with shared queries, not one co
     const reader = new GallerySocialReader(fixture.client);
     const result = await reader.read(entries);
     expect(Object.keys(result.counts)).toHaveLength(48);
-    expect(Object.values(result.counts).every((c) => c.likeCount === 1)).toBe(true);
+    expect(Object.values(result.counts).every((c) => c.msats === 0 && !c.liked)).toBe(true);
     expect(result.refreshing).toBe(false);
-    expect(fixture.queries).toHaveLength(4);
-    expect(result.rankings.liked).toHaveLength(12);
+    // Two 32-entry groups, one receipt read each; likes and comments are COUNTed elsewhere.
+    expect(fixture.queries).toHaveLength(2);
+    expect(fixture.queries.flat().every((f) => f.kinds?.includes(9735))).toBe(true);
+    expect(result.zapped).toHaveLength(0);
   } finally {
     fixture.close();
   }
 });
 
-test('batched gallery counts preserve release references, deletions, actor deduplication, moderation and viewer state', async () => {
+test('cards on screen are read before the rotating remainder of a large collection', async () => {
+  const entries = await Promise.all(
+    Array.from({ length: 80 }, (_, i) =>
+      publicNapplet(
+        finalizeEvent(
+          {
+            ...fixtures[0].current,
+            tags: fixtures[0].current.tags.map((t) =>
+              t[0] === 'd' ? ['d', `visible-fixture-${i}`] : t,
+            ),
+          },
+          author,
+        ),
+        [],
+      ),
+    ),
+  );
+  const fixture = relayFixture([]);
+  try {
+    const visible = new Set(entries.slice(-4).map((n) => n.revisionId));
+    const result = await new GallerySocialReader(fixture.client).read(
+      entries,
+      undefined,
+      undefined,
+      undefined,
+      visible,
+    );
+    for (const id of visible) expect(result.counts[id]).toBeDefined();
+    expect(Object.keys(result.counts)).toHaveLength(64);
+  } finally {
+    fixture.close();
+  }
+});
+
+test('viewer like state honors release references, deletions, moderation and account changes', async () => {
   const entries = await Promise.all(fixtures.map((f) => publicNapplet(f.current, [])));
   const first = entries[0],
     scope = socialScope(first.manifest);
@@ -123,17 +159,14 @@ test('batched gallery counts preserve release references, deletions, actor dedup
   });
   try {
     const data = await reader.read(entries, getPublicKey(alice));
-    expect(data.counts[first.revisionId]).toEqual({
-      likeCount: 1,
-      liked: true,
-      commentCount: 2,
-      msats: 0,
-      zapCount: 0,
-    });
-    expect(data.rankings.liked).toHaveLength(entries.length);
+    expect(data.counts[first.revisionId]).toEqual({ liked: true, msats: 0, zapCount: 0 });
     expect(data.refreshing).toBe(false);
-    expect(fixture.queries).toHaveLength(2); // One shared read, one dependency read.
+    expect(fixture.queries).toHaveLength(1); // One shared read; no receipts need dependencies.
     expect(endpointCalls).toBe(0);
+    // Bob deleted his own like; deleting Alice's reaction had no effect.
+    expect((await reader.read(entries, getPublicKey(bob))).counts[first.revisionId].liked).toBe(
+      false,
+    );
     // Known counts are available synchronously, with the new viewer applied.
     const initial: boolean[] = [];
     const refresh = reader.read(entries, getPublicKey(bob), undefined, (v) =>
@@ -142,7 +175,9 @@ test('batched gallery counts preserve release references, deletions, actor dedup
     expect(initial[0]).toBe(false);
     await refresh;
     blocked.add(getPublicKey(alice));
-    expect((await reader.read(entries)).counts[first.revisionId].likeCount).toBe(0);
+    expect((await reader.read(entries, getPublicKey(alice))).counts[first.revisionId].liked).toBe(
+      false,
+    );
     // Leaving the page stops every progress callback, including pending coalesced updates.
     const controller = new AbortController();
     let updates = 0;
@@ -159,7 +194,7 @@ test('batched gallery counts preserve release references, deletions, actor dedup
   }
 });
 
-test('slow LNURL verification never holds up likes/comments and shared provider lookup validates/deduplicates receipts', async () => {
+test('slow LNURL verification never holds up viewer state and shared provider lookup validates/deduplicates receipts', async () => {
   const entries = await Promise.all(fixtures.slice(0, 2).map((f) => publicNapplet(f.current, [])));
   const profile = finalizeEvent(
     {
@@ -226,21 +261,19 @@ test('slow LNURL verification never holds up likes/comments and shared provider 
     return endpoint;
   });
   let latest: Awaited<ReturnType<typeof reader.read>> | undefined;
-  const reading = reader.read(entries, undefined, undefined, (data) => {
+  const reading = reader.read(entries, getPublicKey(alice), undefined, (data) => {
     latest = data;
   });
   try {
     await started;
-    expect(latest!.rankings.liked).toHaveLength(2);
-    expect(latest!.rankings.commented).toHaveLength(2);
-    expect(latest!.rankings.zapped).toHaveLength(0);
-    expect(latest!.counts[entries[0].revisionId].msats).toBeNull();
+    expect(latest!.counts[entries[0].revisionId]).toMatchObject({ liked: true, msats: null });
+    expect(latest!.zapped).toHaveLength(0);
     release();
     const result = await reading;
     expect(endpointCalls).toBe(1);
     for (const n of entries)
       expect(result.counts[n.revisionId]).toMatchObject({ msats: 21000, zapCount: 1 });
-    expect(result.rankings.zapped).toHaveLength(2);
+    expect(result.zapped).toHaveLength(2);
   } finally {
     release();
     await reading.catch(() => {});

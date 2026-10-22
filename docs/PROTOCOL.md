@@ -1,5 +1,17 @@
 # Napplet interoperability and publishing contract
 
+## Hosted Studio control — implementation, rollout pending
+
+Hosted Studio uses the existing ContextVM SDK 0.13.16 encrypted MCP transport and
+NIP-98 kind 27235 session authorization. Private source/build/media bytes use
+owner-authenticated HTTPS transfers; drafts are never published as a side effect.
+Publication/proposal events still require exact signatures from the shared shell
+account and retain the existing NIP-34/GRASP flows. No event kind, NAP domain or
+selected NIP-5D authority changes. Browser and server build paths share the same
+publication checks. See [STUDIO-HOSTING.md](STUDIO-HOSTING.md) for schemas,
+constraints, credential custody and the distinction between implementation and
+deployment verification.
+
 ## OUTBOX integration — released 0.29.0
 
 The shared host implements [NAP-OUTBOX at 8865f73d](https://github.com/napplet/naps/blob/8865f73d52a4864afee145f28d26520476273927/naps/NAP-OUTBOX.md)
@@ -351,6 +363,12 @@ supports the owner and direct reciprocal maintainers; role-based and indirect
 recursive authority use ngit. Independent ngit PR qualification uses 2.6.1 at
 `55f3e3a838dffd03f0fdd996103b8dc8c2cddcd6`. NIP-34 and NIP-5D pins are unchanged;
 GRASP-06 is not enabled. See [behavior and limits](COLLABORATION.md).
+
+The browser author-management flow reuses these same merge, push and status operations.
+It prepares a private rebuilt candidate and requires explicit source-update confirmation,
+followed by a separate Publish review to update the original named release. My work
+reads existing proposal, status and social events; its account-scoped unread markers
+stay in browser storage. Neither flow adds a wrapper kind or changes protocol pins.
 
 The optional `soy-preview` tag binds a hash-addressed JSON descriptor, signed
 snapshot and source commit to the exact PR revision. It adds no requirement to

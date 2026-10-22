@@ -77,6 +77,12 @@ export type PublishOptions = {
   resume?: boolean;
   /** Opt in to an additional independent immutable manifest. */
   snapshot?: boolean;
+  /** UI approval binds to exact source, metadata, media and destination bytes. */
+  expectedFingerprint?: string;
+  /** Reviewed NIP-34 repository address; null selects soyLI-hosted source. */
+  expectedRepository?: string | null;
+  /** Continue an explicitly reviewed named release from a fresh linked-repository checkout. */
+  expectedCurrent?: SignedEvent;
   accounts?: Pick<Accounts, 'current' | 'signer'>;
   check: (
     contents: Map<string, Uint8Array>,
@@ -157,6 +163,7 @@ export async function publicationStatus(
     refresh?: boolean;
     signal?: AbortSignal;
     creator?: string;
+    waitForWebsite?: boolean;
   } = {},
 ) {
   const journal = new Journal(await realpath(directory), network, options.creator);
@@ -166,7 +173,11 @@ export async function publicationStatus(
     if (!id) return { status: 'not_started' as const };
     const job = await journal.load(id);
     if (options.refresh && job.status === 'announced_pending_index') {
-      job.website = await confirmWebsite(job, { signal: options.signal });
+      job.website = await confirmWebsite(job, {
+        signal: options.signal,
+        wait: options.waitForWebsite,
+        ...(options.waitForWebsite === false ? { timeoutMs: 5000 } : {}),
+      });
       await journal.save(job);
     }
     return result(job);
@@ -382,7 +393,12 @@ export async function publishProject(options: PublishOptions) {
             account.pubkey,
             options.targets,
           );
-          // Fail before remote lookups/sandbox startup; freeze repeats against its exact commit.
+          // Bind UI approval before source availability checks or sandbox startup.
+          if (options.expectedFingerprint && inspected.fingerprint !== options.expectedFingerprint)
+            throw new PublishError(
+              'REVIEW_CHANGED',
+              'The project changed after review. Prepare and review the release again.',
+            );
           await inspectHistory(root, inspected.plan.sourceCommit);
           const selected = await selectRepository({
             directory: root,
@@ -391,6 +407,14 @@ export async function publishProject(options: PublishOptions) {
             fetch: deps.fetch,
             signal: options.signal,
           });
+          if (
+            options.expectedRepository !== undefined &&
+            options.expectedRepository !== (selected?.address ?? null)
+          )
+            throw new PublishError(
+              'REVIEW_CHANGED',
+              'The source repository changed after review. Prepare and review the release again.',
+            );
           if (job && job.fingerprint !== inspected.fingerprint)
             throw new PublishError(
               'PUBLISH_PENDING',
@@ -441,6 +465,41 @@ export async function publishProject(options: PublishOptions) {
                   ...plan.targets.mirrors,
                 ])
               : null;
+            const [current, sourceState, announcement] = await Promise.all([
+              relays.latest(plan.targets.relay, account.pubkey, plan.identifier, 35129),
+              linked ? null : relays.latest(source.relay, account.pubkey, plan.identifier, 30618),
+              linked ? null : relays.latest(source.relay, account.pubkey, plan.identifier, 30617),
+            ]);
+            let reviewedContinuation = false;
+            if (!previous && options.expectedCurrent) {
+              const anchor = verifiedEvent(options.expectedCurrent);
+              await validateManifest(anchor);
+              const sourceRef = anchor.tags.find((t) => t[0] === 'source')?.[1];
+              if (
+                !linked ||
+                anchor.kind !== 35129 ||
+                anchor.pubkey !== account.pubkey ||
+                anchor.tags.find((t) => t[0] === 'd')?.[1] !== plan.identifier ||
+                !sourceRef?.startsWith('nostr://') ||
+                repositoryRef(sourceRef).address !== linked.repository.address ||
+                current?.id !== anchor.id
+              )
+                throw new PublishError(
+                  'REMOTE_CONFLICT',
+                  'The reviewed release no longer matches this author, listing or source repository. Review the current napplet again before publishing.',
+                );
+              reviewedContinuation = true;
+            }
+            if (
+              (current?.id ?? null) !== (previous?.current?.id ?? null) &&
+              !reviewedContinuation &&
+              !(retired && !current) &&
+              !(refreshedInShell && current?.id === remotePrevious?.id)
+            )
+              throw new PublishError(
+                'REMOTE_CONFLICT',
+                'A remote release or source state differs from this journal. Restore the current journal or choose a new napplet identifier; stale releases are never forced over it.',
+              );
             if (linked)
               await verifyReleaseReachable({
                 directory: root,
@@ -449,20 +508,6 @@ export async function publishProject(options: PublishOptions) {
                 commit: plan.sourceCommit,
                 lsRemote: deps.lsRemote,
               });
-            const [current, sourceState, announcement] = await Promise.all([
-              relays.latest(plan.targets.relay, account.pubkey, plan.identifier, 35129),
-              linked ? null : relays.latest(source.relay, account.pubkey, plan.identifier, 30618),
-              linked ? null : relays.latest(source.relay, account.pubkey, plan.identifier, 30617),
-            ]);
-            if (
-              (current?.id ?? null) !== (previous?.current?.id ?? null) &&
-              !(retired && !current) &&
-              !(refreshedInShell && current?.id === remotePrevious?.id)
-            )
-              throw new PublishError(
-                'REMOTE_CONFLICT',
-                'A remote release or source state differs from this journal. Restore the current journal or choose a new napplet identifier; stale releases are never forced over it.',
-              );
             if (
               sourceState?.tags.some(
                 (t) =>
@@ -628,6 +673,19 @@ export async function publishProject(options: PublishOptions) {
           throw new PublishError(
             'PUBLISH_OPTIONS',
             'This frozen release was prepared without a snapshot. Finish it with publish --resume, then run publish --snapshot to request an immutable copy.',
+          );
+        if (options.expectedFingerprint && job.fingerprint !== options.expectedFingerprint)
+          throw new PublishError(
+            'REVIEW_CHANGED',
+            'This saved publication does not match the reviewed release. Review the pending release before resuming.',
+          );
+        if (
+          options.expectedRepository !== undefined &&
+          options.expectedRepository !== (job.repository?.address ?? null)
+        )
+          throw new PublishError(
+            'REVIEW_CHANGED',
+            'This saved source repository does not match the reviewed release.',
           );
         if (job.plan.pubkey !== account.pubkey)
           throw new PublishError(

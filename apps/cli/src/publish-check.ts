@@ -25,7 +25,21 @@ export async function checkPublication(
   recording?: Recording,
   interactive = false,
   signal?: AbortSignal,
+  viewport?: { width: number; height: number },
 ) {
+  if (
+    viewport &&
+    (!Number.isInteger(viewport.width) ||
+      !Number.isInteger(viewport.height) ||
+      viewport.width < 200 ||
+      viewport.width > 1200 ||
+      viewport.height < 160 ||
+      viewport.height > 750)
+  )
+    throw new PublishError(
+      'PREVIEW_VIEWPORT',
+      'Capture sizes must fit within 200–1200 × 160–750 pixels.',
+    );
   const directory = await mkdtemp(join(tmpdir(), 'napplet-publish-check-'));
   let browser: import('@playwright/test').Browser | undefined;
   let server: ReturnType<typeof startPreviewServer> | undefined;
@@ -110,10 +124,12 @@ export async function checkPublication(
         timer = setTimeout(() => reject(new Error('Handshake timed out')), 5000);
       }),
     ]);
-    await iframe.evaluate((node) => {
-      node.style.cssText =
-        'position:fixed;top:0;left:0;width:1200px;height:750px;border:0;display:block;';
-    });
+    await iframe.evaluate(
+      (node, size) => {
+        node.style.cssText = `position:fixed;top:0;left:0;width:${size.width}px;height:${size.height}px;border:0;display:block;`;
+      },
+      viewport ?? { width: 1200, height: 750 },
+    );
     await frame.waitForFunction(() => document.fonts.status === 'loaded', undefined, {
       timeout: 5000,
     });
@@ -203,22 +219,31 @@ export async function checkPublication(
     let video: Uint8Array | undefined;
     if (recording) {
       // Capture only the verified iframe. The host controls are outside the recording viewport.
-      await page.setViewportSize({ width: 960, height: 600 });
-      await iframe.evaluate((node) => {
-        node.style.width = '960px';
-        node.style.height = '600px';
+      const size = viewport ?? { width: 960, height: 600 };
+      await page.setViewportSize(size);
+      await iframe.evaluate((node, size) => {
+        node.style.width = `${size.width}px`;
+        node.style.height = `${size.height}px`;
         node.style.zIndex = '2147483647';
-      });
+      }, size);
       await page.waitForTimeout((interactive ? 0 : recording.startMs) + 100);
+      // Keyboard-first recipes must address the app, not the preview toolbar.
+      await iframe.focus();
       const path = join(directory, 'preview.webm');
-      await page.screencast.start({ path, size: { width: 960, height: 600 } });
+      await page.screencast.start({ path, size });
       try {
         const start = Date.now();
-        for (const action of [...(interactive ? [] : recording.actions)].sort(
-          (a, b) => a.atMs - b.atMs,
-        )) {
+        const timeline = [
+          ...(interactive ? [] : recording.actions),
+          ...(forceScreenshot ? [{ type: 'cover' as const, atMs: recording.durationMs / 2 }] : []),
+        ];
+        for (const action of timeline.sort((a, b) => a.atMs - b.atMs)) {
           await page.waitForTimeout(Math.max(0, start + action.atMs - Date.now()));
-          if (action.type === 'click') await page.mouse.click(action.x, action.y);
+          if (action.type === 'cover')
+            preview = new Uint8Array(await iframe.screenshot({ type: 'png', timeout: 5000 }));
+          else if (action.type === 'click')
+            // Saved recipes use the documented 960 × 600 coordinate space.
+            await page.mouse.click((action.x * size.width) / 960, (action.y * size.height) / 600);
           else await page.keyboard[action.type === 'keyDown' ? 'down' : 'up'](action.key);
         }
         await page.waitForTimeout(Math.max(0, start + recording.durationMs - Date.now()));
@@ -230,6 +255,8 @@ export async function checkPublication(
       video = contents.get(config.preview.video.file);
       if (!video) throw new PublishError('PREVIEW_VIDEO', 'The selected preview video is missing.');
     }
+    if (preview.length > MAX_PREVIEW_BYTES)
+      throw new PublishError('PREVIEW_IMAGE', 'The captured gameplay cover exceeds 5 MiB.');
     if (video) {
       try {
         inspectPreviewVideo(video);

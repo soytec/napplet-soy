@@ -165,6 +165,25 @@ shows contribution guidance. Long commands wrap visually and copy as one command
 External proposals without Soy metadata remain visible, with a local-review command.
 External patch roots (1617) can be read; applying/revising patch series uses ngit.
 
+For named napplets, the signed-in original author can select **Review & merge in
+Studio** on the original listing. A separate private workspace pins the proposal
+revision and current target, rebuilds the merged source, and presents the diff and
+playable candidate before confirmation. Source sharing reuses `push` and its durable
+NIP-34 state/status outbox; no wrapper event is introduced. Retrying the same reviewed
+browser merge reuses its signed events, even after delivery succeeded. Publishing the
+resulting napplet is a separate action, preserving its named coordinate and refusing
+a stale release anchor.
+The merge button shows **Merging…** immediately, with a spinner and live source/status
+delivery details until the result arrives. Merge signatures use the selected shell
+account, including standard NIP-34 kind-1631 merge status; signing permissions are
+shared with Studio's publication policy. Remote signers may request approval for
+that event kind.
+The shell's **My work** dashboard links incoming/outgoing proposals and recent public
+activity. Repository lookups retain the relay hints in the manifest's source link
+alongside publication and configured fallback relays; Git proposals need not live
+on the napplet catalog's relays. Unread markers stay in the browser for each account. See
+[Studio collaboration](QUICK-VIBE.md#propose-changes-from-a-remix) for the UI flow.
+
 ## Optional runnable preview attachment
 
 NIP-34 is pinned to `6d2979b3f503a8539c983efbcdcf901bbcf9ed23` for this adapter.

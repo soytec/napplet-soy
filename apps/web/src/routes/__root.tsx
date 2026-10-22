@@ -24,7 +24,7 @@ export const Route = createRootRoute({
         : [{ title: 'napplet.soy' }]),
       {
         httpEquiv: 'Content-Security-Policy',
-        content: "frame-src 'self' blob:; object-src 'none'; base-uri 'self'",
+        content: `frame-src 'self' blob:${import.meta.env.DEV ? ' http://127.0.0.1:*' : ''}; object-src 'none'; base-uri 'self'`,
       },
     ],
     links: [

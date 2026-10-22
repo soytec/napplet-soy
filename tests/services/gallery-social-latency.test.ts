@@ -66,18 +66,30 @@ test('gallery rankings appear while a fallback relay is still stalled', async ()
         }),
       ),
     );
+    // Only the fast relay advertises NIP-45; the stalled relay never answers NIP-11 either.
+    await context.route('https://fast.example/', (route) =>
+      route.fulfill({
+        json: { supported_nips: [1, 11, 45] },
+        headers: { 'access-control-allow-origin': '*' },
+      }),
+    );
+    await context.route('https://stalled.example/', () => {});
     let firstSocialEvent = 0;
     let socialRequests = 0;
     await context.routeWebSocket(/wss?:\/\//, (route) => {
       route.onMessage((raw) => {
         const m = JSON.parse(String(raw));
-        if (m[0] !== 'REQ' || !route.url().includes('fast.example')) return;
-        if (m.slice(2).some((f: any) => f.kinds?.includes(7))) socialRequests++;
+        if (!route.url().includes('fast.example')) return;
+        if (m[0] === 'COUNT') {
+          socialRequests++;
+          const count = events.filter((event) => matchFilters(m.slice(2), event)).length;
+          if (count && !firstSocialEvent) firstSocialEvent = performance.now();
+          route.send(JSON.stringify(['COUNT', m[1], { count }]));
+          return;
+        }
+        if (m[0] !== 'REQ') return;
         for (const event of events)
-          if (matchFilters(m.slice(2), event)) {
-            if (event.kind === 7 && !firstSocialEvent) firstSocialEvent = performance.now();
-            route.send(JSON.stringify(['EVENT', m[1], event]));
-          }
+          if (matchFilters(m.slice(2), event)) route.send(JSON.stringify(['EVENT', m[1], event]));
         route.send(JSON.stringify(['EOSE', m[1]]));
       });
     });
@@ -92,7 +104,7 @@ test('gallery rankings appear while a fallback relay is still stalled', async ()
     });
     const elapsed = performance.now() - firstSocialEvent;
     console.log(
-      `Social rankings visible ${Math.round(elapsed)}ms after the fast relay delivered events (${socialRequests} social queries).`,
+      `Social rankings visible ${Math.round(elapsed)}ms after the fast relay answered counts (${socialRequests} COUNT queries).`,
     );
     expect(elapsed).toBeLessThan(2500);
   } finally {

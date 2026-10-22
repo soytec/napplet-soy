@@ -113,7 +113,8 @@ test('signed publications survive process restart', async () => {
     headers: { Accept: 'application/nostr+json' },
   }).then((r) => r.json());
   expect(info.supported_nips).toContain(50);
-  expect(info.supported_nips).not.toContain(45);
+  expect(info.supported_nips).toContain(45);
+  expect(info.supported_nips).toContain(77);
 }, 20_000);
 
 test('NIP-42 authenticates the direct URL before accepting protected events', async () => {
@@ -130,9 +131,8 @@ test('NIP-42 authenticates the direct URL before accepting protected events', as
     key,
   );
   try {
-    const refused = await lastValueFrom(relay.event(event));
-    expect(refused.ok).toBe(false);
-    expect(refused.message).toStartWith('auth-required:');
+    // Raw EVENT raises auth-required refusals in applesauce v7.
+    await expect(lastValueFrom(relay.event(event))).rejects.toThrow(/^auth-required:/);
     expect(
       (await relay.authenticate({ signEvent: (template) => finalizeEvent(template, key) })).ok,
     ).toBe(true);

@@ -11,6 +11,33 @@ function section(source: string, from: string, to: string, body: string) {
   return replace(source, source.slice(start, end), body + '\n\n');
 }
 export function adaptToolingSkill(path: string, source: string) {
+  if (path === 'skills/napplet-make/SKILL.md') {
+    source = section(
+      source,
+      '## Step 2 — Triage the directory and toolchain',
+      '## Step 3 — Non-negotiables while executing',
+      `## Step 2 — Inspect the existing soyLI workspace
+
+Read docs/napplet-space.md before running tools. The project and its skills are
+already installed. Inspect package.json, napplet.json, vite.config.ts and src/.
+Do not run another scaffold/init command, reinstall skills or require Paja/Kehto.
+Use soyli setup for a fresh checkout, soyli run verify for the project checks,
+soyli run test:conformance for upstream conformance and soyli check for the host.
+Use soyli dev and its printed URL for interactive preview; stop your owned session
+after testing. If a surrounding studio owns the preview process, let it manage
+that lifetime. A raw Vite URL is not a hosted napplet preview.
+
+Preserve compatible build configuration, dependencies and source history when
+contributing to an existing project. Read the installed napplet-port skill when
+porting application code. Load the relevant downstream skills explicitly:
+napplet-ui for visuals and napplet-test before calling the result verified.`,
+    );
+    return replace(
+      source,
+      '- Paja preview URL reported, or Paja explicitly reported unavailable.',
+      '- soyLI sandbox preview verified, or the exact missing host check reported as a gap.',
+    );
+  }
   if (path !== 'skills/napplet-build/SKILL.md') return source;
   source = source.replace(
     /^description:.*$/m,

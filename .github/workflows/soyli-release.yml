@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/soyli-release.yml'
       - 'apps/cli/**'
+      - 'apps/studio/**'
       - 'apps/web/public/install.sh'
       - 'packages/**'
       - 'scripts/cli-*'

@@ -1,4 +1,5 @@
-import { DiagnosticError } from '../../diagnostics/src';
+import { DiagnosticError, type Diagnostic } from '../../diagnostics/src';
+import { publicNodeWorker } from '../../backend/src/public-node-worker';
 import { matchFilters, type Filter } from 'nostr-tools';
 import { fromEvent, take, takeUntil, takeWhile } from 'rxjs';
 import { openPlaybackRelay } from '../../backend/src/relay-tunnel';
@@ -7,6 +8,30 @@ import { verifiedEvent, type SignedEvent } from '../../protocol/src';
 
 /** Finite, signer-free discovery using the same DNS-pinned Bun transport as playback. */
 export async function discoverRemix(filter: Filter, relays: string[], signal: AbortSignal) {
+  if (typeof Bun !== 'undefined' && process.env.SPACE_PUBLIC_NETWORK_NODE === '1') {
+    const bytes = await publicNodeWorker(
+      'packages/remix/src/discovery-worker.ts',
+      { filter, relays },
+      signal,
+      128 * 1024,
+      'discover remix',
+      10000,
+    );
+    const result = JSON.parse(new TextDecoder().decode(bytes)) as {
+      event?: SignedEvent;
+      error?: Diagnostic;
+    };
+    if (result.error)
+      throw new DiagnosticError(result.error.code, result.error.message, {
+        operation: result.error.operation,
+        recovery: result.error.recovery,
+        detail: result.error.details?.join('\n'),
+      });
+    const event = verifiedEvent(result.event);
+    if (!matchFilters([filter], event) || event.created_at > Date.now() / 1000 + 60)
+      throw new Error('The remix worker returned an unrelated release.');
+    return event;
+  }
   const events = new Map<string, SignedEvent>();
   // A full event hash identifies one immutable revision. Once verified, waiting
   // for fallback relays cannot improve it. Named/latest lookups still gather all
@@ -36,7 +61,7 @@ export async function discoverRemix(filter: Filter, relays: string[], signal: Ab
         if (combined.aborted) return;
         await new Promise<void>((done) => {
           pool!
-            .req([relay], [filter], { reconnect: false, waitForAuth: false })
+            .req([relay], [filter])
             .pipe(
               takeWhile((m) => m.type !== 'EOSE' && m.type !== 'CLOSED', true),
               take(12),
