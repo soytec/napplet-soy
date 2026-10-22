@@ -38,7 +38,7 @@ soyli dev
 macOS or Linux, with Git installed. No separate Bun or Node installation required.
 Follow the installer's PATH instruction if prompted, then open the preview URL it
 prints. See [requirements and troubleshooting](docs/CLI.md#requirements-and-storage).
-On Linux with Nix, `nix run github:zeSchlausKwab/napplet-soy -- new my-napplet` works
+On Linux with Nix, `nix run github:soytec/napplet-soy -- new my-napplet` works
 too, and NixOS has a module; see [soyLI with Nix](docs/NIX.md).
 
 Open the project with your coding agent and describe what you want. For example:
@@ -65,7 +65,7 @@ propose or push.
 
 After installation, `soyli doctor` checks for a newer release and `soyli update`
 installs it. Older CLIs without `update` can use the installer on the
-[latest GitHub release](https://github.com/zeSchlausKwab/napplet-soy/releases/latest).
+[latest GitHub release](https://github.com/soytec/napplet-soy/releases/latest).
 [Release and update details](docs/CLI-RELEASES.md). Nix installations update through
 their flake input instead.
 

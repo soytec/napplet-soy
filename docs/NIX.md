@@ -6,15 +6,15 @@ compatibility build that the release archives ship for older Macs. Use the
 [installer](CLI.md#requirements-and-storage) there.
 
 ```sh
-nix run github:zeSchlausKwab/napplet-soy -- new my-napplet
-nix profile install github:zeSchlausKwab/napplet-soy
+nix run github:soytec/napplet-soy -- new my-napplet
+nix profile install github:soytec/napplet-soy
 ```
 
 ## NixOS
 
 ```nix
 {
-  inputs.soyli.url = "github:zeSchlausKwab/napplet-soy";
+  inputs.soyli.url = "github:soytec/napplet-soy";
 
   outputs = { nixpkgs, soyli, ... }: {
     nixosConfigurations.my-host = nixpkgs.lib.nixosSystem {
