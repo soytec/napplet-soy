@@ -5,6 +5,7 @@ import { browserIdentity } from '@/lib/browser-identity';
 import { StudioApp } from '../../../studio/ui';
 import { studioRoute } from '../../../studio/navigation';
 import { useStudio } from './studio-provider';
+import { StudioOriginalPreview } from './studio-original-preview';
 
 export function StudioPage() {
   const location = useLocation();
@@ -57,6 +58,7 @@ export function StudioPage() {
       browserBuild={browserBuild}
       setBrowserBuildAvailable={setBrowserBuildAvailable}
       openConnections={openConnections}
+      OriginalPreview={StudioOriginalPreview}
       route={route}
       navigate={(href) => {
         void navigate({ href });

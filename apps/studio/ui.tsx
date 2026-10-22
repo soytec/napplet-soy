@@ -59,6 +59,7 @@ export function StudioApp({
   openConnections,
   browserBuild,
   setBrowserBuildAvailable,
+  OriginalPreview,
 }: {
   client: StudioClient;
   reconnect?: () => void;
@@ -68,6 +69,7 @@ export function StudioApp({
   openConnections: () => void;
   browserBuild: BrowserBuildController;
   setBrowserBuildAvailable: (available: boolean) => void;
+  OriginalPreview?: React.ComponentType<{ source: string }>;
 }) {
   const { api, media } = client;
   const storagePrefix = client.mode === 'hosted' ? 'studio:' + account.pubkey + ':' : 'quick-vibe-';
@@ -107,13 +109,17 @@ export function StudioApp({
   const [tab, setTab] = useState<'preview' | 'assets' | 'files' | 'changes' | 'history'>('preview');
   const [mobileTab, setMobileTab] = useState<'chat' | 'preview'>('chat');
   const [phone, setPhone] = useState(false);
-  const [preview, setPreview] = useState('');
+  const [draftPreview, setDraftPreview] = useState<{ project: string; url: string }>();
   const [frameKey, setFrameKey] = useState(0);
   const [paths, setPaths] = useState<string[]>([]);
   const [path, setPath] = useState('');
   const [code, setCode] = useState('');
   const bottom = useRef<HTMLDivElement>(null);
   const p = state.projects.find((p) => p.id === id);
+  // Keep the previous passing frame while the next preview URL is being resolved.
+  const preview = draftPreview?.project === p?.id && p?.preview ? draftPreview?.url ?? '' : '';
+  const original = p?.source && OriginalPreview ? p.sourceRevision ?? p.source : undefined;
+  const showingOriginal = !!original && !preview;
   const busy = !!state.busy || sending;
   const active = p && working(p.phase);
   const seenPublicationIntents = useRef(new Set<string>());
@@ -170,7 +176,7 @@ export function StudioApp({
     setPublishOpen(false);
     setProposalOpen(false);
     setTab('preview');
-    setPreview('');
+    setDraftPreview(undefined);
     setCode('');
     setPath('');
     setPrompt(localStorage.getItem(storagePrefix + 'draft:' + id) ?? '');
@@ -186,7 +192,7 @@ export function StudioApp({
     if (p?.preview)
       void api<{ url: string }>(`projects/${p.id}/preview`)
         .then((r) => {
-          if (live) setPreview(r.url);
+          if (live) setDraftPreview({ project: p.id, url: r.url });
         })
         .catch((e) => {
           if (live) setError(e.message);
@@ -716,7 +722,7 @@ export function StudioApp({
                     <button
                       title="Reload preview"
                       aria-label="Reload preview"
-                      disabled={!preview}
+                      disabled={!preview && !original}
                       onClick={() => setFrameKey(frameKey + 1)}
                     >
                       <RotateCcw size={16} />
@@ -744,6 +750,8 @@ export function StudioApp({
                       title="Playable napplet preview"
                       allow="fullscreen"
                     />
+                  ) : original && OriginalPreview ? (
+                    <OriginalPreview key={`${p.id}:${frameKey}`} source={original} />
                   ) : (
                     <div className="empty-preview">
                       <span
@@ -840,11 +848,13 @@ export function StudioApp({
               )}
               <div className="preview-footer">
                 <span>
-                  {p.previewValidation === 'browser'
-                    ? 'Browser preview · full checks pending'
-                    : p.preview
-                      ? `${p.checkpoints.length} saved preview${p.checkpoints.length === 1 ? '' : 's'}${active || p.phase !== 'ready' ? ' · Showing last passing build' : ' · Try the controls'}`
-                      : 'A preview you can actually play.'}
+                  {showingOriginal
+                    ? 'Original napplet · your draft preview appears after checks pass'
+                    : p.previewValidation === 'browser'
+                      ? 'Browser preview · full checks pending'
+                      : p.preview
+                        ? `${p.checkpoints.length} saved preview${p.checkpoints.length === 1 ? '' : 's'}${active || p.phase !== 'ready' ? ' · Showing last passing build' : ' · Try the controls'}`
+                        : 'A preview you can actually play.'}
                 </span>
                 {browserBuildChoice}
                 {browserBuild.enabled && (

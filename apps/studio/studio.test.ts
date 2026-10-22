@@ -12,10 +12,43 @@ import { startPreviewServer } from '../cli/src/preview/server';
 import { pathToFileURL } from 'node:url';
 import { generateSecretKey, getPublicKey } from 'nostr-tools';
 import { reasoningLimits } from './types';
+import { writeBinding } from '../../packages/publish/src/binding';
 import { dispatchStudio } from './dispatch';
 import catalog from '../../packages/backend/data/catalog.json';
 
 const cleanup: Array<() => Promise<unknown>> = [];
+
+test('an existing remix remembers its imported manifest before inference without promoting a draft preview', async () => {
+  let calls = 0;
+  const revision = 'a'.repeat(64);
+  const { studio, root, options } = await fixture({
+    model: 'fixture',
+    async run() {
+      calls++;
+    },
+  });
+  const id = await studio.create('Original', 'Make a game');
+  await settled(studio);
+  const p = studio.project(id);
+  p.source = 'https://napplet.soy/n/latest-address';
+  await writeBinding(join(root, 'projects', id, 'workspace'), {
+    version: 1,
+    project: { remix: { revision } },
+  });
+  // This represents an existing saved remix from before the preview metadata field.
+  await studio.close();
+  const store = new StudioStore(root);
+  store.save([p]);
+  store.close();
+  const restored = new Studio(options);
+  await restored.initialize();
+  cleanup.push(() => restored.close());
+  const loaded = (await restored.state()).projects[0];
+  expect(loaded.sourceRevision).toBe(revision);
+  expect(loaded.preview).toBeUndefined();
+  expect(loaded.checkpoints).toHaveLength(0);
+  expect(calls).toBe(1);
+});
 
 test('merge dispatch requires explicit confirmation and refuses non-author reviews without inference', async () => {
   let calls = 0;

@@ -53,6 +53,7 @@ import { nip19 } from 'nostr-tools';
 import { publicationStatus, type PublishOptions } from '../../packages/publish/src';
 import { BrowserBuilds, browserBuildInput } from './browser-build';
 import { builtConfiguration } from '../../packages/publish/src/artifact';
+import { readBinding } from '../../packages/publish/src/binding';
 
 export type StudioOptions = {
   directory: string;
@@ -112,6 +113,7 @@ export class Studio {
       for (const project of this.projects) {
         if (!/^[a-f0-9-]{36}$/.test(project.id)) throw new Error('Invalid saved project ID.');
         delete project.previewUrl;
+        if (project.initialized) await this.rememberSourceRevision(project);
         const publication = project.publication?.attempt;
         if (publication?.status === 'published' && !publication.result?.websiteReady) {
           const old = 'Published; awaiting website indexing';
@@ -567,6 +569,15 @@ export class Studio {
       false,
     );
   }
+  private async rememberSourceRevision(p: Project) {
+    if (!p.source || p.sourceRevision) return;
+    try {
+      p.sourceRevision = (await readBinding(this.workspace(p.id)))?.project.remix?.revision;
+    } catch {
+      // Optional preview metadata cannot prevent opening a saved workspace.
+      // Source/publication operations still validate the binding and report errors.
+    }
+  }
   private async prepare(p: Project, signal: AbortSignal) {
     if (p.source) this.options.sourcePolicy?.(p.source);
     const root = join(this.options.directory, 'projects', p.id);
@@ -592,6 +603,7 @@ export class Studio {
       }
       p.initialized = true;
       p.baseline = (await this.git(p, ['rev-parse', 'HEAD'], signal)).trim();
+      await this.rememberSourceRevision(p);
       await this.save();
     }
     if (!p.setup) {

@@ -32,6 +32,8 @@ export type Project = {
   id: string;
   title: string;
   source?: string;
+  /** Exact published manifest selected by the source import, not the draft build. */
+  sourceRevision?: string;
   createdAt: string;
   updatedAt: string;
   phase: Phase;

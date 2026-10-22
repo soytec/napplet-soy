@@ -42,6 +42,14 @@ of the private draft directory and do not write into the installation. Source
 archives still require their signed hash, and unavailable exact releases retain
 actionable diagnostics rather than silently substituting a newer version.
 
+While that import or the first edit runs, Studio plays the original publication
+through the shell's existing browser Nostr reader and verified sandbox player.
+It is labelled **Original napplet** and is replaced only when a passing draft
+preview is available. This applies to both browser and server builds and existing
+drafts. Viewing the original does not run tools, start inference or make the draft
+publishable. Exact imported revisions are retained; optional preview failure does
+not prevent source editing. No additional API or event kind is introduced.
+
 `bash scripts/test-studio-remix-network.sh` verifies the real CLI import under the
 generated Studio firewall in isolated Linux network/mount namespaces (sudo,
 nftables, iproute2, OpenSSL and Node required). Its local TLS fixtures require no
