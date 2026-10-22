@@ -7,7 +7,7 @@ import release from '../apps/cli/distribution/version.json';
 test('installer crosses the ownership transfer, falls back only on canonical 404 and preserves working installs', async () => {
   const root = await mkdtemp(join(tmpdir(), 'soyli-installer-transfer-'));
   const installer = new URL('../apps/web/public/install.sh', import.meta.url).pathname;
-  const name = `soyli-${process.platform}-${process.arch}`;
+  const name = 'soyli-linux-x64';
   const calls: string[] = [];
   let canonicalStatus = 404,
     legacyStatus = 200,
@@ -69,6 +69,20 @@ test('installer crosses the ownership transfer, falls back only on canonical 404
     `,
     );
     const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+    // The archive contains a portable shell fixture, not a native executable.
+    // Model its platform explicitly so even older deployment CPUs can test the
+    // download flow. Keep the real installer's CPU gate and grep word matching.
+    const cpuInfo = join(root, 'cpuinfo');
+    for (const [tool, script] of Object.entries({
+      uname: `case "$*" in -s) echo Linux;; -m) echo x86_64;; *) exec /usr/bin/uname "$@";; esac`,
+      getconf: `if [ "$#" = 1 ] && [ "$1" = GNU_LIBC_VERSION ]; then echo 'glibc 2.36'; else exec /usr/bin/getconf "$@"; fi`,
+      grep: `if [ "$#" = 4 ] && [ "$1" = -q ] && [ "$2" = -w ] && [ "$3" = sse4_2 ] && [ "$4" = /proc/cpuinfo ]; then
+        exec /usr/bin/grep -q -w sse4_2 ${quote(cpuInfo)}
+      fi
+      exec /usr/bin/grep "$@"`,
+    })) {
+      await writeFile(join(root, 'tools', tool), `#!/bin/sh\n${script}\n`, { mode: 0o755 });
+    }
     await writeFile(
       join(root, 'tools/curl'),
       `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(proxy)} "$@"\n`,
@@ -85,6 +99,13 @@ test('installer crosses the ownership transfer, falls back only on canonical 404
       NAPPLET_DOWNLOAD_BASE: undefined,
       NAPPLET_RELEASE_VERSION: undefined,
     };
+    await writeFile(cpuInfo, 'flags : sse4_20\n');
+    const unsupported = await run(['/bin/sh', installer], env);
+    expect(unsupported.code).toBe(1);
+    expect(unsupported.stderr).toContain('The x86-64 Linux package requires SSE4.2.');
+    expect(calls).toHaveLength(0);
+    expect(await Bun.file(join(bin, 'soyli')).exists()).toBe(false);
+    await writeFile(cpuInfo, 'flags : sse4_2\n');
     const before = await run(['/bin/sh', installer], env);
     expect(before.code, before.stderr).toBe(0);
     expect(calls.map((path) => path.split('/')[1])).toEqual([
