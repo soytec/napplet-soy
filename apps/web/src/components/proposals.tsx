@@ -19,6 +19,7 @@ import { switchMap, Subscription } from 'rxjs';
 import { useNostr } from './nostr-provider';
 import { useStudio } from './studio-provider';
 import { useNavigate, useLocation } from '@tanstack/react-router';
+import { CreatorLink } from './creator-link';
 
 export function Proposals({ manifest, reference }: { manifest?: SignedEvent; reference?: string }) {
   const identity = useNostr();
@@ -191,10 +192,10 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
           >
             <span>
               <strong>{p.title}</strong>
-              <small>
-                {p.root.pubkey.slice(0, 12)}… ·{' '}
-                {new Date(p.root.created_at * 1000).toLocaleDateString()}
-              </small>
+              <span className="proposal-byline">
+                <span>Proposed by</span> <CreatorLink pubkey={p.root.pubkey} linked={false} />
+              </span>
+              <small>{new Date(p.root.created_at * 1000).toLocaleDateString()}</small>
             </span>
             <span className="proposal-state">
               {p.status}

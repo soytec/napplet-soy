@@ -165,7 +165,8 @@ export class ContainerJobs {
         await chmod(join(staging, file), 0o644);
       dispose = await options.prepare?.(staging);
       let exitCode = 0,
-        timedOut = false;
+        timedOut = false,
+        unsupportedProfile = false;
       let result: JobFiles | undefined,
         transferred = 0;
       const received: JobFiles = Object.create(null),
@@ -183,6 +184,8 @@ export class ContainerJobs {
           onLine: (line) => {
             if (line === 'SOY_JOB_TIMEOUT') {
               timedOut = true;
+            } else if (line === 'SOY_JOB_PROFILE') {
+              unsupportedProfile = true;
             } else if (line.startsWith('SOY_JOB_STATUS:')) {
               const status = line.slice(15);
               if (!/^(?:0|[1-9][0-9]{0,2})$/.test(status) || Number(status) > 255 || result)
@@ -222,17 +225,25 @@ export class ContainerJobs {
         ...(exitCode
           ? {
               failure: new DiagnosticError(
-                timedOut ? 'STUDIO_TIMEOUT' : 'STUDIO_EXECUTION',
+                timedOut
+                  ? 'STUDIO_TIMEOUT'
+                  : unsupportedProfile
+                    ? 'STUDIO_PROFILE'
+                    : 'STUDIO_EXECUTION',
                 timedOut
                   ? 'The isolated job reached its time limit. Its recoverable edits were saved.'
-                  : 'The isolated job failed. Its recoverable edits were saved.',
+                  : unsupportedProfile
+                    ? 'This project needs dependencies that are not installed on this Studio worker.'
+                    : 'The isolated job failed. Its recoverable edits were saved.',
                 {
                   tool: command[0],
                   exitCode,
                   operation: options.operation,
                   detail: text,
                   recovery:
-                    'Inspect the diagnostics and ask the maker to repair the saved draft. Your last passing preview is retained.',
+                    unsupportedProfile && !timedOut
+                      ? 'Ask the operator to add the exact dependency profile, then prepare a fresh proposal review or retry draft checks. You can also continue with soyLI locally. Another AI prompt cannot install it; your source and any passing preview are retained.'
+                      : 'Inspect the diagnostics and ask the maker to repair the saved draft. Your last passing preview is retained.',
                 },
               ),
             }

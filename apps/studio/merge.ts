@@ -37,12 +37,17 @@ export type MergeReview = {
   id: string;
   pubkey: string;
   proposal: string;
+  /** Signed root author; optional for review workspaces saved before this field existed. */
+  author?: string;
+  title?: string;
   revision: string;
   repository: string;
   branch: string;
   target: string;
   state: string;
   head: string;
+  /** Private candidate pinned before project code executes, distinct from the upstream diff base. */
+  candidate?: string;
   commit?: string;
   fingerprint?: string;
   manifest: SignedEvent;
@@ -168,15 +173,33 @@ export async function prepareMerge(
       proposal: input.proposal,
       revision: input.revision,
       repository: repository.address,
+      author: proposal.root.pubkey,
+      title: proposal.title,
       branch,
       target: target!,
       state: state.id,
       head: proposal.head,
+      candidate: await sourceGit(root, ['rev-parse', 'HEAD']),
       manifest,
     };
   } finally {
     client.close();
   }
+}
+
+/** Review runtime code without treating inherited listing media as a new release.
+ * This copy is never written back; publication still validates the original media. */
+export function mergeRuntimeContents(contents: Map<string, Uint8Array>) {
+  const copy = new Map(contents);
+  const config = JSON.parse(new TextDecoder().decode(copy.get('napplet.json')));
+  if (config.preview) {
+    delete config.preview.video;
+    // A capture milestone may require live data (e.g. a radio station row).
+    // The private offline check still enforces the host handshake and script errors.
+    delete config.preview.readySelector;
+  }
+  copy.set('napplet.json', new TextEncoder().encode(JSON.stringify(config)));
+  return copy;
 }
 
 export async function freezeMerge(root: string, review: MergeReview, network: Network = 'public') {

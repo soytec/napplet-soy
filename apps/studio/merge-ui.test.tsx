@@ -42,6 +42,21 @@ test('merge feedback stays active through signing and delivery, then stops on su
   expect(html).not.toContain('spin');
   expect(html).toContain('Retry reviewed merge');
   expect(html).toContain('Source host unavailable');
+  project.merge!.review = {
+    ...project.merge!.review!,
+    commit: undefined,
+    proposal: 'proposal-id',
+    title: 'Improve the radio',
+    author: '2'.repeat(64),
+  };
+  html = render();
+  expect(html).toContain('Private merge review');
+  expect(html).toContain('Improve the radio');
+  expect(html).toContain('Proposed by');
+  expect(html).toContain('npub1');
+  expect(html).toContain('href="/proposals/proposal-id"');
+  expect(html).toContain('prepare a fresh review');
+  expect(html).not.toContain('I reviewed the diff');
   project.merge!.status = 'merged';
   html = render();
   expect(html).not.toContain('spin');

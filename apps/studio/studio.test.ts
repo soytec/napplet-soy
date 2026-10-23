@@ -903,3 +903,81 @@ test('connection changes discard only the agent session, and step limits remain 
   expect(project.messages.filter((m) => m.role === 'user')).toHaveLength(3);
   expect(project.checkpoints).toHaveLength(3);
 });
+
+test('merge verification accepts committed contributor tests but still rejects later protected edits', async () => {
+  const { studio, root, options } = await fixture({
+    model: 'fixture',
+    async run(directory) {
+      await writeFile(join(directory, 'src/main.ts'), 'working');
+    },
+  });
+  const signal = new AbortController().signal;
+  const id = await studio.create('Merge review', 'Make it');
+  await settled(studio);
+  const p = studio.project(id),
+    directory = join(root, 'projects', id, 'workspace');
+  await writeFile(join(directory, 'LICENSE'), 'MIT');
+  await writeFile(join(directory, 'index.html'), '<html>source</html>');
+  await mkdir(join(directory, 'tests'));
+  await writeFile(join(directory, 'tests/volume.test.ts'), 'contributor regression test');
+  await run(['git', 'add', 'tests'], {
+    cwd: directory,
+    env: cleanEnvironment(),
+    signal,
+    operation: 'stage proposal fixture',
+  });
+  await run(
+    [
+      'git',
+      '-c',
+      'user.name=Fixture',
+      '-c',
+      'user.email=fixture@localhost',
+      '-c',
+      'commit.gpgsign=false',
+      'commit',
+      '-m',
+      'Contributor tests',
+    ],
+    { cwd: directory, env: cleanEnvironment(), signal, operation: 'commit proposal fixture' },
+  );
+  const candidate = (
+    await run(['git', 'rev-parse', 'HEAD'], {
+      cwd: directory,
+      env: cleanEnvironment(),
+      signal,
+      operation: 'pin proposal fixture',
+    })
+  ).trim();
+  p.merge = {
+    status: 'preparing',
+    detail: '',
+    review: { candidate, pubkey: '1'.repeat(64) } as any,
+  };
+  p.source = 'nostr:original';
+  expect(await studio['protectedFiles'](p, signal)).toBe('');
+  let sandboxCalls = 0;
+  options.publicationCheck = async (contents) => {
+    sandboxCalls++;
+    expect(new TextDecoder().decode(contents.get('dist/index.html'))).toContain('working');
+    return { profile: 'isolated-fixture', browser: 'fixture' };
+  };
+  await studio['verify'](p, signal);
+  expect(sandboxCalls).toBe(1);
+  expect(p.checks.map((c) => c.state)).toEqual(['passed', 'passed', 'passed']);
+  expect(p.preview).toBeTruthy();
+  p.merge.status = 'merged';
+  p.merge.review!.commit = candidate;
+  expect(await studio['protectedFiles'](p, signal)).toBe('');
+  // Preparing a release after merge must reach fresh media capture; the final
+  // reviewed-publication checker still validates its real media separately.
+  await studio['verify'](p, signal);
+  expect(sandboxCalls).toBe(2);
+  p.merge.status = 'preparing';
+  await writeFile(join(directory, 'tests/volume.test.ts'), 'unexpected edit after pinning');
+  expect(await studio['protectedFiles'](p, signal)).toContain('unexpected edit');
+  delete p.merge.review!.candidate;
+  await expect(studio['protectedFiles'](p, signal)).rejects.toMatchObject({
+    code: 'STUDIO_MERGE_REVIEW',
+  });
+});

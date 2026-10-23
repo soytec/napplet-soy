@@ -568,9 +568,11 @@ export function StudioApp({
                 ))}
               </select>
               <span className="draft-badge">
-                {p.publication?.attempt?.status === 'published'
-                  ? 'PUBLISHED PROJECT'
-                  : 'PRIVATE DRAFT'}
+                {p.merge && p.merge.status !== 'merged'
+                  ? 'MERGE REVIEW'
+                  : p.publication?.attempt?.status === 'published'
+                    ? 'PUBLISHED PROJECT'
+                    : 'PRIVATE DRAFT'}
               </span>
               <button
                 className="primary publish-entry"

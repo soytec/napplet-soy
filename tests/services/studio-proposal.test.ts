@@ -199,6 +199,9 @@ test('Studio prepares unsigned proposals, shares exact reviewed source through G
       services.targets,
     );
     expect(prepared.target).toBe(base);
+    expect(prepared.candidate).toBe(await sourceGit(mergeRoot, ['rev-parse', 'HEAD']));
+    expect(prepared.author).toBe(pubkey);
+    expect(prepared.title).toBe('Improve the toy');
     expect(await Bun.file(join(mergeRoot, 'index.html')).text()).toContain('Better toy');
     expect((await readProposals(client, repository))[0].status).toBe('open');
     const mergedReview = await freezeMerge(mergeRoot, prepared, 'local');

@@ -2,7 +2,7 @@ import { nativeMediaUrl } from '../../../../packages/client/src/bytes';
 import { Link } from '@tanstack/react-router';
 import { nip19 } from 'nostr-tools';
 import { useState } from 'react';
-import { useProfile } from '@/lib/profiles';
+import { useProfile } from '../lib/profiles';
 import { shortPubkey, type ProfileView } from '../../../../packages/protocol/src/profile';
 
 export function ProfileAvatar({
