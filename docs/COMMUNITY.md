@@ -161,8 +161,9 @@ reference, then uses the existing verified-artifact sandbox. Unknown references,
 blocked creations and unsupported capabilities never create a frame. Stop,
 fullscreen and **Back to comments** use the shared player; fullscreen preserves the
 session. Starting another napplet or a manual clip stops the previous player across
-the shell. Decorative gallery clips cannot interrupt explicit playback. Compact
-players stop offscreen; all players stop when the tab is hidden or they unmount.
+the shell. Decorative gallery clips cannot interrupt explicit playback. Running
+napplets retain their sessions when scrolled offscreen or when switching tabs;
+Stop and unmount still destroy them. Decorative media retains visibility cleanup.
 Threads are not recursively embedded. Likes, replies, zaps and owned deletion retain
 their existing signature, permission and receipt rules.
 
