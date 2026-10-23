@@ -26,9 +26,14 @@ remains available for long settings/history, smaller screens and enlarged text.
   after reviewing the amount, maximum fee and mint. Quotes are polled while the
   wallet is open. A timeout leaves a recoverable pending transaction.
 - Send or redeem Cashu tokens, display static or animated QR codes, scan with the
-  camera, or read a QR image. Both the camera and pasted input accept Lightning
-  invoices and Cashu tokens and select the corresponding review flow. The camera
-  stops after a successful read. Scanning fills an input; it never initiates payment.
+  camera, or read a QR image. A complete pasted/scanned Cashu token from a trusted
+  mint is received immediately, with progress, success feedback and a balance
+  update; there is no separate review/confirmation step. Retrying the same token
+  resumes its saved transaction without crediting it twice. Unknown mints still
+  require explicit trust in settings. The camera stops after a successful read.
+  Background settlement checks do not close the scanner; a decoded token waits
+  for an active wallet operation before receiving.
+  Lightning inputs still require amount/fee review and confirmation before payment.
   Outgoing invoices and tokens can be shown as QR or text, copied or downloaded.
   An unspent sent token can be reclaimed through the receive flow.
 - Add, edit and remove mint URLs. Minibits, Coinos and 21Mint are suggestions,
@@ -98,6 +103,18 @@ store; public recipient metadata and receipt lookups use a separate signer-free
 payment client. Neither private wallet proofs nor wallet history are seeded into
 the public shell cache.
 
+Loading reuses a saved wallet's own relay addresses. On a new device, the first
+lookup fetches wallet data together with relay hints; a second lookup is needed
+only for additional advertised destinations. Verified events enter the store as
+they arrive. Once a wallet is known and a relay completes its snapshot, the
+Applesauce group read policy allows quiet stragglers to stop blocking the initial
+view (3-second grace, 1.5-second idle detection, within the 12-second lookup budget).
+An empty first relay alone does not end wallet discovery. The live wallet loader
+continues synchronization after opening; initial results are not a guarantee of
+complete history across offline relays. Mint proof-state checks still precede spending.
+Local and production wallets contact relays and mints from the browser; adding
+relays improves redundancy but does not inherently make these operations faster.
+
 Review and change wallet relays under **Manage → Wallet → Mints & settings**. The
 **Manage → Relays** form edits website relay and Blossom preferences; it does
 not migrate wallet data. See [management navigation](MANAGE.md).
@@ -131,7 +148,10 @@ At least one designated wallet relay must acknowledge each wallet event; a nutza
 must be acknowledged by a recipient relay. Delivery includes the recipient’s verified
 NIP-65 read relays; redemption history is also forwarded to the sender’s read
 relays on a best-effort basis. Rejected or interrupted writes remain
-pending and retry identical signed events. Private wallet events are not sent to
+pending and retry identical signed events. Each event is sent to all selected
+destinations, but proceeds as soon as a required relay acknowledges it; other
+copies finish in the background. Optional receipt-relay acknowledgements cannot
+substitute for a required wallet relay. Private wallet events are not sent to
 recipient relays. Receiving an ACK is not a guarantee of indefinite relay storage.
 
 IndexedDB holds account-separated AES-GCM encrypted recovery data with a
@@ -173,6 +193,12 @@ locking and manual retry were checked. The wallet home, invoice and token-sharin
 popover fit at 390 × 844 without internal scrolling. Suggested mint info
 endpoints were checked for sat BOLT11, NUT-11 and NUT-12 support. Physical-camera
 scanning and an independent-wallet payment remain release acceptance checks.
+
+The direct-receive browser flow also covers paste and camera receipt without a
+confirmation screen, duplicate input, unchanged outgoing-payment review, balance
+restoration and a deliberately silent relay. Regression tests verify that a
+required relay acknowledgement releases a save, optional receipt-relay ACKs cannot
+substitute for it, and an empty first relay cannot prematurely end wallet discovery.
 
 Run `bun test packages/wallet` and `bun run check`; build with `bun run build`.
 Before pushing the changed dependency lock or shared packages, run the repository's

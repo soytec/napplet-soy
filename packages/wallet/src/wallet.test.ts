@@ -172,6 +172,87 @@ test('relay rejection retains signed events; retry does not swap a second time',
   expect(s.mint.swaps).toBe(1);
   expect(s.published.map((e) => e.id)).toContain(signed[0].id);
 });
+test('wallet update finishes after a required relay ACK even while another relay is silent', async () => {
+  const s = await setup(undefined, 0);
+  let release!: () => void;
+  const silent = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const sent: string[] = [];
+  // Exercise the real relay-group fan-out, including its wait-for-all semantics.
+  s.pool.publish = RelayPool.prototype.publish.bind(s.pool);
+  s.pool.relay = ((url: string) => ({
+    url,
+    publish: async () => {
+      sent.push(url);
+      if (url.includes('silent')) await silent;
+      return { from: url, ok: true };
+    },
+  })) as unknown as typeof s.pool.relay;
+  const event = await WalletFactory.create([s.mint.url], generateSecretKey(), [
+    'wss://relay.test/',
+    'wss://silent.test/',
+  ]).sign(s.signer);
+  const publishing = s.wallet.publishBatch([event], ['wss://relay.test/', 'wss://silent.test/']);
+  try {
+    const result = await Promise.race([
+      publishing.then(() => 'saved'),
+      Bun.sleep(100).then(() => 'still waiting for silent relay'),
+    ]);
+    expect(result).toBe('saved');
+    expect(sent).toContain('wss://silent.test/');
+    expect(await s.storage.getItem('outbox')).toBeNull();
+  } finally {
+    release();
+    await publishing;
+  }
+});
+test('receiving Cashu completes and updates balance directly; duplicate input cannot credit twice', async () => {
+  const s = await setup(undefined, 0);
+  const token = getEncodedToken({ mint: s.mint.url, unit: 'sat', proofs: await s.mint.fund(16) });
+  const result = await s.wallet.receiveCashu(token);
+  expect(result.status).toBe('complete');
+  expect(s.wallet.satBalances()[s.mint.url]).toBe(16);
+  expect((await s.wallet.receiveCashu(`cashu:${token}`)).id).toBe(result.id);
+  expect(s.mint.swaps).toBe(1);
+  expect(s.wallet.transactions$.value).toHaveLength(1);
+});
+test('direct receive keeps mint trust, outgoing confirmation and durable relay-failure recovery', async () => {
+  const s = await setup();
+  const proofs = await s.mint.fund(8);
+  await expect(
+    s.wallet.receiveCashu(getEncodedToken({ mint: 'https://unknown.test', unit: 'sat', proofs })),
+  ).rejects.toThrow('Add this mint');
+  await expect(s.wallet.receiveCashu(testInvoice(8))).rejects.toThrow('Use Pay');
+  expect(s.mint.swaps).toBe(0);
+  const token = getEncodedToken({ mint: s.mint.url, unit: 'sat', proofs });
+  s.reject(true);
+  await expect(s.wallet.receiveCashu(token)).rejects.toThrow('No relay acknowledged');
+  expect(s.wallet.transactions$.value[0].status).toBe('pending');
+  const id = s.wallet.transactions$.value[0].id;
+  s.reject(false);
+  expect((await s.wallet.receiveCashu(token)).id).toBe(id);
+  expect(s.wallet.satBalances()[s.mint.url]).toBe(72);
+  expect(s.mint.swaps).toBe(1);
+  const outgoing = await s.wallet.prepareSend(s.mint.url, 4);
+  await expect(s.wallet.resume(outgoing.id)).rejects.toThrow('Review and confirm');
+});
+test('optional receipt relay acknowledgement cannot replace a required wallet relay', async () => {
+  const s = await setup(undefined, 0);
+  s.pool.publish = async (urls) => [
+    { from: (urls as string[])[0], ok: (urls as string[])[0].includes('receipt') },
+  ];
+  const event = await s.signer.signEvent({
+    kind: 7376,
+    created_at: 1,
+    tags: [['e', 'a'.repeat(64), '', 'redeemed']],
+    content: '',
+  });
+  await expect(s.wallet.publishBatch([event], undefined, ['wss://receipt.test/'])).rejects.toThrow(
+    'No relay acknowledged',
+  );
+  expect(await s.storage.getItem('outbox')).not.toBeNull();
+});
 test('deposit polling mints exactly once and recovers a lost mint response', async () => {
   const s = await setup(undefined, 0);
   await s.wallet.deposit(s.mint.url, 32);
@@ -267,11 +348,11 @@ test('nutzap uses the dedicated P2PK key, DLEQ, stable address and exact adverti
   expect(sender.wallet.satBalances()[mint.url]).toBe(52);
   const history = receiver.published.find((e) => e.kind === 7376);
   expect(history.tags).toContainEqual(['e', nut.id, '', 'redeemed']);
-  expect(sender.destinations.find((d) => d.kind === 9321)?.relays).toEqual([
+  expect(sender.destinations.filter((d) => d.kind === 9321).flatMap((d) => d.relays)).toEqual([
     'wss://relay.test/',
     'wss://reader.test/',
   ]);
-  expect(receiver.destinations.find((d) => d.kind === 7376)?.relays).toEqual([
+  expect(receiver.destinations.filter((d) => d.kind === 7376).flatMap((d) => d.relays)).toEqual([
     'wss://relay.test/',
     'wss://sender-reader.test/',
   ]);

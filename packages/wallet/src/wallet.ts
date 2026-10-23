@@ -58,7 +58,7 @@ const sendTotal = (preview: SwapPreview) =>
     0,
   );
 
-/** NIP-60 reader from Applesauce; durable, explicitly confirmed monetary operations around cashu-ts.
+/** NIP-60 reader from Applesauce; durable receipts and explicitly confirmed outgoing operations.
  * All mutating calls must run inside the shell's account Web Lock, including recovery. */
 export class ShellWallet extends NutWallet {
   readonly journal: WalletJournal;
@@ -121,7 +121,9 @@ export class ShellWallet extends NutWallet {
         (t) => t.id !== except && (pendingFunds(t) || t.status === 'review'),
       )
     )
-      throw new WalletError('Resolve the pending transaction in Activity before spending again.');
+      throw new WalletError(
+        'Resolve the pending transaction in Transactions before spending again.',
+      );
     if (await this.storage.getItem('outbox'))
       throw new WalletError('Retry wallet sync before starting another transaction.');
   }
@@ -192,19 +194,31 @@ export class ShellWallet extends NutWallet {
     for (const { event, relays, required } of items) {
       this.check();
       this.progress$.next('Saving encrypted wallet changes to your relays…');
-      const results = await this.pool.publish(relays, event, {
-        timeout: 10000,
-        retries: false,
-        waitForAuth: this.pubkey,
-        onAuthRequired: async ({ relay }) => {
-          this.check();
-          await relay.authenticate(this.signer);
-        },
-      });
-      if (!results.some((r) => r.ok && required.includes(new URL(r.from).href)))
+      // Fan out to every destination, but a slow optional copy must not hold up
+      // an update already acknowledged by a designated wallet/recipient relay.
+      // Promise.any observes every rejection while the remaining copies finish.
+      try {
+        await Promise.any(
+          relays.map(async (url) => {
+            const results = await this.pool.publish([url], event, {
+              timeout: 10000,
+              retries: false,
+              waitForAuth: this.pubkey,
+              onAuthRequired: async ({ relay }) => {
+                this.check();
+                await relay.authenticate(this.signer);
+              },
+            });
+            if (!results.some((r) => r.ok && required.includes(new URL(r.from).href)))
+              throw new WalletError('Required wallet relay did not acknowledge this update.');
+          }),
+        );
+      } catch {
         throw new WalletError(
           'No relay acknowledged the wallet update. The signed update is saved; retry sync.',
         );
+      }
+      this.check();
       if (event.kind === 17375)
         await this.storage.setItem('wallet-reference', JSON.stringify(event));
       this.eventStore.add(event);
@@ -407,6 +421,19 @@ export class ShellWallet extends NutWallet {
     };
     await this.save(tx);
     return tx;
+  }
+  /** Receiving supplied tokens never debits existing funds or implicitly trusts a mint. */
+  async receiveCashu(input: string) {
+    this.check();
+    const parsed = paymentInput(input);
+    if (parsed.type !== 'cashu') throw new WalletError('Use Pay for a Lightning invoice.');
+    this.trusted(parsed.mint);
+    const saved = (await this.journal.list()).find(
+      (tx) => tx.type === 'receive' && tx.sourceToken === parsed.value && tx.status !== 'cancelled',
+    );
+    this.progress$.next('Receiving Cashu from the mint…');
+    const tx = saved ?? (await this.prepareReceive(parsed.value));
+    return this.resume(tx.id, true);
   }
   async prepareReceive(input: string, nutzap?: NostrEvent, senderRelays?: NostrEvent) {
     await this.unblocked();

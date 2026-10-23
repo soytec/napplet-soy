@@ -177,7 +177,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const current = active.current;
     if (!current || working.current) return;
     working.current = true;
-    setState((s) => ({ ...s, busy: true, error: '' }));
+    setState((s) => ({ ...s, busy: true, error: '', progress: '', notice: '' }));
     try {
       const before = new Map(
         current.runtime.wallet.transactions$.value.map((t) => [t.id, transactionFeedback(t)]),

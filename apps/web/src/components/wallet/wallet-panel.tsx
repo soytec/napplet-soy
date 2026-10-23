@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowUpRight,
   Coins,
@@ -21,7 +21,7 @@ import {
   showDepositCode,
   transactionFeedback,
 } from '../../../../../packages/wallet/src/settlement';
-import { transactionNames } from '../../../../../packages/wallet/src/policy';
+import { paymentInput, transactionNames } from '../../../../../packages/wallet/src/policy';
 import type { WalletTransaction } from '../../../../../packages/wallet/src/types';
 import type { WalletRuntime } from '@/lib/wallet-runtime';
 
@@ -47,15 +47,28 @@ export function WalletPanel({ full = false }: { full?: boolean }) {
     [input, setInput] = useState('');
   const [selected, setSelected] = useState<string>(),
     [showToken, setShowToken] = useState(false);
+  const [pendingReceive, setPendingReceive] = useState<{
+    value: string;
+    pubkey: string | null;
+    runtime: WalletRuntime | undefined;
+  }>();
+  const receiving = useRef(false),
+    generation = useRef(0);
   const runtime = wallet.runtime,
     mints = runtime?.mints() ?? [],
     exists = !!runtime?.store.getReplaceable(17375, runtime.pubkey);
   useEffect(() => {
+    generation.current++;
+    receiving.current = false;
     setMint(mints[0] ?? '');
     setSelected(undefined);
     setInput('');
+    setPendingReceive(undefined);
     setShowToken(false);
     setView('home');
+    return () => {
+      generation.current++;
+    };
   }, [pubkey, runtime]);
   const tx = wallet.transactions.find((t) => t.id === selected);
   const choose = (t: WalletTransaction) => {
@@ -63,18 +76,49 @@ export function WalletPanel({ full = false }: { full?: boolean }) {
     setShowToken(false);
     setInput('');
   };
-  // Camera, image and pasted strings all enter the same review flow.
+  const receiveInput = async (value: string) => {
+    if (wallet.busy || receiving.current) return;
+    receiving.current = true;
+    const turn = generation.current;
+    try {
+      const result = await wallet.run((r) => r.wallet.receiveCashu(value));
+      if (result && turn === generation.current) choose(result);
+    } finally {
+      if (turn === generation.current) receiving.current = false;
+    }
+  };
+  useEffect(() => {
+    if (
+      !pendingReceive ||
+      wallet.busy ||
+      pendingReceive.pubkey !== pubkey ||
+      pendingReceive.runtime !== runtime
+    )
+      return;
+    setPendingReceive(undefined);
+    void receiveInput(pendingReceive.value);
+  }, [pendingReceive, wallet.busy, pubkey, runtime]);
+  // Complete Cashu input is a request to receive. Lightning still opens review.
+  // Partial/invalid text remains editable; duplicate scanner frames cannot start a second receive.
   const acceptInput = (value: string) => {
     setInput(value);
     const text = value.trim();
     if (/^cashu:/i.test(text) || /^cashu[AB]/.test(text)) setView('receive');
     else if (/^(lightning:|lnbc)/i.test(text)) setView('pay');
     setSelected(undefined);
+    setPendingReceive(undefined);
+    try {
+      const parsed = paymentInput(value);
+      if (parsed.type === 'cashu') setPendingReceive({ value: parsed.value, pubkey, runtime });
+    } catch {
+      /* Allow typing/pasting to finish before reporting a validation error. */
+    }
   };
   const changeView = (next: View) => {
     setView(next);
     setSelected(undefined);
     setInput('');
+    setPendingReceive(undefined);
     setShowToken(false);
     wallet.clearError();
   };
@@ -159,7 +203,12 @@ export function WalletPanel({ full = false }: { full?: boolean }) {
       {runtime && exists && (
         <>
           {(view !== 'home' || tx) && (
-            <Button variant="ghost" className="wallet-back" onClick={() => changeView('home')}>
+            <Button
+              variant="ghost"
+              className="wallet-back"
+              disabled={wallet.busy}
+              onClick={() => changeView('home')}
+            >
               ← Wallet actions
             </Button>
           )}
@@ -167,7 +216,12 @@ export function WalletPanel({ full = false }: { full?: boolean }) {
             <>
               <div className="wallet-action-grid" aria-label="Wallet actions">
                 {actions.map(([id, label, Icon]) => (
-                  <Button key={id} variant="outline" onClick={() => changeView(id)}>
+                  <Button
+                    key={id}
+                    variant="outline"
+                    disabled={wallet.busy}
+                    onClick={() => changeView(id)}
+                  >
                     <Icon size={18} />
                     {label}
                   </Button>
@@ -230,21 +284,26 @@ export function WalletPanel({ full = false }: { full?: boolean }) {
           {!tx && (view === 'receive' || view === 'pay') && (
             <section className="wallet-form">
               <h3>{view === 'receive' ? 'Receive Cashu' : 'Pay Lightning'}</h3>
-              <PaymentInput value={input} set={acceptInput} />
-              <QrReader onRead={acceptInput} />
+              {view === 'receive' && <p>Paste or scan a token to receive it.</p>}
+              <PaymentInput value={input} set={acceptInput} disabled={wallet.busy} />
+              {/* A background settlement check must not close an active camera.
+                  A decoded token waits for that check before starting its receive. */}
+              {!pendingReceive && !receiving.current && <QrReader onRead={acceptInput} />}
               <Button
                 disabled={wallet.busy || !input.trim()}
                 onClick={() =>
-                  void wallet.run(async (r) =>
-                    choose(
-                      view === 'receive'
-                        ? await r.wallet.prepareReceive(input)
-                        : await r.wallet.preparePayment(mint || mints[0], input),
-                    ),
-                  )
+                  view === 'receive'
+                    ? void receiveInput(input)
+                    : void wallet.run(async (r) =>
+                        choose(await r.wallet.preparePayment(mint || mints[0], input)),
+                      )
                 }
               >
-                {view === 'receive' ? 'Review token' : 'Review payment & fee'}
+                {view === 'receive'
+                  ? wallet.busy
+                    ? 'Receiving…'
+                    : 'Receive token'
+                  : 'Review payment & fee'}
               </Button>
             </section>
           )}
@@ -324,7 +383,15 @@ function Amount({ value, set }: { value: string; set: (v: string) => void }) {
     </label>
   );
 }
-function PaymentInput({ value, set }: { value: string; set: (v: string) => void }) {
+function PaymentInput({
+  value,
+  set,
+  disabled,
+}: {
+  value: string;
+  set: (v: string) => void;
+  disabled: boolean;
+}) {
   return (
     <label className="wallet-field">
       Invoice or token
@@ -333,6 +400,7 @@ function PaymentInput({ value, set }: { value: string; set: (v: string) => void 
         autoComplete="off"
         rows={3}
         value={value}
+        disabled={disabled}
         onChange={(e) => set(e.target.value)}
         placeholder="Paste here, or scan a QR code"
       />

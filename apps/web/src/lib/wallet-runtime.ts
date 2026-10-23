@@ -7,7 +7,7 @@ import { WalletError } from '../../../../packages/wallet/src/errors';
 import { EventStore } from 'applesauce-core';
 import { getHiddenTags } from 'applesauce-core/helpers';
 import { RelayPool } from 'applesauce-relay';
-import { BehaviorSubject, Subscription, firstValueFrom, toArray } from 'rxjs';
+import { BehaviorSubject, Subscription } from 'rxjs';
 import type { ISigner } from 'applesauce-signers';
 import type { Filter, NostrEvent } from 'nostr-tools';
 import { ShellWallet } from '../../../../packages/wallet/src/wallet';
@@ -18,6 +18,7 @@ import { browserIdentity } from './browser-identity';
 import { network } from './network';
 import { walletBootstrapRelays } from '../../../../packages/wallet/src/network';
 import { walletRelays } from '../../../../packages/wallet/src/policy';
+import { readWalletEvents } from '../../../../packages/wallet/src/relay-read';
 
 export type WalletRuntime = Awaited<ReturnType<typeof openWallet>>;
 export async function openWallet(pubkey: string) {
@@ -105,37 +106,7 @@ export async function openWallet(pubkey: string) {
     }[]
   >([]);
   const collect = async (relays: string[], filters: Filter[]) => {
-    let completed = 0;
-    const results = await Promise.allSettled(
-      relays.map(async (relay) => {
-        const events = await firstValueFrom(
-          pool
-            .relay(relay)
-            .request(filters, {
-              timeout: 12000,
-              reconnect: false,
-              resubscribe: false,
-              waitForAuth: pubkey,
-              onAuthRequired: async ({ relay }) => {
-                assertAccount();
-                await relay.authenticate(signer);
-              },
-            })
-            .pipe(toArray()),
-        );
-        completed++;
-        for (const raw of events) {
-          try {
-            store.add(verifiedEvent(raw));
-          } catch {}
-        }
-      }),
-    );
-    if (!completed)
-      throw new WalletError(
-        'No wallet relay completed the lookup. Retry before creating or spending from a wallet.',
-      );
-    return results;
+    await readWalletEvents({ pool, store, pubkey, signer, relays, filters, assertAccount });
   };
   let nutSub: Subscription | undefined;
   const watchNutzaps = () => {
@@ -172,22 +143,37 @@ export async function openWallet(pubkey: string) {
   };
   const refresh = async () => {
     assertAccount();
-    await collect(
-      [...new Set([...fallback, ...relays$.value])],
-      [{ kinds: [10019, 10002], authors: [pubkey] }],
-    );
+    const filters: Filter[] = [
+      { kinds: [10019, 10002, 17375, 7375, 7376], authors: [pubkey] },
+      { kinds: [5], authors: [pubkey], '#k': ['7375'] },
+    ];
+    // A restored wallet already tells us where to load it. First-time discovery
+    // fetches wallet data alongside relay hints instead of repeating the same scan.
+    const existing = store.getReplaceable(17375, pubkey);
+    if (existing) await wallet.unlock();
+    const savedRelays = existing && getWalletRelays(existing);
+    const initial = savedRelays?.length
+      ? walletRelays(savedRelays)
+      : [...new Set([...fallback, ...relays$.value])];
+    await collect(initial, filters);
+    const discovered = store.getReplaceable(17375, pubkey);
+    if (discovered) await wallet.unlock();
+    const owned = discovered && getWalletRelays(discovered);
     const info = store.getReplaceable(10019, pubkey),
       mail = store.getReplaceable(10002, pubkey);
     const advertised = info?.tags.filter((t) => t[0] === 'relay').map((t) => t[1]);
     const mailboxes = mail?.tags.filter((t) => t[0] === 'r').map((t) => t[1]);
     const urls = walletRelays(
-      advertised?.length ? advertised : mailboxes?.length ? mailboxes : fallback,
+      owned?.length
+        ? owned
+        : advertised?.length
+          ? advertised
+          : mailboxes?.length
+            ? mailboxes
+            : fallback,
     );
     relays$.next(urls);
-    await collect(urls, [
-      { kinds: [17375, 7375, 7376], authors: [pubkey] },
-      { kinds: [5], authors: [pubkey], '#k': ['7375'] },
-    ]);
+    if (urls.some((url) => !initial.includes(url))) await collect(urls, filters);
     const knownWallet = store.getReplaceable(17375, pubkey);
     if (knownWallet) {
       await storage.setItem('wallet-reference', JSON.stringify(knownWallet));

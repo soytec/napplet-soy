@@ -21,12 +21,14 @@ export function QrReader({ onRead }: { onRead: (value: string) => void }) {
         const parsed = paymentInput(value);
         latest.current(parsed.value);
         setError('');
+        setProgress(
+          parsed.type === 'cashu' ? 'Cashu token read.' : 'Invoice read. Review it before paying.',
+        );
       } catch (error) {
         setError(walletErrorMessage(error));
         return;
       }
       setCamera(false);
-      setProgress('QR code read. Review it before continuing.');
     };
     const sub = defer(() => receiveAnimated(parts.current))
       .pipe(
