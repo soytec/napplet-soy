@@ -6,6 +6,8 @@ import { LifecycleManager } from '@/components/lifecycle-manager';
 import { savedLifecycles, saveLifecycle } from '@/lib/lifecycle';
 import { useWork, WorkDot } from '@/components/work-provider';
 import { WorkOverview } from '@/components/work-overview';
+import { WalletPanel } from '@/components/wallet/wallet-panel';
+import { useLocation } from '@tanstack/react-router';
 import type { PublicNapplet } from '../../../../packages/backend/src/public-model';
 import {
   lifecycleUrl,
@@ -26,7 +28,11 @@ function Manage() {
   const work = useWork();
   const items = work.publications;
   const loading = work.loading;
-  const [view, setView] = useState<'creations' | 'proposals' | 'activity'>('creations');
+  const [view, setView] = useState<'creations' | 'proposals' | 'activity' | 'wallet'>('creations');
+  const hash = useLocation({ select: (location) => location.hash });
+  useEffect(() => {
+    if (hash === 'wallet') setView('wallet');
+  }, [hash]);
   const [records, setRecords] = useState<LifecycleReceipt[]>([]),
     [error, setError] = useState('');
   useEffect(() => {
@@ -96,6 +102,13 @@ function Manage() {
             >
               Activity <WorkDot />
             </Button>
+            <Button
+              variant={view === 'wallet' ? 'default' : 'outline'}
+              aria-pressed={view === 'wallet'}
+              onClick={() => setView('wallet')}
+            >
+              Wallet
+            </Button>
             <Button variant="ghost" disabled={loading} onClick={work.refresh}>
               {loading ? 'Refreshing…' : 'Refresh'}
             </Button>
@@ -106,7 +119,7 @@ function Manage() {
               {w}
             </p>
           ))}
-          <WorkOverview view={view} />
+          {view === 'wallet' ? <WalletPanel full /> : <WorkOverview view={view} />}
           {view === 'creations' && (
             <>
               <h2>Published napplets</h2>

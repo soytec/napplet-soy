@@ -351,6 +351,24 @@ export class BrowserIdentity {
         return {
           signer: {
             getPublicKey: async () => pubkey,
+            nip44: {
+              encrypt: (peer, text) =>
+                bounded(async () => {
+                  if ((await extension.getPublicKey()) !== pubkey)
+                    throw Error('Your extension account changed.');
+                  if (!extension.nip44)
+                    throw Error('This signer must support NIP-44 for the wallet.');
+                  return extension.nip44.encrypt(peer, text);
+                }),
+              decrypt: (peer, text) =>
+                bounded(async () => {
+                  if ((await extension.getPublicKey()) !== pubkey)
+                    throw Error('Your extension account changed.');
+                  if (!extension.nip44)
+                    throw Error('This signer must support NIP-44 for the wallet.');
+                  return extension.nip44.decrypt(peer, text);
+                }),
+            },
             signEvent: (template) =>
               bounded(async () => {
                 if ((await new ExtensionSigner().getPublicKey()) !== pubkey)
@@ -447,6 +465,24 @@ export class BrowserIdentity {
     const account = this.accounts.active as SessionAccount | undefined;
     if (!account) return Promise.reject(new Error('Choose a saved account or sign-in method.'));
     return this.useSession(account.id, feedback);
+  }
+  /** Self-encryption for the shell wallet. Does not expose a signer to iframe code. */
+  async walletCrypt(pubkey: string, method: 'encrypt' | 'decrypt', value: string) {
+    if (this.state.pubkey === pubkey && this.state.reconnect) await this.reconnect();
+    const active = this.active;
+    if (!active || active.pubkey !== pubkey || active.account.metadata!.expires <= Date.now())
+      throw Error('Connect the wallet’s account first.');
+    if (!active.account.nip44) throw Error('This signer must support NIP-44 for the wallet.');
+    try {
+      const result = await active.account.nip44[method](pubkey, value);
+      if (this.active !== active || active.controller.signal.aborted)
+        throw Error('Account changed.');
+      return result;
+    } catch {
+      throw Error(
+        `Wallet ${method === 'encrypt' ? 'encryption' : 'decryption'} did not complete. Unlock your NIP-44 signer and retry.`,
+      );
+    }
   }
   async sign(pubkey: string, event: Template) {
     if (this.state.pubkey === pubkey && this.state.reconnect) await this.reconnect();

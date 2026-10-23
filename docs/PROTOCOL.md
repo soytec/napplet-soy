@@ -1,5 +1,14 @@
 # Napplet interoperability and publishing contract
 
+## Shell wallet — local implementation, not deployed
+
+The shell now has an account-scoped NIP-60/61 Cashu wallet. See
+[wallet operations, events and recovery](WALLET.md). It uses Applesauce 7.0.0
+and cashu-ts 4.11.0, adds no protocol kind, and leaves NIP-5D/runtime authority
+unchanged. Wallet self-encryption and signing are shell-only permissions;
+napplet frames receive no wallet signer or proofs. Nutzaps use stable address
+targets and are distinct from the existing NIP-57 receipt counters.
+
 ## Hosted Studio control — implementation, rollout pending
 
 Hosted Studio uses the existing ContextVM SDK 0.13.16 encrypted MCP transport and

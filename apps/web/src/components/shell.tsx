@@ -1,3 +1,4 @@
+import { WalletButton } from './wallet/wallet-button';
 import { AppearanceControl } from '../../../../packages/runtime/src/appearance-control';
 import { Link, useLocation } from '@tanstack/react-router';
 import { ArrowUpRight, CircleAlert, CircleHelp, Radio, Sparkles, Terminal } from 'lucide-react';
@@ -95,6 +96,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <CircleHelp size={19} />
             </Link>
           </Button>
+          <WalletButton />
           <PopoverTrigger asChild>
             <Button
               id="identity-button"

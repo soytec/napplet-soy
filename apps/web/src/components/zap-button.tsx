@@ -1,3 +1,10 @@
+import { lazy, Suspense } from 'react';
+const MintInvoicePayment = lazy(() =>
+  import('./wallet/wallet-zap').then((m) => ({ default: m.MintInvoicePayment })),
+);
+const NutzapOption = lazy(() =>
+  import('./wallet/wallet-zap').then((m) => ({ default: m.NutzapOption })),
+);
 import { readSocial } from '@/lib/protocol-social';
 import { readAvailableProfile } from '../../../../packages/client/src/social';
 import {
@@ -199,8 +206,8 @@ export function ZapButton({
               : 'A little lightning for the creator'}
           </DialogTitle>
           <DialogDescription>
-            Send sats directly to the author’s Lightning service. Choose and confirm payment in your
-            wallet.
+            Send Lightning sats or Cashu nutzaps to the author. Review the amount and confirm with
+            your chosen wallet.
           </DialogDescription>
         </DialogHeader>
         {endpoint && !invoice && (
@@ -379,6 +386,9 @@ export function ZapButton({
             <Button variant="outline" onClick={() => zapPayments.checkNow(scope.key)}>
               Check payment
             </Button>
+            <Suspense fallback={<p>Loading wallet payment…</p>}>
+              <MintInvoicePayment invoice={invoice} scope={scope.key} />
+            </Suspense>
             <LightningCode value={invoice.invoice} label="Zap invoice QR code" />
             <textarea aria-label="Lightning invoice" readOnly value={invoice.invoice} />
             <div className="social-actions">
@@ -437,6 +447,11 @@ export function ZapButton({
         )}
         {!endpoint && !message && <p role="status">Looking up the creator’s Lightning address…</p>}
         {message && <p role="status">{message}</p>}
+        {!invoice && (
+          <Suspense fallback={<p>Loading nutzap options…</p>}>
+            <NutzapOption target={target} relays={data.relays} />
+          </Suspense>
+        )}
       </DialogContent>
     </Dialog>
   );
