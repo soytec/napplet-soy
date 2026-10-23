@@ -8,7 +8,8 @@ import {
   formatDiagnostic,
   redactDiagnostic,
 } from '../../packages/diagnostics/src';
-import { regularFile, checkSource } from '../../packages/publish/src/project';
+import { regularFile, checkSource, inspectProject } from '../../packages/publish/src/project';
+import { checkPublication } from '../cli/src/publish-check';
 import {
   ASSET_LOCK,
   readAssets,
@@ -48,7 +49,7 @@ import {
 } from './publication';
 import { prepareProposal, proposeReviewed } from './proposal';
 import { proposalProgress } from './proposal-progress';
-import { mergeInput, prepareMerge, freezeMerge, submitMerge } from './merge';
+import { mergeInput, prepareMerge, freezeMerge, submitMerge, mergeRuntimeContents } from './merge';
 import { nip19 } from 'nostr-tools';
 import { publicationStatus, type PublishOptions } from '../../packages/publish/src';
 import { BrowserBuilds, browserBuildInput } from './browser-build';
@@ -614,12 +615,23 @@ export class Studio {
     }
   }
   private async protectedFiles(p: Project, signal: AbortSignal) {
+    const review = p.merge?.review;
+    const mergeBase = p.merge?.status === 'merged' ? review?.commit : review?.candidate;
+    if (p.merge && !mergeBase)
+      throw new DiagnosticError(
+        'STUDIO_MERGE_REVIEW',
+        'This saved merge review has no pinned candidate.',
+        {
+          recovery:
+            'Return to the proposal and prepare a fresh review. The upstream was not changed.',
+        },
+      );
     return (
       await this.git(
         p,
         [
           'diff',
-          p.baseline ?? 'HEAD',
+          mergeBase ?? p.baseline ?? 'HEAD',
           '--',
           'package.json',
           '*lock*',
@@ -834,12 +846,12 @@ export class Studio {
       throw new DiagnosticError(
         'STUDIO_GUARDRAIL',
         p.merge && p.merge.status !== 'merged'
-          ? 'This proposal changes guidance, dependencies or checks outside Studio’s merge profile.'
+          ? 'Protected source changed after the merge candidate was pinned.'
           : 'The agent changed protected guidance, dependencies or checks.',
         {
           recovery:
             p.merge && p.merge.status !== 'merged'
-              ? 'Review and merge this proposal locally with soyLI or ngit. The upstream was not changed.'
+              ? 'Return to the proposal and prepare a fresh review. The upstream was not changed.'
               : 'Inspect Changes and restore the affected files before continuing. No preview was promoted.',
         },
       );
@@ -910,7 +922,24 @@ export class Studio {
         p.proposal.progress = { ...p.proposal.progress, detail: name, at: Date.now() };
       await this.save();
       try {
-        const result = await this.command(p, [...this.options.soyli, ...args], signal, name);
+        let result: string;
+        if (name === 'soyLI sandbox' && p.merge) {
+          if (this.options.projectCommand && !this.options.publicationCheck)
+            throw new DiagnosticError(
+              'STUDIO_ISOLATION',
+              'The isolated sandbox checker is not configured.',
+            );
+          const { contents } = await inspectProject(
+            this.workspace(p.id),
+            'public',
+            p.merge.review!.pubkey,
+          );
+          const input = mergeRuntimeContents(contents);
+          const checked = this.options.publicationCheck
+            ? await this.options.publicationCheck(input, signal)
+            : await checkPublication(input, false, undefined, false, signal);
+          result = `Merged runtime checked with ${checked.profile}. Listing media is checked separately when publishing.`;
+        } else result = await this.command(p, [...this.options.soyli, ...args], signal, name);
         check.state = 'passed';
         const skipped = result
           .split('\n')

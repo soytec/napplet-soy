@@ -168,8 +168,23 @@ External patch roots (1617) can be read; applying/revising patch series uses ngi
 For named napplets, the signed-in original author can select **Review & merge in
 Studio** on the original listing. A separate private workspace pins the proposal
 revision and current target, rebuilds the merged source, and presents the diff and
-playable candidate before confirmation. Source sharing reuses `push` and its durable
-NIP-34 state/status outbox; no wrapper event is introduced. Retrying the same reviewed
+playable candidate before confirmation. The workspace is labelled **Merge review**,
+links the published proposal and shows its contributor. Proposal cards show **Proposed
+by** with the signed root author's profile or public-key fallback; this can differ
+from the napplet author or repository maintainer.
+
+The merged candidate is pinned before project tools run. Its committed contributor
+tests and guidance are part of the reviewed source; later changes to protected files
+are still refused. Hosted dependencies must match an operator-installed profile.
+The private sandbox check tests the merged executable independently of inherited
+listing clips and capture-only ready selectors, without changing those settings in
+source. An existing cover is retained and validated. The offline sandbox still
+requires the host handshake and rejects script errors; a selector waiting for live
+relay data belongs to the separate capture flow. A stale clip must still be replaced or removed when preparing the next release. Older failed reviews without
+a pinned candidate require a fresh review. These profile/review checks are implemented
+locally; their production activation requires a controller and worker-image rollout.
+
+Source sharing reuses `push` and its durable NIP-34 state/status outbox; no wrapper event is introduced. Retrying the same reviewed
 browser merge reuses its signed events, even after delivery succeeded. Publishing the
 resulting napplet is a separate action, preserving its named coordinate and refusing
 a stale release anchor.

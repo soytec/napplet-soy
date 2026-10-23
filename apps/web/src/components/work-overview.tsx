@@ -5,7 +5,7 @@ import { useNostr } from './nostr-provider';
 import { Button } from './ui/button';
 import { Link } from '@tanstack/react-router';
 import type { StudioState, Project } from '../../../studio/types';
-import { workProposalHref } from '../../../../packages/client/src/work';
+import { WorkProposalCard } from './work-proposal-card';
 
 export function WorkOverview({ view }: { view: 'creations' | 'proposals' | 'activity' }) {
   const work = useWork(),
@@ -96,24 +96,15 @@ export function WorkOverview({ view }: { view: 'creations' | 'proposals' | 'acti
                 <p>{work.loading ? 'Finding proposals…' : 'No proposals found on your relays.'}</p>
               )}
               <div className="work-grid">
-                {rows.map(({ proposal: p, publication, repository }) => (
-                  <article className="work-card" key={p.root.id}>
-                    <div className="work-section-heading">
-                      <strong>{p.title}</strong>
-                      <span className="work-status">{p.status}</span>
-                    </div>
-                    <span>{publication?.title ?? repository.identifier}</span>
-                    {work.unread(p.revision.id) && p.root.pubkey !== pubkey && (
-                      <small className="work-unread-label">New proposal activity</small>
-                    )}
-                    <small>
-                      {p.comments.length} comments · Updated{' '}
-                      {new Date(p.revision.created_at * 1000).toLocaleString()}
-                    </small>
-                    <a href={workProposalHref(p.root.id, publication)}>
-                      {incoming ? 'Review & manage' : 'Open proposal'} ↗
-                    </a>
-                  </article>
+                {rows.map((row) => (
+                  <WorkProposalCard
+                    key={row.proposal.root.id}
+                    row={row}
+                    incoming={incoming}
+                    unread={
+                      work.unread(row.proposal.revision.id) && row.proposal.root.pubkey !== pubkey
+                    }
+                  />
                 ))}
               </div>
             </section>

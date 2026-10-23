@@ -2,6 +2,42 @@ import { expect, test } from 'bun:test';
 import { containerCommand, ContainerJobs, validateJobFiles } from './container';
 import { run } from '../process';
 
+test('unsupported dependencies survive the worker boundary with operator recovery and redacted causes', async () => {
+  const execute: typeof run = async (args, options) =>
+    args[1] !== 'run'
+      ? ''
+      : run(
+          [
+            process.execPath,
+            '--no-env-file',
+            '-e',
+            `
+      console.log('SOY_JOB_PROFILE');
+      console.error('STUDIO_PROFILE: Missing installed dependencies: three@0.177.0, @types/three@0.177.0');
+      console.error('API_KEY=must-not-leak');
+      console.log('SOY_JOB_STATUS:1');
+      console.log('SOY_JOB_DONE');
+    `,
+          ],
+          options,
+        );
+  const result = await new ContainerJobs('sha256:' + 'a'.repeat(64), execute).run({}, ['bun'], {
+    signal: AbortSignal.timeout(5000),
+    operation: 'set up soyLI project',
+  });
+  const { diagnose, formatDiagnostic } = await import('../../../packages/diagnostics/src');
+  const diagnostic = diagnose(result.failure);
+  expect(diagnostic.code).toBe('STUDIO_PROFILE');
+  expect(diagnostic.operation).toBe('set up soyLI project');
+  expect(diagnostic.recovery).toContain('operator');
+  expect(diagnostic.recovery).not.toContain('ask the maker');
+  const text = formatDiagnostic(diagnostic);
+  expect(text).toContain('three@0.177.0');
+  expect(text).toContain('Exit status: 1');
+  expect(text).not.toContain('must-not-leak');
+  expect(result.output).not.toContain('SOY_JOB_PROFILE');
+});
+
 test('both worker profiles isolate child processes and use an independent recovery runtime', () => {
   for (const profile of ['standard', 'legacy-x64'] as const) {
     const args = containerCommand(

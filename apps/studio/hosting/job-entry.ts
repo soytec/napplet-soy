@@ -1,33 +1,17 @@
 // Bundled into the image. Project code and its commands only execute in the container.
-import { cp, mkdir, readFile } from 'node:fs/promises';
+import { cp, mkdir } from 'node:fs/promises';
 import { openCodeAgent, type AgentEvent } from '../agent';
 import { providers, type Provider } from '../connections-model';
 import { run } from '../process';
 import { workspaceFiles } from './workspace';
 import { withJobDeadline } from './job-deadline';
+import { selectToolchainProfile } from './toolchain-profile';
 
 import { diagnose, formatDiagnostic } from '../../../packages/diagnostics/src';
 
 async function main(context: any, signal: AbortSignal) {
-  const profile = await Bun.file('/opt/profile/package.json').json();
-  const project = await Bun.file('/workspace/package.json').json();
-  const stable = (value: Record<string, unknown>) =>
-    JSON.stringify(Object.entries(value ?? {}).sort());
-  for (const key of ['dependencies', 'devDependencies', 'optionalDependencies', 'overrides'])
-    if (stable(profile[key]) !== stable(project[key]))
-      throw new Error(
-        'STUDIO_PROFILE: This project needs a different installed toolchain profile. Continue locally or ask the operator to add its dependencies.',
-      );
-  if (
-    profile.packageManager !== project.packageManager ||
-    !Buffer.from(await readFile('/opt/profile/pnpm-lock.yaml')).equals(
-      await readFile('/workspace/pnpm-lock.yaml'),
-    )
-  )
-    throw new Error(
-      'STUDIO_PROFILE: The project lockfile does not match this installed toolchain profile.',
-    );
-  await cp('/opt/profile/node_modules', '/workspace/node_modules', { recursive: true });
+  const profile = await selectToolchainProfile('/workspace');
+  await cp(profile + '/node_modules', '/workspace/node_modules', { recursive: true });
   // A throwaway Git repository supports soyLI inspection. It never replaces the real history.
   const env = { ...process.env, PATH: '/usr/local/bin:/usr/bin:/bin' };
   await mkdir('/tmp/home', { recursive: true });
@@ -140,6 +124,7 @@ await (async () => {
 })().catch((error) => {
   const diagnostic = diagnose(error, 'execute isolated project');
   if (diagnostic.code === 'STUDIO_TIMEOUT') console.log('SOY_JOB_TIMEOUT');
+  if (diagnostic.code === 'STUDIO_PROFILE') console.log('SOY_JOB_PROFILE');
   console.error(formatDiagnostic(diagnostic));
   process.exitCode = 1;
 });

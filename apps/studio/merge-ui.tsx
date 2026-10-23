@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import type { Project } from './types';
 import type { usePublicationSigner } from './publication-ui';
+import { shortPubkey } from '../../packages/protocol/src/profile';
 
 export function MergePanel({
   project: p,
@@ -37,8 +38,33 @@ export function MergePanel({
           ? 'Merging…'
           : merge.status === 'merged'
             ? 'Changes merged'
-            : 'Review the merged build'}
+            : 'Private merge review'}
       </h3>
+      {review && (
+        <p>
+          <a href={`/proposals/${review.proposal}`}>{review.title ?? 'Open published proposal'}</a>
+          {review.author && (
+            <>
+              {' '}
+              · Proposed by <span title={review.author}>{shortPubkey(review.author)}</span>
+            </>
+          )}
+          {merge.status !== 'merged' && (
+            <>
+              <br />
+              This workspace tests the proposal against the original project. The original stays
+              unchanged until you confirm the merge.
+            </>
+          )}
+        </p>
+      )}
+      {review && merge.status === 'failed' && !review.commit && (
+        <p>
+          After resolving the reported problem,{' '}
+          <a href={`/proposals/${review.proposal}`}>return to the proposal</a> to prepare a fresh
+          review.
+        </p>
+      )}
       <div role="status" aria-live="polite">
         <p>
           {starting && merge.status !== 'publishing'
@@ -61,7 +87,6 @@ export function MergePanel({
             <br />
             Merged: {review.commit ?? 'Checking…'}
           </p>
-          <a href={`/proposals/${review.proposal}`}>Open proposal</a>
         </details>
       )}
       {review?.commit && merge.status !== 'merged' && (

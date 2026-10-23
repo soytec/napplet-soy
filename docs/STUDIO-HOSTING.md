@@ -31,7 +31,9 @@ Use **Publish** to prepare and review the listing, screenshots and gameplay clip
 The active shell account signs the reviewed events. Relay delivery and website
 availability are reported separately. To contribute to an existing napplet, use
 its **Remix this** entry point and the Studio proposal flow. Existing proposals are
-listed in that napplet's source section; review and merging still use soyLI/Git.
+listed in that napplet's source section and **Manage → My work → Proposals**.
+The original author can prepare a private Studio merge review; confirming it updates
+the source and proposal status. Releasing the updated napplet remains a separate action.
 
 Both build modes first import the exact signed release and its published source
 using soyLI on the controller. Hosted imports use a credential-free Node worker
@@ -177,11 +179,41 @@ or per-response deadline; cancellation and the enclosing job deadline still appl
 Resource bounds remain two concurrent requests, two MiB per request and 32 MiB
 streamed output per job. These are resource bounds, not a spending cap.
 
-The first image supports the starter's exact dependency/lockfile profile. Package
-installation happens when building the image, never during creator jobs. Projects
-requiring another dependency profile receive an actionable diagnostic and can
-continue with local soyLI. Hosted remix and proposals use existing NIP-34/GRASP
+The base image supports the starter's exact dependency/lockfile profile. The
+additional-profile implementation also accepts operator-installed profiles under
+`/opt/profiles/<fingerprint>`, matched against dependency declarations, package-manager
+settings and exact lockfile bytes. Package installation happens when building the
+image, never during creator jobs. An absent profile reports the differing packages
+or lockfile/settings; another AI prompt cannot install them. Continue with local
+soyLI or ask the operator to add the exact reviewed profile. Additional profiles
+require a worker-image rollout; the code change alone does not install packages. Hosted remix and proposals use existing NIP-34/GRASP
 flows and exact revisions; no new protocol wrapper or metadata companion is added.
+
+## Adding an installed dependency profile
+
+Prepare an additive image from the exact existing worker image and a reviewed
+project's `package.json`/`pnpm-lock.yaml` pair:
+
+```sh
+bun scripts/studio-dependency-image.ts /tmp/soy-profile-image sha256:<current-image-id> /path/to/reviewed-project
+# Review /tmp/soy-profile-image/profiles/*/{package.json,pnpm-lock.yaml}.
+# On the Docker host where the base image is installed:
+bash /tmp/soy-profile-image/build.sh
+```
+
+The generated context copies dependency inputs and the trusted job runner, excluding
+project scripts, source, environment files and registry credentials. Installs use
+pinned pnpm with `--frozen-lockfile --ignore-scripts`. Custom dependency sources or
+pnpm settings require a separately reviewed image. Review transitive lockfile sources
+too. The base image's CPU compatibility, sandbox, OpenCode and browser stay intact.
+
+Test the resulting image ID with the actual project: setup, verify, isolated sandbox
+and conformance. Then explicitly update the operator's `image` configuration through
+the normal deployment procedure, retaining the old image for rollback. No automatic
+installation or activation occurs. Browser builds still use their fixed compiler
+library profile; an additional server profile does not extend that browser profile.
+After rollout, a failed proposal review needs a **fresh review from its proposal**;
+ordinary drafts can retry checks. Existing source and proposal events stay unchanged.
 
 ## Operator deployment
 
