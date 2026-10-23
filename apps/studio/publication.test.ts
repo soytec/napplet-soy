@@ -17,6 +17,7 @@ import { sourceGit, sourceUrls } from '../../packages/grasp/src/client';
 import { sha256, verifiedEvent, type SignedEvent } from '../../packages/protocol/src';
 import { publishProject, type PublishOptions } from '../../packages/publish/src';
 import { checkPublication } from '../cli/src/publish-check';
+import { ProtocolClient } from '../../packages/client/src/nostr';
 
 const cleanup: Array<() => Promise<unknown>> = [];
 afterEach(async () => {
@@ -101,6 +102,8 @@ async function fixture() {
     if (!events.some((e) => e.id === event.id)) events.push(event);
   };
   const dependencies: NonNullable<PublishOptions['dependencies']> = {
+    // Keep proposal reconciliation local, just like this fixture's other relay reads.
+    proposalClient: Object.assign(new ProtocolClient(() => []), { query: async () => [] }),
     relays: {
       latest: async (_url, author, d, kind) =>
         events
