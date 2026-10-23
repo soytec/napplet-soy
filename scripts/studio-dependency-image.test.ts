@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from 'node:fs/promis
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-test('operator profile context includes only dependency inputs and installs frozen without scripts', async () => {
+test('operator profile preparation enforces its runtime pin and excludes project scripts and secrets', async () => {
   const root = await mkdtemp(join(tmpdir(), 'studio-dependency-context-'));
   try {
     const project = join(root, 'project'),
@@ -32,6 +32,14 @@ test('operator profile context includes only dependency inputs and installs froz
       { stdout: 'pipe', stderr: 'pipe' },
     );
     const error = await new Response(child.stderr).text();
+    if (Bun.version !== '1.3.11') {
+      // The legacy deployment runtime runs this suite too, but image contexts
+      // must be prepared with the operator's pinned compiler, not that runtime.
+      expect(await child.exited).toBe(1);
+      expect(error).toContain('Prepare with pinned Bun 1.3.11.');
+      expect(await readdir(root)).toEqual(['project']);
+      return;
+    }
     expect(await child.exited).toBe(0);
     expect(error).toBe('');
     const [id] = await readdir(join(output, 'profiles'));
