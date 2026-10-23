@@ -181,8 +181,9 @@ listing clips and capture-only ready selectors, without changing those settings 
 source. An existing cover is retained and validated. The offline sandbox still
 requires the host handshake and rejects script errors; a selector waiting for live
 relay data belongs to the separate capture flow. A stale clip must still be replaced or removed when preparing the next release. Older failed reviews without
-a pinned candidate require a fresh review. These profile/review checks are implemented
-locally; their production activation requires a controller and worker-image rollout.
+a pinned candidate require a fresh review. These profile/review checks were deployed
+with the controller and additive worker image on 2026-10-23; see the
+[deployment evidence](DEPLOYMENT.md#most-recent-application-deployment--proposal-reviews-2026-10-23).
 
 Source sharing reuses `push` and its durable NIP-34 state/status outbox; no wrapper event is introduced. Retrying the same reviewed
 browser merge reuses its signed events, even after delivery succeeded. Publishing the

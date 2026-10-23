@@ -191,6 +191,12 @@ flows and exact revisions; no new protocol wrapper or metadata companion is adde
 
 ## Adding an installed dependency profile
 
+The additional-profile reader and Funclet's exact dependency profile were deployed
+on 2026-10-23 with an additive worker image that preserves the starter profile.
+See [deployment evidence](DEPLOYMENT.md#most-recent-application-deployment--proposal-reviews-2026-10-23)
+for the image ID, acceptance results and rollback references. Other dependency
+sets still require their own operator review and image preparation.
+
 Prepare an additive image from the exact existing worker image and a reviewed
 project's `package.json`/`pnpm-lock.yaml` pair:
 

@@ -5,7 +5,48 @@ do not deploy or upload releases unless the user explicitly requests deployment.
 
 Updated 2026-10-23. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-### Most recent application deployment — Wallet and Manage, 2026-10-23
+### Most recent application deployment — Proposal reviews, 2026-10-23
+
+Verified website release: **`20261023204030207-1`**, application source
+`9618fbf7664a99728eda6c2de68e07d7ea99a7fd`. [PR #40](https://github.com/soytec/napplet-soy/pull/40)
+merged as `978f7c6`; `9618fbf` corrects the operator-image test's expectations on
+the legacy runtime without relaxing its pinned compiler requirement.
+
+Proposal cards now show the contributor, and private Studio merge reviews show
+their purpose, author and source proposal. The hosted worker accepts exact,
+operator-installed dependency profiles. The deployed additive image is
+`sha256:1c61376651dfdb8dd0eeffe4ae7ffc501ca83a214d7722b38418a7d2cb633128`.
+It retains the starter profile and adds Funclet's reviewed lockfile, including
+`three@0.177.0` and `@types/three@0.177.0`. Creator jobs still cannot install packages.
+
+[Nix package/VM checks](https://github.com/soytec/napplet-soy/actions/runs/40018419961),
+[four native builds and installer/updater regressions](https://github.com/soytec/napplet-soy/actions/runs/40018419985),
+and [Studio integration checks](https://github.com/soytec/napplet-soy/actions/runs/40018419864)
+passed before merge. The test-only follow-up also passed Studio CI. On the VPS,
+all 902 application tests, 5 relay, 18 Blossom, 9 GRASP and 3 backend isolation
+checks passed, followed by the production build and activation checks. An earlier
+candidate stopped before activation because its test expected the Bun 1.3.11-only
+operator tool to run under Bun 1.3.8; the corrected test verifies that refusal.
+
+The actual Funclet merge candidate passed isolated setup, 24 guidance/application
+tests, typecheck, build and sandbox checks against the new image. Conformance
+reported 5 passed, 0 failed and 5 skipped; the skipped manifest, wire and lifecycle
+checks remain unverified. The contributor proposal itself was not merged or published.
+
+Public HTTPS and the completed catalog scan identify the new release. The live
+Funclet listing shows **Proposed by hzrd149**. Studio, CVM, TURN, Caddy and all five
+application processes are healthy; deployed source hashes match. All eight
+pre-existing draft records and Git workspaces are unchanged, with one additional
+draft present after rollout. Unrelated private configuration and Studio egress
+policy are preserved. The installer remains **soyLI 0.31.2**.
+
+The previous release `20261023152532295-30964`, worker image
+`sha256:78a1530841e748abf8229ccad04a6077e8c9e24dbeb8c0887138e4d00a730eb8`
+and protected configuration backup are retained for rollback. Local evidence is in
+`.local/proposal-deploy/`. Older failed reviews need a **fresh Review & merge in
+Studio** from their proposal because they do not have the newly pinned candidate.
+
+### Previous application deployment — Wallet and Manage, 2026-10-23
 
 Verified website release: **`20261023152532295-30964`**, source
 `d09bd762f18007e31f0fa505ae9adbcea7c2045b` from
