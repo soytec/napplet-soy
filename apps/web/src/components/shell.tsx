@@ -64,7 +64,7 @@ export function Shell({ children }: { children: ReactNode }) {
             Explore
           </Link>
           <Link to="/manage" activeProps={{ className: 'nav-active' }}>
-            My work <WorkDot />
+            Manage <WorkDot />
           </Link>
           <Link to="/docs" activeProps={{ className: 'nav-active' }}>
             Docs
@@ -133,7 +133,7 @@ export function Shell({ children }: { children: ReactNode }) {
             Small creations. Wide-open possibilities.
           </span>
           <div>
-            <Link to="/network" className="network-label">
+            <Link to="/manage" hash="relays" className="network-label">
               <Radio size={12} />
               Network settings
             </Link>

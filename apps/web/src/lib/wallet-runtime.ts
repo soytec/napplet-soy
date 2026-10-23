@@ -16,6 +16,7 @@ import { verifiedEvent, verifySignature } from '../../../../packages/protocol/sr
 import { WalletVault } from './wallet-storage';
 import { browserIdentity } from './browser-identity';
 import { network } from './network';
+import { walletBootstrapRelays } from '../../../../packages/wallet/src/network';
 import { walletRelays } from '../../../../packages/wallet/src/policy';
 
 export type WalletRuntime = Awaited<ReturnType<typeof openWallet>>;
@@ -69,7 +70,7 @@ export async function openWallet(pubkey: string) {
       },
     },
   };
-  const fallback = walletRelays(network().relays.filter((r) => r.startsWith('wss:')));
+  const fallback = walletBootstrapRelays(network().relays);
   const relays$ = new BehaviorSubject(fallback);
   const wallet = new ShellWallet(
     {

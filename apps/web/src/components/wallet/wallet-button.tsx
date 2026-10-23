@@ -25,7 +25,7 @@ export function WalletButton() {
         </Suspense>
         <PopoverClose asChild>
           <Link className="wallet-more" to="/manage" hash="wallet">
-            Wallet in My work ↗
+            Manage wallet ↗
           </Link>
         </PopoverClose>
       </PopoverContent>

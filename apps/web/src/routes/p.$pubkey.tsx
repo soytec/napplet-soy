@@ -8,7 +8,7 @@ import { getProfilePage } from '@/lib/profile.functions';
 import { useProfiles } from '@/lib/profiles';
 import { profilePath, profilePubkey } from '../../../../packages/protocol/src/profile';
 import { ProfileAvatar } from '@/components/creator-link';
-import { ProfileEditor } from '@/components/profile-editor';
+import { useNostr } from '@/components/nostr-provider';
 import { NappletCard } from '@/components/napplet-card';
 import { GallerySocialProvider } from '@/components/gallery-social';
 import { Button } from '@/components/ui/button';
@@ -67,6 +67,7 @@ function CreatorProfile() {
     search = Route.useSearch();
   const p = data.profile;
   if (typeof window !== 'undefined') seedCatalog(data.entries);
+  const identity = useNostr();
   const refresh = useProtocolRefresh(p.pubkey, () =>
     Promise.all([readProfile(p.pubkey), queryCatalog(p.pubkey)]),
   );
@@ -166,7 +167,13 @@ function CreatorProfile() {
         )}
       </header>
       {refresh}
-      <ProfileEditor key={p.pubkey} pubkey={p.pubkey} exists={!!p.eventId} />
+      {identity.pubkey === p.pubkey && (
+        <Button variant="outline" asChild>
+          <Link to="/manage" hash="profile">
+            Edit your profile
+          </Link>
+        </Button>
+      )}
       <section className="profile-creations" aria-label="Creator’s napplets">
         <div className="explore-top">
           <div>

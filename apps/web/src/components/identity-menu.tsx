@@ -1,7 +1,6 @@
 import type { AdminAccess } from '../lib/admin-client';
 import { useId, useRef, useState, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
-import { nip19 } from 'nostr-tools';
 import { CreatorLink } from './creator-link';
 import {
   Copy,
@@ -164,18 +163,13 @@ export function IdentityMenu({
             </span>
             <code className="public-key">{identity.pubkey}</code>
             <Button variant="outline" asChild>
-              <Link
-                to="/p/$pubkey"
-                params={{ pubkey: nip19.npubEncode(identity.pubkey) }}
-                search={{ page: 1, all: false }}
-                onClick={() => changeOpen(false)}
-              >
-                View & edit your profile
+              <Link to="/manage" hash="profile" onClick={() => changeOpen(false)}>
+                Edit your profile
               </Link>
             </Button>
             <Button variant="outline" asChild>
               <Link to="/manage" onClick={() => changeOpen(false)}>
-                My work <WorkDot />
+                Manage <WorkDot />
               </Link>
             </Button>
             {adminAccess === 'authorized' && (

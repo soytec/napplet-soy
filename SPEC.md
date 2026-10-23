@@ -145,6 +145,12 @@ is self-encrypted with NIP-44; receiving information and nutzaps are public.
 The existing shell identity authorizes each spend. Napplets cannot access these
 keys, proofs or signing permissions.
 
+Recipient capability discovery checks kind `0` Lightning destinations and kind
+`10019` nutzap receiving information before exposing a Zap action. Kind `10002`
+write relays extend discovery; newer withdrawals supersede older capabilities.
+Wallet-only public relay reads and writes are allowed in local development, without
+relaxing ordinary publication or napplet-frame policy.
+
 The [wallet contract](docs/WALLET.md) records event tags, compatible extensions,
 recovery guarantees, mint trust and current limits. Addressable nutzaps include
 the stable `a` coordinate as well as `e`. Typed history adds encrypted

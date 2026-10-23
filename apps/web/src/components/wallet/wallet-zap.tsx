@@ -4,7 +4,6 @@ import { Button } from '../ui/button';
 import { useNostr } from '../nostr-provider';
 import { useWallet } from './wallet-provider';
 import { TransactionReview } from './transaction-review';
-import { protocolClient } from '@/lib/network';
 import { nutzapRecipient } from '../../../../../packages/wallet/src/policy';
 import { zapPayments } from '@/lib/zap-payments';
 import type { ZapInvoice } from '../../../../../packages/client/src/zaps';
@@ -96,59 +95,26 @@ export function MintInvoicePayment({ invoice, scope }: { invoice: ZapInvoice; sc
   );
 }
 
-export function NutzapOption({ target, relays }: { target: NostrEvent; relays: string[] }) {
+export function NutzapOption({
+  target,
+  info,
+  relayList,
+}: {
+  target: NostrEvent;
+  info?: NostrEvent;
+  relayList?: NostrEvent;
+}) {
   const { pubkey } = useNostr(),
     wallet = useWallet();
-  const [info, setInfo] = useState<NostrEvent>(),
-    [loading, setLoading] = useState(true),
-    [mint, setMint] = useState(''),
+  const [mint, setMint] = useState(''),
     [amount, setAmount] = useState('21'),
     [comment, setComment] = useState(''),
     [id, setId] = useState<string>();
   useEffect(() => {
-    setInfo(undefined);
-    setLoading(true);
-    setId(undefined);
-    const abort = new AbortController(),
-      client = protocolClient();
-    void (async () => {
-      // NIP-61 is independent of LNURL. Find the recipient's relay list first when necessary.
-      await client.query(
-        [{ kinds: [10019, 10002], authors: [target.pubkey] }],
-        relays,
-        abort.signal,
-      );
-      let event = client.store.getReplaceable(10019, target.pubkey);
-      if (!event) {
-        const mail = client.store.getReplaceable(10002, target.pubkey);
-        await client.query(
-          [{ kinds: [10019], authors: [target.pubkey] }],
-          mail?.tags.filter((t) => t[0] === 'r').map((t) => t[1]) ?? relays,
-          abort.signal,
-        );
-        event = client.store.getReplaceable(10019, target.pubkey);
-      }
-      if (event) {
-        nutzapRecipient(event);
-        if (!abort.signal.aborted) setInfo(event);
-      }
-    })()
-      .catch(() => {})
-      .finally(() => {
-        if (!abort.signal.aborted) setLoading(false);
-      });
-    return () => abort.abort();
-  }, [target.pubkey]);
-  useEffect(() => {
     setId(undefined);
   }, [pubkey, target.id]);
   if (target.tags.some((t) => t[0] === 'zap')) return null;
-  if (!info)
-    return loading ? (
-      <p className="muted" role="status">
-        Checking whether the creator accepts nutzaps…
-      </p>
-    ) : null;
+  if (!info) return null;
   const accepted = nutzapRecipient(info).mints.map((m) => m.url),
     mints = (wallet.runtime?.mints() ?? []).filter((m) => accepted.includes(m));
   const tx = wallet.transactions.find((t) => t.id === id);
@@ -199,7 +165,7 @@ export function NutzapOption({ target, relays }: { target: NostrEvent; relays: s
                       info,
                       target,
                       comment,
-                      protocolClient().store.getReplaceable(10002, info.pubkey),
+                      relayList,
                     );
                     setId(prepared.id);
                   })

@@ -3611,3 +3611,26 @@ input::placeholder, textarea::placeholder { color: var(--muted-foreground); opac
     flex-direction: column;
   }
 }
+
+.manage-tabs {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+}
+.manage-profile-summary {
+  display: flex;
+  gap: 1rem;
+  align-items: start;
+  margin: 1.5rem 0;
+}
+.manage-profile-summary p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.manage-wallet-note {
+  margin-block: 2rem;
+  padding-block: 1rem;
+  border-block: 1px solid var(--border);
+}
+.manage-network .community-form {
+  max-width: 48rem;
+}

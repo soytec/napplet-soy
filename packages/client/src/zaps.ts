@@ -37,7 +37,7 @@ const loadJson: JsonLoader = async (url, signal) =>
   );
 function endpointUrl(profile: SignedEvent) {
   const metadata = JSON.parse(profile.content);
-  if (typeof metadata.lud16 === 'string') {
+  if (typeof metadata.lud16 === 'string' && metadata.lud16.trim()) {
     const match = /^([a-zA-Z0-9._+-]{1,128})@([a-zA-Z0-9.-]{1,253})$/.exec(metadata.lud16);
     if (!match) throw new CommunityError('The author has an invalid Lightning address.');
     return publicResourceUrl(
@@ -55,6 +55,15 @@ function endpointUrl(profile: SignedEvent) {
     'This author has not added a Lightning address to their Nostr profile.',
     404,
   );
+}
+/** A local metadata check; the provider is contacted only when preparing a zap. */
+export function hasLightningAddress(profile: SignedEvent) {
+  try {
+    endpointUrl(profile);
+    return true;
+  } catch {
+    return false;
+  }
 }
 export async function resolveZapEndpoint(
   pubkey: string,

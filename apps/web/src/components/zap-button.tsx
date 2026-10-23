@@ -6,7 +6,6 @@ const NutzapOption = lazy(() =>
   import('./wallet/wallet-zap').then((m) => ({ default: m.NutzapOption })),
 );
 import { readSocial } from '@/lib/protocol-social';
-import { readAvailableProfile } from '../../../../packages/client/src/social';
 import {
   resolveZapEndpoint,
   requestZapInvoice,
@@ -27,7 +26,9 @@ import {
   DialogTrigger,
 } from './ui/dialog';
 import { signForAccount, signAnonymousZap } from '@/lib/community-client';
-import { protocolClient, network } from '@/lib/network';
+import { network } from '@/lib/network';
+import { useZapRecipient } from '@/lib/zap-recipient';
+import { walletBootstrapRelays } from '../../../../packages/wallet/src/network';
 import { zapTotalsStore, useZapTotals } from '@/lib/zap-totals';
 import { zapPayments } from '@/lib/zap-payments';
 import type { SignedEvent } from '../../../../packages/protocol/src';
@@ -66,6 +67,7 @@ export function ZapButton({
   const target = commentTarget ?? data.manifest;
   const scope = commentTarget ? commentScope(commentTarget) : data.scope;
   const totals = useZapTotals(scope.key);
+  const recipient = useZapRecipient(target.pubkey, data.relays);
   const current = useRef({ open, invoice, target: scope.key });
   current.current = { open, invoice, target: scope.key };
   useEffect(() => {
@@ -113,18 +115,14 @@ export function ZapButton({
     setPaymentState('waiting');
     setAnonymous(!pubkey);
     setWebln(!!(window as any).webln);
+    if (!recipient?.lightning) return () => controller.abort();
     (async () => {
       if (target.tags.some((t) => t[0] === 'zap'))
         throw new Error(
           'This creation requests split zaps. Use a client supporting its recipient split.',
         );
-      const relays = [...new Set([...network().relays, ...data.relays])].slice(0, 8);
-      const event = await readAvailableProfile(
-        protocolClient(),
-        target.pubkey,
-        relays,
-        controller.signal,
-      );
+      const relays = walletBootstrapRelays(network().relays, data.relays);
+      const event = recipient.profile;
       const endpoint = await resolveZapEndpoint(
         target.pubkey,
         event ? [event] : [],
@@ -163,12 +161,14 @@ export function ZapButton({
         if (!controller.signal.aborted) setMessage(error.message);
       });
     return () => controller.abort();
-  }, [open, reference, target.id]);
+  }, [open, reference, target.id, recipient?.profile?.id, recipient?.lightning]);
   useEffect(() => {
     if (!open || paymentState !== 'paid') return;
     const timer = setTimeout(() => setOpen(false), 1200);
     return () => clearTimeout(timer);
   }, [open, paymentState]);
+  if (!open && !recipient?.lightning && !recipient?.nutzap) return null;
+  if (target.tags.some((t) => t[0] === 'zap')) return null;
   return (
     <Dialog
       open={open}
@@ -229,7 +229,7 @@ export function ZapButton({
                 const relays = relayHints.filter((r) => r.startsWith('wss:')).slice(0, 6);
                 if (!relays.length)
                   throw new Error(
-                    'Zaps need public relays. Local-only development does not send Lightning requests.',
+                    'No public payment relay is configured. Check your wallet relay settings.',
                   );
                 const template = {
                   kind: 9734,
@@ -445,11 +445,17 @@ export function ZapButton({
             </p>
           </div>
         )}
-        {!endpoint && !message && <p role="status">Looking up the creator’s Lightning address…</p>}
+        {recipient?.lightning && !endpoint && !message && (
+          <p role="status">Looking up the creator’s Lightning address…</p>
+        )}
         {message && <p role="status">{message}</p>}
         {!invoice && (
           <Suspense fallback={<p>Loading nutzap options…</p>}>
-            <NutzapOption target={target} relays={data.relays} />
+            <NutzapOption
+              target={target}
+              info={recipient?.nutzap}
+              relayList={recipient?.relayList}
+            />
           </Suspense>
         )}
       </DialogContent>

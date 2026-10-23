@@ -1,8 +1,8 @@
 # Shell Cashu wallet
 
-Implementation on `codex/nip60-wallet`; not deployed. The wallet belongs to the
+Implementation on `feature/nip-60-and-UI`; not deployed. The wallet belongs to the
 selected shell account. It is available beside the account button and under
-**My work → Wallet** (`/manage#wallet`). It does not grant wallet access to napplets.
+**Manage → Wallet** (`/manage#wallet`). It does not grant wallet access to napplets.
 
 ## Supported flows
 
@@ -58,6 +58,34 @@ Compatible extensions are encrypted `mint`, `fee` and `type` history tags, and
 No kind-375 private-key backup or kind-7374 quote event is emitted. Pending quotes
 and prepared outputs are kept in the device journal and optional encrypted backup.
 
+## Recipient discovery and relay policy
+
+Zap actions are shown only after finding a valid Lightning destination in the
+recipient's kind-0 profile (`lud16` or `lud06`) or valid sat nutzap receiving
+information (kind `10019`). NIP-65 write relays extend recipient discovery.
+Replaceable winners are selected before validating their contents: removing an
+address or withdrawing nutzap reception never revives an older configuration.
+The Lightning provider's NIP-57 support is verified when opening the dialog.
+An address alone is not a guarantee that its provider is online or supports zaps.
+Requests are shared per author, refreshed after a minute while visible and on
+focus, and update the UI as verified events arrive. Failed discovery does not
+expose a dead payment action. Existing split-zap targets remain unsupported.
+
+Wallet traffic is an explicit exception to local-only shell development routing.
+Wallet bootstrap uses configured public WSS relays; if the shell has only local
+relays, it uses the shared public discovery list. Reads **and signed wallet
+writes** can reach those external destinations. Existing wallet relay settings
+and the recipient's advertised destinations govern subsequent operations.
+This does not change relay policy for napplet frames, app publication, profile
+editing or general shell actions. Wallet data remains in its isolated account
+store; public recipient metadata and receipt lookups use a separate signer-free
+payment client. Neither private wallet proofs nor wallet history are seeded into
+the public shell cache.
+
+Review and change wallet relays under **Manage → Wallet → Settings**. The
+**Manage → Relays** form edits website relay and Blossom preferences; it does
+not migrate wallet data. See [management navigation](MANAGE.md).
+
 ## Money and recovery boundaries
 
 Applesauce supplies event loading, decryption and wallet factories; monetary
@@ -110,3 +138,9 @@ Before pushing the changed dependency lock or shared packages, run the repositor
 Nix validation and review any fixed-output dependency hash update. A small real
 payment between independently operated wallets remains a separate pre-release
 acceptance check, requiring the user's payment authorization.
+
+A disposable zero-balance identity was also tested against a public relay and a
+real mint: wallet configuration publication/ACK, fresh relay read and NIP-44
+unlock, mint/key recovery, nutzap recipient discovery and reception withdrawal
+passed. The test wallet deletion was acknowledged. No real funds were sent.
+This is not an independent-wallet payment interoperability test.
