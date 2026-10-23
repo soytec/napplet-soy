@@ -137,6 +137,26 @@ make each of those kinds part of Soy's own application protocol.
 and kind `3063` software assets. Calling a legacy `32267` companion a
 “Zapstore release” obscures that distinction.
 
+### Shell wallet — implemented locally, not deployed
+
+The account wallet reuses NIP-60 kinds `17375`, `7375`, `7376`, NIP-61 kinds
+`10019`, `9321`, NIP-09 deletion and NIP-42 authentication (`22242`). Wallet data
+is self-encrypted with NIP-44; receiving information and nutzaps are public.
+The existing shell identity authorizes each spend. Napplets cannot access these
+keys, proofs or signing permissions.
+
+Recipient capability discovery checks kind `0` Lightning destinations and kind
+`10019` nutzap receiving information before exposing a Zap action. Kind `10002`
+write relays extend discovery; newer withdrawals supersede older capabilities.
+Wallet-only public relay reads and writes are allowed in local development, without
+relaxing ordinary publication or napplet-frame policy.
+
+The [wallet contract](docs/WALLET.md) records event tags, compatible extensions,
+recovery guarantees, mint trust and current limits. Addressable nutzaps include
+the stable `a` coordinate as well as `e`. Typed history adds encrypted
+`mint`/`fee`/`type` tags. There is no new kind or companion event. Contributor split
+payments remain unimplemented; existing Lightning receipt totals exclude nutzaps.
+
 ### Authorization and transport events
 
 These must not be confused with public napplet releases or feed content.

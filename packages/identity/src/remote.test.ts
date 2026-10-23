@@ -763,3 +763,25 @@ test('browser identity scopes signatures, reconnects the same user, cancels pair
     await e.close();
   }
 }, 15000);
+
+test('shell wallet self-encryption works with local and remote accounts and refuses an account switch', async () => {
+  const e = await environment(),
+    identity = new BrowserIdentity('local');
+  try {
+    await identity.importKey('03'.repeat(32));
+    const local = identity.state.pubkey!;
+    const value = await identity.walletCrypt(local, 'encrypt', 'wallet recovery only');
+    expect(value).not.toContain('wallet recovery');
+    expect(await identity.walletCrypt(local, 'decrypt', value)).toBe('wallet recovery only');
+    await identity.bunker(await e.provider.getBunkerURI());
+    const remote = identity.state.pubkey!;
+    const encrypted = await identity.walletCrypt(remote, 'encrypt', 'remote wallet');
+    expect(await identity.walletCrypt(remote, 'decrypt', encrypted)).toBe('remote wallet');
+    await expect(identity.walletCrypt(local, 'decrypt', value)).rejects.toThrow('account');
+    identity.disconnect();
+    await expect(identity.walletCrypt(remote, 'decrypt', encrypted)).rejects.toThrow('account');
+  } finally {
+    identity.disconnect();
+    await e.close();
+  }
+}, 15000);

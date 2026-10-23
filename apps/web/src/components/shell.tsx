@@ -1,3 +1,4 @@
+import { WalletButton } from './wallet/wallet-button';
 import { AppearanceControl } from '../../../../packages/runtime/src/appearance-control';
 import { Link, useLocation } from '@tanstack/react-router';
 import { ArrowUpRight, CircleAlert, CircleHelp, Radio, Sparkles, Terminal } from 'lucide-react';
@@ -63,7 +64,7 @@ export function Shell({ children }: { children: ReactNode }) {
             Explore
           </Link>
           <Link to="/manage" activeProps={{ className: 'nav-active' }}>
-            My work <WorkDot />
+            Manage <WorkDot />
           </Link>
           <Link to="/docs" activeProps={{ className: 'nav-active' }}>
             Docs
@@ -95,6 +96,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <CircleHelp size={19} />
             </Link>
           </Button>
+          <WalletButton />
           <PopoverTrigger asChild>
             <Button
               id="identity-button"
@@ -131,7 +133,7 @@ export function Shell({ children }: { children: ReactNode }) {
             Small creations. Wide-open possibilities.
           </span>
           <div>
-            <Link to="/network" className="network-label">
+            <Link to="/manage" hash="relays" className="network-label">
               <Radio size={12} />
               Network settings
             </Link>
