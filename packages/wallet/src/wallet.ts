@@ -11,6 +11,7 @@ import {
   deserializeSwapPreview,
   sumProofs,
   verifyDleqIfPresent,
+  hashToCurve,
   type Proof,
   type OutputDataLike,
   type SwapPreview,
@@ -594,7 +595,50 @@ export class ShellWallet extends NutWallet {
       return { keep: [...keep, ...(preview.unselectedProofs ?? [])], send };
     }
   }
-  async resume(id: string, confirm = false) {
+  /** Read settlement without authorizing or retrying an outgoing mint payment. */
+  async checkSettlement(id: string) {
+    this.check();
+    const tx = await this.journal.get(id);
+    if (tx.type === 'send' && tx.status === 'complete' && tx.token && tx.tokenState !== 'spent') {
+      const wallet = await this.cashu(tx.mint);
+      const { proofs } = wallet.decodeToken(tx.token);
+      const states = await wallet.checkProofsStates(proofs);
+      this.check();
+      if (
+        !proofs.length ||
+        states.length !== proofs.length ||
+        states.some(
+          (s, i) =>
+            s.Y !== hashToCurve(new TextEncoder().encode(proofs[i].secret)).toHex(true) ||
+            !['UNSPENT', 'PENDING', 'SPENT'].includes(s.state),
+        )
+      )
+        throw new WalletError('The mint returned an incomplete token status. Try checking again.');
+      const state = states.every((s) => s.state === 'SPENT')
+        ? 'spent'
+        : states.some((s) => s.state === 'SPENT')
+          ? 'partial'
+          : states.some((s) => s.state === 'PENDING')
+            ? 'pending'
+            : 'unspent';
+      if (state !== tx.tokenState) {
+        tx.tokenState = state;
+        await this.save(tx);
+      }
+      return tx;
+    }
+    if (tx.type === 'deposit' && ['invoice', 'pending'].includes(tx.status)) return this.resume(id);
+    if (
+      tx.type === 'melt' &&
+      tx.status === 'pending' &&
+      tx.confirmed &&
+      tx.meltOutputs &&
+      !tx.recoverySwap
+    )
+      return this.resume(id, false, true);
+    return tx;
+  }
+  async resume(id: string, confirm = false, settlementOnly = false) {
     const tx = await this.journal.get(id);
     if (tx.status === 'complete' || tx.status === 'cancelled') return tx;
     this.check();
@@ -606,6 +650,10 @@ export class ShellWallet extends NutWallet {
     try {
       if (tx.type === 'deposit' && !tx.keep) {
         const quote = await wallet.checkMintQuoteBolt11(tx.quote!);
+        if (tx.quoteState !== quote.state) {
+          tx.quoteState = quote.state;
+          await this.save(tx);
+        }
         if (quote.state === 'UNPAID') {
           this.progress$.next('Waiting for your Lightning payment…');
           return tx;
@@ -676,6 +724,9 @@ export class ShellWallet extends NutWallet {
           this.progress$.next('Lightning payment is in flight. Check again shortly.');
           return tx;
         }
+        // Background settlement checks may finish a paid quote, but never submit
+        // or resubmit an unpaid outgoing payment, even if a previous call failed.
+        if (settlementOnly && quote.state !== 'PAID') return tx;
         if (!tx.meltOutputs && quote.state !== 'PAID') {
           const preview = await wallet.prepareMelt('bolt11', quote, deserializeProofs(tx.send!));
           tx.meltOutputs = serialOutputs(preview.outputData, preview.keysetId);
@@ -834,7 +885,9 @@ export class ShellWallet extends NutWallet {
       events.push(
         await this.signer.signEvent({
           kind: 5,
-          created_at: now(),
+          // Applesauce rounds event time; a token can be one second ahead of
+          // our clock. Its deletion must not predate the event being replaced.
+          created_at: Math.max(now(), ...(tx.spent ?? []).map((e) => e.created_at)),
           content: '',
           tags: [['k', '7375'], ...spent.map((id) => ['e', id])],
         }),

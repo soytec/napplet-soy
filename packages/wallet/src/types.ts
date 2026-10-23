@@ -23,6 +23,8 @@ export type WalletTransaction = {
   quote?: string;
   quoteExpires?: number;
   quoteAmount?: number;
+  quoteState?: 'UNPAID' | 'PAID' | 'ISSUED';
+  tokenState?: 'unspent' | 'pending' | 'partial' | 'spent';
   feeReserve?: number;
   swap?: SerializedSwapPreview;
   recoverySwap?: SerializedSwapPreview;

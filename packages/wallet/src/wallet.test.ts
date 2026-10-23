@@ -457,3 +457,101 @@ test('outgoing nutzap must be acknowledged by a recipient relay, never only a wa
       .every((i: any) => !i.relays.includes('wss://recipient.test/')),
   ).toBe(true);
 });
+
+test('deposit settlement survives expiry and hides the invoice before relay sync completes', async () => {
+  const s = await setup(undefined, 0);
+  await s.wallet.deposit(s.mint.url, 21);
+  const tx = s.wallet.transactions$.value[0];
+  tx.quoteExpires = Math.floor(Date.now() / 1000) - 1;
+  await s.wallet.journal.put(tx);
+  s.mint.deposits.get(tx.quote!).state = 'PAID';
+  s.reject(true);
+  await expect(s.wallet.checkSettlement(tx.id)).rejects.toThrow('No relay acknowledged');
+  const pending = await s.wallet.journal.get(tx.id);
+  expect(pending.quoteState).toBe('PAID');
+  expect(pending.status).toBe('pending');
+  s.reject(false);
+  const completed = await s.wallet.checkSettlement(tx.id);
+  expect(completed.status).toBe('complete');
+  expect(s.wallet.satBalances()[s.mint.url]).toBe(21);
+});
+
+test('background settlement checks never approve or replay outgoing payments', async () => {
+  const s = await setup(),
+    tx = await s.wallet.preparePayment(s.mint.url, testInvoice(8));
+  expect((await s.wallet.checkSettlement(tx.id)).status).toBe('review');
+  expect(s.mint.swaps).toBe(0);
+  s.mint.pendingMelt = true;
+  await s.wallet.resume(tx.id, true);
+  expect((await s.wallet.checkSettlement(tx.id)).status).toBe('pending');
+  s.mint.melts.get(tx.quote!).state = 'UNPAID';
+  await s.wallet.checkSettlement(tx.id);
+  expect(s.mint.meltCalls).toBe(1);
+  expect(s.mint.swaps).toBe(1);
+});
+
+test('a lost successful Lightning response is settled by polling exactly once', async () => {
+  const s = await setup(),
+    tx = await s.wallet.preparePayment(s.mint.url, testInvoice(8));
+  s.mint.dropMelt = true;
+  await expect(s.wallet.resume(tx.id, true)).rejects.toThrow('recovery data');
+  expect((await s.wallet.checkSettlement(tx.id)).status).toBe('complete');
+  await s.wallet.checkSettlement(tx.id);
+  expect(s.mint.meltCalls).toBe(1);
+  expect(s.wallet.satBalances()[s.mint.url]).toBe(55);
+});
+
+test('Cashu redemption checks distinguish unspent, partial and redeemed without spending', async () => {
+  const s = await setup(),
+    tx = await s.wallet.prepareSend(s.mint.url, 7);
+  const sent = await s.wallet.resume(tx.id, true);
+  const proofs = getDecodedToken(sent.token!, [s.mint.id]).proofs;
+  expect(proofs.length).toBeGreaterThan(1);
+  expect((await s.wallet.checkSettlement(tx.id)).tokenState).toBe('unspent');
+  s.mint.spent.add(s.mint.y(proofs[0].secret));
+  expect((await s.wallet.checkSettlement(tx.id)).tokenState).toBe('partial');
+  for (const proof of proofs) s.mint.spent.add(s.mint.y(proof.secret));
+  expect((await s.wallet.checkSettlement(tx.id)).tokenState).toBe('spent');
+  expect(s.mint.swaps).toBe(1);
+  expect(s.wallet.satBalances()[s.mint.url]).toBe(57);
+  // Persist the receipt state for reloads; keep the token in encrypted recovery.
+  const saved = await s.wallet.journal.get(tx.id);
+  expect(saved.tokenState).toBe('spent');
+  expect(saved.token).toBe(sent.token);
+});
+
+test('incomplete or unrelated mint proof states cannot mark a token redeemed', async () => {
+  const s = await setup(),
+    tx = await s.wallet.prepareSend(s.mint.url, 7);
+  await s.wallet.resume(tx.id, true);
+  const cashu = await s.wallet.cashu();
+  cashu.checkProofsStates = async () => [];
+  await expect(s.wallet.checkSettlement(tx.id)).rejects.toThrow('incomplete token status');
+  cashu.checkProofsStates = async (proofs) =>
+    proofs.map(() => ({ Y: '02' + '00'.repeat(32), state: 'SPENT' as any, witness: null }));
+  await expect(s.wallet.checkSettlement(tx.id)).rejects.toThrow('incomplete token status');
+  expect((await s.wallet.journal.get(tx.id)).tokenState).toBeUndefined();
+});
+
+test('settling multiple transfers does not resurrect a replaced token with a rounded timestamp', async () => {
+  const s = await setup(undefined, 0);
+  const original = await WalletTokenFactory.create({
+    mint: s.mint.url,
+    unit: 'sat',
+    proofs: await s.mint.fund(64),
+  }).sign(s.signer);
+  s.store.add(
+    await s.signer.signEvent({
+      kind: 7375,
+      content: original.content,
+      tags: original.tags,
+      created_at: Math.floor(Date.now() / 1000) + 1,
+    }),
+  );
+  await s.wallet.unlock();
+  for (let i = 1; i <= 2; i++) {
+    const tx = await s.wallet.prepareSend(s.mint.url, 4);
+    await s.wallet.resume(tx.id, true);
+    expect(s.wallet.satBalances()[s.mint.url]).toBe(64 - i * 4);
+  }
+});
