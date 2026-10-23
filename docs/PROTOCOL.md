@@ -1,5 +1,12 @@
 # Napplet interoperability and publishing contract
 
+## External invitation links — review only, 2026-10-22
+
+A direct-URL delivery prototype was withdrawn because its fabricated source
+identifier violates the selected NAP-INTENT sender contract. No runtime or pin
+change is proposed. See [the protocol finding and implementation prerequisites](INVITATION-LINKS.md).
+
+
 ## Hosted Studio control — implementation, rollout pending
 
 Hosted Studio uses the existing ContextVM SDK 0.13.16 encrypted MCP transport and

@@ -1,5 +1,12 @@
 # NAP concepts and expansion review
 
+## External invitation links — review only, 2026-10-22
+
+A direct-URL delivery prototype was withdrawn because its fabricated source
+identifier violates the selected NAP-INTENT sender contract. No runtime or pin
+change is proposed. See [the protocol finding and implementation prerequisites](INVITATION-LINKS.md).
+
+
 ## OUTBOX integration — released 0.29.0
 
 The subsequent implementation completes the foundation below with a shared verified
