@@ -3,9 +3,43 @@
 Deployment is operator-run. Routine changes are verified and committed locally;
 do not deploy or upload releases unless the user explicitly requests deployment.
 
-Updated 2026-10-22. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
+Updated 2026-10-23. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-### Most recent application deployment — Remix preview and relay counts, 2026-10-22
+### Most recent application deployment — Preserve running sessions, 2026-10-23
+
+Verified website release: **`20261023105030380-26978`**, source
+`cea49d9107e9da2434cff668c1c186b49288a2e5`.
+[PR #38](https://github.com/soytec/napplet-soy/pull/38) merged as `d991b76`:
+switching tabs/windows or scrolling an active compact napplet offscreen retains
+its iframe and host session. Explicit Stop/Restart, navigation/unmount and another
+explicit player still end the session; decorative media retains visibility cleanup.
+The follow-up `cea49d9` isolates a Studio publication test's proposal reads from
+public relays; it changes no production behavior.
+
+TypeScript, all 858 application tests, 5 relay, 18 Blossom and 9 GRASP checks, and
+the production build passed on the VPS. The same local application/service gates
+passed. [Nix validation](https://github.com/soytec/napplet-soy/actions/runs/39940933232)
+and [Studio/browser CI](https://github.com/soytec/napplet-soy/actions/runs/39941488513)
+passed. A guest browser on public HTTPS played Obsidian Breaker through three
+deterministic hidden/visible cycles without losing its frame, JavaScript marker or
+instance storage, then verified Restart resets and Stop closes the session. Studio
+hydrated without page errors. Native OS tab switching was not automated; browsers
+may still throttle or discard background pages.
+
+Public health and the completed catalog scan identify this release. Studio, CVM,
+TURN, Caddy and all five application processes are healthy; source hashes match.
+All five saved drafts and Git workspaces, private configuration and Studio egress
+policy are preserved. No active or queued Studio jobs were present at activation.
+The previous release `20261022145224492-95376` remains available for rollback.
+Read-only relay/GRASP subscriptions, Blossom health, protected admin/metrics routes
+and the other hosted site passed. The pre-existing `nostr.oxtr.dev` query failures
+remain visible; catalog refresh completes through the other relays.
+
+The website now serves the already-published **soyLI 0.31.2** installer, verified
+against the source bytes. No new CLI release, worker image, paid inference or public
+test publication was needed.
+
+### Previous application deployment — Remix preview and relay counts, 2026-10-22
 
 Verified website release: **`20261022145224492-95376`**, source
 `bca22941e22ea4ac8cbebf06f29a09f7a49d4fd0`, with the installer still pinned to
