@@ -124,6 +124,22 @@ path; shim Blobs belong to the frame and disappear on teardown.
 
 Relay access is through a frame-owned Applesauce pool. Filters, event counts, request concurrency, relay selection and subscription lifetime are bounded. Live subscriptions close after five minutes or 500 accepted events; the napplet receives a closure notification. Stopping/restarting or navigating away destroys the frame session, closes subscriptions and sockets, aborts resources and pending prompts, and revokes download URLs. Account changes preserve the iframe and its single SHELL handshake: old requests are cancelled, subscriptions close, resources abort, prompts/exports clear, and account-scoped storage/files are replaced before `identity.changed` is sent. Late results are suppressed. Shared saves remain available when returning to the same account; instance storage and virtual files start fresh. Napplets must listen to `identity.onChanged` to refresh their own in-memory account state.
 
+Switching browser tabs/windows or scrolling a running napplet out of view preserves
+its iframe, in-memory state and host session, including transient storage. This
+applies to detail/immersive players, compact comment/gallery players and Studio's
+original-remix preview. Starting another explicit player still stops the previous
+one. Decorative clips retain their visibility-based cleanup. A tab switch does
+not renew subscription limits or grant additional capabilities.
+
+Browsers may throttle timers, pause animation frames or discard background pages;
+preserving a session does not guarantee continuous background execution or recovery
+after browser eviction. Gameplay pause/resume belongs to the napplet. Authors
+should clear held keyboard/touch input on `blur` and when `document.hidden` becomes
+true, and handle the elapsed-time gap on return. The existing soyLI gamepad helper
+neutralizes input on focus loss. The shell cannot clear arbitrary app-owned input
+state and does not synthesize key events. These are shell lifecycle and application
+choices; no NIP-5D/NAP messages or upstream pins change.
+
 ## Immersive links
 
 Implemented, verified and deployed on **2026-09-14** in `20260914171728494-21459`.

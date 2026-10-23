@@ -143,23 +143,11 @@ export function Player({
     if (!playing) return;
     const token = owner.current;
     playback.claim(token, 'napplet', () => stopCurrent.current());
-    const hide = () => {
-      if (document.hidden) stopCurrent.current();
-    };
-    document.addEventListener('visibilitychange', hide);
-    const observer = compact
-      ? new IntersectionObserver(([entry]) => {
-          if (!entry.isIntersecting && !wrapper.current?.matches(':fullscreen, .player-expanded'))
-            stopCurrent.current();
-        })
-      : null;
-    if (wrapper.current) observer?.observe(wrapper.current);
-    return () => {
-      playback.release(token);
-      observer?.disconnect();
-      document.removeEventListener('visibilitychange', hide);
-    };
-  }, [playing, compact]);
+    // Visibility is not session lifetime: switching tabs or scrolling away must
+    // preserve the iframe, transient storage and connections. Decorative clips
+    // own their separate visibility policy. Unmount/Stop still closes the host.
+    return () => playback.release(token);
+  }, [playing]);
   useEffect(() => {
     if (immersive) setPlaying(true);
   }, [immersive]);

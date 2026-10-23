@@ -168,9 +168,33 @@ test('rich comments use opt-in sandboxed napplets, lazy media, one player and de
     await attachments.nth(1).getByRole('button', { name: 'Play here', exact: true }).click();
     await browserExpect(attachments.nth(1).locator('iframe')).toHaveCount(1);
     await browserExpect(clip).toHaveCount(0);
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await browserExpect(page.locator('iframe')).toHaveCount(0);
+    await attachments
+      .nth(1)
+      .locator('iframe')
+      .evaluate((frame) => {
+        frame.setAttribute('data-session-test', 'scrolled-session');
+      });
+    expect(
+      await page.evaluate(() => {
+        window.scrollTo(0, 0);
+        const frame = document.querySelector('iframe[data-session-test="scrolled-session"]')!;
+        const bounds = frame.getBoundingClientRect();
+        return bounds.top >= innerHeight || bounds.bottom <= 0;
+      }),
+    ).toBe(true);
+    // Let IntersectionObserver and the resulting React update run before asserting retention.
+    await page.evaluate(
+      () =>
+        new Promise<void>((done) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => done())),
+        ),
+    );
     await browserExpect(image).toHaveCount(0);
+    // Scrolling away unloads decorative media, but retains explicitly started gameplay.
+    await browserExpect(attachments.nth(1).locator('iframe')).toHaveAttribute(
+      'data-session-test',
+      'scrolled-session',
+    );
     failImage = true;
     // Native decoded-image caches may reuse an earlier successful URL. Start a new document
     // to exercise a fresh failed original URL without adding private cache-busting parameters.

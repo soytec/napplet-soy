@@ -10,8 +10,24 @@ import { pathToFileURL } from 'node:url';
 import { browserEngine } from '../../apps/cli/src/browser';
 import { previewAssets } from '../../apps/cli/src/preview/assets';
 import { startPreviewServer } from '../../apps/cli/src/preview/server';
+import type { Page } from '@playwright/test';
 
-test('registered game keys work through the real preview and website hosts and pinned shim', async () => {
+async function switchAwayAndBack(page: Page) {
+  // Drive visibility deterministically through the real player and opaque iframe:
+  // automated Chromium pages can remain visible even when another page is focused.
+  // Allow React to process the hidden state before returning to the foreground.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => done())));
+  await page.evaluate(() => {
+    Reflect.deleteProperty(document, 'hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+}
+
+test('game keys and live sessions survive tab switches in the preview and website hosts', async () => {
   const root = await mkdtemp(join(tmpdir(), 'napplet-keys-'));
   let preview: ReturnType<typeof startPreviewServer> | undefined;
   let web: ReturnType<typeof Bun.spawn> | undefined;
@@ -40,6 +56,10 @@ test('registered game keys work through the real preview and website hosts and p
       <output id="ready">waiting</output>
       <script>
       let distance=0;
+      window.shellInitCount=0;
+      window.addEventListener('message', event=>{
+        if(event.source===parent && event.data?.type==='shell.init') window.shellInitCount++;
+      });
       const hop=()=>document.querySelector('#distance').textContent=String(++distance);
       document.querySelector('#hop').onclick=hop;
       (async()=>{
@@ -113,7 +133,8 @@ test('registered game keys work through the real preview and website hosts and p
       encodeAddress({ kind: 35129, pubkey: event.pubkey, identifier: 'keyboard-fixture' }) +
       '/play';
     for (const url of [preview.url.href, origin + path]) {
-      const page = await browser.newPage();
+      const context = await browser.newContext();
+      const page = await context.newPage();
       await page.routeWebSocket(/wss?:\/\//, (route) => route.close());
       await page.addInitScript((serverUrl) => {
         if (window === top)
@@ -143,8 +164,33 @@ test('registered game keys work through the real preview and website hosts and p
       await frame.locator('#hop').click();
       await page.keyboard.press('ArrowUp');
       expect(await frame.locator('#distance').textContent()).toBe('4');
+      await child.evaluate(() =>
+        (window as any).napplet.storage.instance.setItem('visibility-marker', 'kept'),
+      );
+      for (let switchCount = 0; switchCount < 2; switchCount++) {
+        await switchAwayAndBack(page);
+        // Neither the JS world nor the host's transient storage/bootstrap may reset.
+        expect(child.isDetached()).toBe(false);
+        expect(await frame.locator('#distance').textContent()).toBe('4');
+        expect(await child.evaluate(() => (window as any).shellInitCount)).toBe(1);
+        expect(
+          await child.evaluate(() =>
+            (window as any).napplet.storage.instance.getItem('visibility-marker'),
+          ),
+        ).toBe('kept');
+      }
+      await frame.locator('#hop').focus();
+      await page.keyboard.press('w');
+      expect(await frame.locator('#distance').textContent()).toBe('5');
       await page.reload();
       await frame.locator('#ready').filter({ hasText: 'ready' }).waitFor({ timeout: 3000 });
+      expect(child.isDetached()).toBe(true);
+      const reloaded = page.frames().find((f) => f.parentFrame())!;
+      expect(
+        await reloaded.evaluate(() =>
+          (window as any).napplet.storage.instance.getItem('visibility-marker'),
+        ),
+      ).toBeNull();
       await frame.locator('#hop').click();
       await page.keyboard.press('ArrowUp');
       await frame.locator('#distance').filter({ hasText: '2' }).waitFor({ timeout: 3000 });
@@ -152,9 +198,11 @@ test('registered game keys work through the real preview and website hosts and p
         // Native fullscreen is a separate layer; the ordinary /play route uses CSS expansion.
         await page.keyboard.press('Escape');
         await page.waitForURL((u) => !u.pathname.endsWith('/play'), { timeout: 3000 });
+        await switchAwayAndBack(page);
+        expect(reloaded.isDetached()).toBe(false);
         expect(await frame.locator('#distance').textContent()).toBe('2');
       }
-      await page.close();
+      await context.close();
     }
   } finally {
     web?.kill();
