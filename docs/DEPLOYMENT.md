@@ -5,7 +5,45 @@ do not deploy or upload releases unless the user explicitly requests deployment.
 
 Updated 2026-10-23. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-### Most recent application deployment — Preserve running sessions, 2026-10-23
+### Most recent application deployment — Wallet and Manage, 2026-10-23
+
+Verified website release: **`20261023152532295-30964`**, source
+`d09bd762f18007e31f0fa505ae9adbcea7c2045b` from
+[PR #39](https://github.com/soytec/napplet-soy/pull/39).
+The shell now includes the [NIP-60/61 wallet](WALLET.md) and
+[unified Manage tabs](MANAGE.md). Wallet loading starts with the selected account;
+trusted Cashu tokens received by paste or QR go directly to receipt and balance
+feedback. Outgoing payments retain their amount/fee review.
+
+TypeScript, all 897 application tests, 5 relay, 18 Blossom and 9 GRASP checks, and
+the production build passed on the VPS. Local application/service checks also
+passed. [Nix package/rebuild/VM validation](https://github.com/soytec/napplet-soy/actions/runs/39976631223),
+[all four native builds and installer/updater checks](https://github.com/soytec/napplet-soy/actions/runs/39976631132),
+and [Studio integration/browser CI](https://github.com/soytec/napplet-soy/actions/runs/39976631309)
+passed before merge. Nix's dependency output hash was updated to the exact value
+verified by CI for the added wallet libraries; runtime pins were unchanged.
+
+A fresh browser on public HTTPS passed direct paste receipt, simulated camera
+receipt and track shutdown, duplicate handling, explicit outgoing-payment review,
+automatic saved-wallet restoration, all Manage tabs and popover transaction history.
+These checks used intercepted fake mint/relay services, including a silent relay;
+no real funds or public test events were used. Physical-camera scanning and a real
+payment between independently operated wallets remain unverified.
+
+Public health and the completed catalog scan identify the new release. Studio,
+CVM, TURN, Caddy and all five application processes are healthy; source hashes match.
+All five saved draft records and Git workspaces, private configuration and Studio
+egress policy are preserved. No active or queued creator jobs were present at
+activation. Read-only relay/GRASP subscriptions, protected admin/metrics endpoints,
+Blossom and the other hosted site passed. External query timeouts from
+`relay.nostr.net` and `nostr.oxtr.dev` remain visible; the scan completed through
+other relays. The previous release `20261023105030380-26978` remains available for
+rollback. Local evidence is retained in `.local/wallet-deploy/`.
+
+The installer still serves the published **soyLI 0.31.2**, verified against source
+bytes. No new CLI release or Studio worker image was introduced.
+
+### Previous application deployment — Preserve running sessions, 2026-10-23
 
 Verified website release: **`20261023105030380-26978`**, source
 `cea49d9107e9da2434cff668c1c186b49288a2e5`.

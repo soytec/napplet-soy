@@ -1,7 +1,8 @@
 # Shell Cashu wallet
 
-Implementation on `feature/nip-60-and-UI`; not deployed. The wallet belongs to the
-selected shell account. It is available beside the account button and under
+Deployed on 2026-10-23 with [PR #39](https://github.com/soytec/napplet-soy/pull/39),
+website release `20261023152532295-30964`. The wallet belongs to the selected
+shell account. It is available beside the account button and under
 **Manage → Wallet** (`/manage#wallet`). It does not grant wallet access to napplets.
 After sign-in or restoring a saved account, wallet loading starts automatically
 once the signer is ready. It never creates a wallet or trusts mints automatically.
@@ -192,7 +193,7 @@ and saved-account restoration, manual locking across route changes, cross-tab
 locking and manual retry were checked. The wallet home, invoice and token-sharing
 popover fit at 390 × 844 without internal scrolling. Suggested mint info
 endpoints were checked for sat BOLT11, NUT-11 and NUT-12 support. Physical-camera
-scanning and an independent-wallet payment remain release acceptance checks.
+scanning and an independent-wallet payment remain manual acceptance checks.
 
 The direct-receive browser flow also covers paste and camera receipt without a
 confirmation screen, duplicate input, unchanged outgoing-payment review, balance
@@ -203,11 +204,17 @@ substitute for it, and an empty first relay cannot prematurely end wallet discov
 Run `bun test packages/wallet` and `bun run check`; build with `bun run build`.
 Before pushing the changed dependency lock or shared packages, run the repository's
 Nix validation and review any fixed-output dependency hash update. A small real
-payment between independently operated wallets remains a separate pre-release
-acceptance check, requiring the user's payment authorization.
+payment between independently operated wallets remains unverified and requires
+the user's payment authorization.
 
 A disposable zero-balance identity was also tested against a public relay and a
 real mint: wallet configuration publication/ACK, fresh relay read and NIP-44
 unlock, mint/key recovery, nutzap recipient discovery and reception withdrawal
 passed. The test wallet deletion was acknowledged. No real funds were sent.
 This is not an independent-wallet payment interoperability test.
+
+After deployment, a fresh browser on public HTTPS passed direct paste and simulated
+camera receipt, duplicate-token handling, explicit outgoing-payment review,
+automatic wallet restoration, Manage tabs and popover transaction history. Mint
+and relay requests were intercepted with isolated fake services, including one
+silent relay; no real funds or public test events were used.
