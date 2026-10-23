@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
-  ArrowDownLeft,
   ArrowUpRight,
   Coins,
+  Zap,
+  QrCode,
+  CheckCircle2,
   History,
   LockKeyhole,
   RefreshCw,
@@ -15,6 +17,10 @@ import { useNostr } from '../nostr-provider';
 import { PaymentCode } from './payment-code';
 import { QrReader } from './qr-reader';
 import { TransactionReview } from './transaction-review';
+import {
+  showDepositCode,
+  transactionFeedback,
+} from '../../../../../packages/wallet/src/settlement';
 import { transactionNames } from '../../../../../packages/wallet/src/policy';
 import type { WalletTransaction } from '../../../../../packages/wallet/src/types';
 import type { WalletRuntime } from '@/lib/wallet-runtime';
@@ -24,19 +30,18 @@ const suggestions = [
   { name: 'Coinos', url: 'https://mint.coinos.io' },
   { name: '21Mint', url: 'https://21mint.me' },
 ];
-type View = 'receive' | 'pay' | 'send' | 'activity' | 'settings';
-const tabs = [
-  ['receive', 'Receive', ArrowDownLeft],
-  ['pay', 'Pay', ArrowUpRight],
-  ['send', 'Cashu', Coins],
-  ['activity', 'Activity', History],
-  ['settings', 'Settings', Settings2],
+type View = 'home' | 'deposit' | 'pay' | 'receive' | 'send' | 'activity' | 'settings';
+const actions = [
+  ['deposit', 'Receive Lightning', Zap],
+  ['pay', 'Pay Lightning', ArrowUpRight],
+  ['receive', 'Receive Cashu', QrCode],
+  ['send', 'Send Cashu', Coins],
 ] as const;
 
 export function WalletPanel({ full = false }: { full?: boolean }) {
   const wallet = useWallet(),
     { pubkey } = useNostr();
-  const [view, setView] = useState<View>('receive'),
+  const [view, setView] = useState<View>('home'),
     [mint, setMint] = useState(''),
     [amount, setAmount] = useState('21'),
     [input, setInput] = useState('');
@@ -50,16 +55,28 @@ export function WalletPanel({ full = false }: { full?: boolean }) {
     setSelected(undefined);
     setInput('');
     setShowToken(false);
+    setView('home');
   }, [pubkey, runtime]);
   const tx = wallet.transactions.find((t) => t.id === selected);
   const choose = (t: WalletTransaction) => {
     setSelected(t.id);
     setShowToken(false);
+    setInput('');
   };
-  const scan = (value: string) => {
+  // Camera, image and pasted strings all enter the same review flow.
+  const acceptInput = (value: string) => {
     setInput(value);
-    setView(/^cashu:/i.test(value) || /^cashu[AB]/.test(value) ? 'receive' : 'pay');
+    const text = value.trim();
+    if (/^cashu:/i.test(text) || /^cashu[AB]/.test(text)) setView('receive');
+    else if (/^(lightning:|lnbc)/i.test(text)) setView('pay');
     setSelected(undefined);
+  };
+  const changeView = (next: View) => {
+    setView(next);
+    setSelected(undefined);
+    setInput('');
+    setShowToken(false);
+    wallet.clearError();
   };
   return (
     <div className={`wallet-panel${full ? ' wallet-full' : ''}`}>
@@ -91,7 +108,7 @@ export function WalletPanel({ full = false }: { full?: boolean }) {
                 })
               }
             >
-              <RefreshCw size={17} />
+              <RefreshCw size={17} className={wallet.busy ? 'animate-spin' : ''} />
             </Button>
             <Button
               size="icon"
@@ -107,14 +124,11 @@ export function WalletPanel({ full = false }: { full?: boolean }) {
       </div>
       {!runtime && (
         <>
-          <p>
-            Lightning and Cashu, using your Nostr account. Your signer unlocks an encrypted wallet.
-          </p>
+          <p>Lightning and Cashu, using your Nostr account.</p>
           <Button disabled={wallet.busy} onClick={() => void wallet.open()}>
             {wallet.busy ? (
               <>
-                <LoaderCircle className="animate-spin" />
-                Opening…
+                <LoaderCircle className="animate-spin" /> Opening…
               </>
             ) : pubkey ? (
               'Open wallet'
@@ -132,147 +146,141 @@ export function WalletPanel({ full = false }: { full?: boolean }) {
       {wallet.busy && (
         <p className="wallet-progress" role="status">
           <LoaderCircle size={16} className="animate-spin" />
-          {wallet.progress || 'Working on your wallet…'}
+          {wallet.progress || 'Checking your wallet…'}
         </p>
       )}
-      {runtime && !exists && <MintSettings creating onSaved={() => setView('receive')} />}
+      {!tx && wallet.notice && (
+        <p className="wallet-success" role="status">
+          <CheckCircle2 size={18} />
+          {wallet.notice}
+        </p>
+      )}
+      {runtime && !exists && <MintSettings creating onSaved={() => setView('home')} />}
       {runtime && exists && (
         <>
-          {wallet.transactions.some((t) => t.status === 'pending' || t.status === 'review') && (
-            <p className="wallet-notice">
-              A transaction needs your attention.{' '}
-              <button
-                type="button"
-                onClick={() => {
-                  setView('activity');
-                  setSelected(undefined);
-                }}
-              >
-                Open Activity
-              </button>{' '}
-              to finish, cancel or recover it before spending again.
-            </p>
+          {(view !== 'home' || tx) && (
+            <Button variant="ghost" className="wallet-back" onClick={() => changeView('home')}>
+              ← Wallet actions
+            </Button>
           )}
-          <nav className="wallet-tabs" aria-label="Wallet actions">
-            {tabs.map(([id, label, Icon]) => (
-              <button
-                type="button"
-                key={id}
-                aria-pressed={view === id}
-                onClick={() => {
-                  setView(id);
-                  setSelected(undefined);
-                }}
-              >
-                <Icon size={17} />
-                {label}
-              </button>
-            ))}
-          </nav>
-          {['receive', 'pay', 'send'].includes(view) && (
+          {!tx && view === 'home' && (
             <>
-              <label className="wallet-field">
-                Mint
-                <select
-                  value={mints.includes(mint) ? mint : (mints[0] ?? '')}
-                  disabled={wallet.busy}
-                  onChange={(e) => setMint(e.target.value)}
-                >
-                  {mints.map((m) => (
-                    <option key={m} value={m}>
-                      {new URL(m).hostname} · {(wallet.balances[m] ?? 0).toLocaleString()} sats
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {!tx && (
-                <>
-                  {view === 'receive' && (
-                    <>
-                      <h3>Receive Lightning</h3>
-                      <form
-                        className="wallet-form"
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          void wallet.run(async (r) => {
-                            await r.wallet.deposit(mint || mints[0], Number(amount));
-                            choose(r.wallet.transactions$.value[0]);
-                          });
-                        }}
-                      >
-                        <Amount value={amount} set={setAmount} />
-                        <Button disabled={wallet.busy}>Create invoice</Button>
-                      </form>
-                      <h3>Receive a Cashu token</h3>
-                      <PaymentInput value={input} set={setInput} />
-                      <QrReader onRead={scan} />
-                      <Button
-                        disabled={wallet.busy || !input.trim()}
-                        onClick={() =>
-                          void wallet.run(async (r) => choose(await r.wallet.prepareReceive(input)))
-                        }
-                      >
-                        Review token
-                      </Button>
-                    </>
-                  )}
-                  {view === 'pay' && (
-                    <>
-                      <h3>Pay a Lightning invoice</h3>
-                      <PaymentInput value={input} set={setInput} />
-                      <QrReader onRead={scan} />
-                      <Button
-                        disabled={wallet.busy || !input.trim()}
-                        onClick={() =>
-                          void wallet.run(async (r) =>
-                            choose(await r.wallet.preparePayment(mint || mints[0], input)),
-                          )
-                        }
-                      >
-                        Review payment & fee
-                      </Button>
-                    </>
-                  )}
-                  {view === 'send' && (
-                    <>
-                      <h3>Send Cashu</h3>
-                      <p>Create a token to share as text or a QR code.</p>
-                      <form
-                        className="wallet-form"
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          void wallet.run(async (r) =>
-                            choose(await r.wallet.prepareSend(mint || mints[0], Number(amount))),
-                          );
-                        }}
-                      >
-                        <Amount value={amount} set={setAmount} />
-                        <Button disabled={wallet.busy}>Review token & fee</Button>
-                      </form>
-                    </>
-                  )}
-                </>
+              <div className="wallet-action-grid" aria-label="Wallet actions">
+                {actions.map(([id, label, Icon]) => (
+                  <Button key={id} variant="outline" onClick={() => changeView(id)}>
+                    <Icon size={18} />
+                    {label}
+                  </Button>
+                ))}
+              </div>
+              <div className="wallet-tools">
+                <Button variant="ghost" onClick={() => changeView('activity')}>
+                  <History size={16} />
+                  Transactions
+                </Button>
+                <Button variant="ghost" onClick={() => changeView('settings')}>
+                  <Settings2 size={16} />
+                  Mints & settings
+                </Button>
+              </div>
+              {wallet.transactions.some((t) => t.status === 'pending' || t.status === 'review') && (
+                <p className="wallet-notice">
+                  A transaction needs attention.{' '}
+                  <button type="button" onClick={() => changeView('activity')}>
+                    Review transactions →
+                  </button>
+                </p>
               )}
             </>
           )}
-          {tx && (
-            <>
-              <Button variant="ghost" onClick={() => setSelected(undefined)}>
-                ← Back
-              </Button>
-              <TransactionDetails
-                tx={tx}
-                reveal={showToken}
-                onReveal={() => setShowToken(true)}
-                choose={choose}
-              />
-            </>
+          {!tx && ['home', 'deposit', 'pay', 'send'].includes(view) && (
+            <label className="wallet-field">
+              Mint
+              <select
+                value={mints.includes(mint) ? mint : (mints[0] ?? '')}
+                disabled={wallet.busy}
+                onChange={(e) => setMint(e.target.value)}
+              >
+                {mints.map((m) => (
+                  <option key={m} value={m}>
+                    {new URL(m).hostname} · {(wallet.balances[m] ?? 0).toLocaleString()} sats
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
-          {view === 'activity' && <WalletActivity choose={choose} />}
-          {view === 'settings' && <MintSettings onSaved={() => setView('receive')} />}
-          {view === 'receive' && wallet.nutzaps.length > 0 && (
-            <section className="wallet-nutzaps">
-              <h3>Incoming nutzaps</h3>
+          {!tx && view === 'deposit' && (
+            <section className="wallet-form">
+              <h3>Receive Lightning</h3>
+              <form
+                className="wallet-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void wallet.run(async (r) => {
+                    await r.wallet.deposit(mint || mints[0], Number(amount));
+                    choose(r.wallet.transactions$.value[0]);
+                  });
+                }}
+              >
+                <Amount value={amount} set={setAmount} />
+                <Button disabled={wallet.busy}>Create invoice</Button>
+              </form>
+            </section>
+          )}
+          {!tx && (view === 'receive' || view === 'pay') && (
+            <section className="wallet-form">
+              <h3>{view === 'receive' ? 'Receive Cashu' : 'Pay Lightning'}</h3>
+              <PaymentInput value={input} set={acceptInput} />
+              <QrReader onRead={acceptInput} />
+              <Button
+                disabled={wallet.busy || !input.trim()}
+                onClick={() =>
+                  void wallet.run(async (r) =>
+                    choose(
+                      view === 'receive'
+                        ? await r.wallet.prepareReceive(input)
+                        : await r.wallet.preparePayment(mint || mints[0], input),
+                    ),
+                  )
+                }
+              >
+                {view === 'receive' ? 'Review token' : 'Review payment & fee'}
+              </Button>
+            </section>
+          )}
+          {!tx && view === 'send' && (
+            <section className="wallet-form">
+              <h3>Send Cashu</h3>
+              <p>Share a token as a QR code or text.</p>
+              <form
+                className="wallet-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void wallet.run(async (r) =>
+                    choose(await r.wallet.prepareSend(mint || mints[0], Number(amount))),
+                  );
+                }}
+              >
+                <Amount value={amount} set={setAmount} />
+                <Button disabled={wallet.busy}>Review token & fee</Button>
+              </form>
+            </section>
+          )}
+          {tx && (
+            <TransactionDetails
+              tx={tx}
+              reveal={showToken}
+              onReveal={() => setShowToken(true)}
+              choose={choose}
+            />
+          )}
+          {!tx && (view === 'activity' || (full && view === 'home')) && (
+            <WalletActivity choose={choose} />
+          )}
+          {!tx && view === 'settings' && <MintSettings onSaved={() => setView('home')} />}
+          {!tx && (view === 'home' || view === 'receive') && wallet.nutzaps.length > 0 && (
+            <details className="wallet-nutzaps">
+              <summary>Incoming nutzaps · {wallet.nutzaps.length}</summary>
               <p>Each token’s mint signature and recipient lock are checked before redemption.</p>
               {wallet.nutzaps.map((event) => (
                 <div className="wallet-activity-row" key={event.id}>
@@ -287,16 +295,14 @@ export function WalletPanel({ full = false }: { full?: boolean }) {
                     disabled={wallet.busy}
                     variant="outline"
                     onClick={() =>
-                      void wallet.run(async (r) => {
-                        choose(await r.receiveNutzap(event));
-                      })
+                      void wallet.run(async (r) => choose(await r.receiveNutzap(event)))
                     }
                   >
                     Review
                   </Button>
                 </div>
               ))}
-            </section>
+            </details>
           )}
         </>
       )}
@@ -346,36 +352,49 @@ function TransactionDetails({
   choose: (tx: WalletTransaction) => void;
 }) {
   const { run, busy } = useWallet();
+  const [now, setNow] = useState(Date.now() / 1000);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now() / 1000), 1000);
+    return () => clearInterval(timer);
+  }, []);
   return (
     <section className="wallet-transaction">
       <TransactionReview transaction={tx} />
       {tx.status !== 'review' && (
         <>
-          <h3>{transactionNames[tx.type]}</h3>
-          <p role="status">
-            {tx.status === 'complete'
-              ? 'Completed'
-              : tx.status === 'cancelled'
-                ? 'Cancelled'
-                : tx.status === 'invoice'
-                  ? 'Waiting for payment'
-                  : 'Pending — check before sending again'}{' '}
-            · {tx.amount.toLocaleString()} sats
+          <h3>
+            {tx.type === 'deposit'
+              ? 'Receive Lightning'
+              : tx.type === 'send'
+                ? 'Send Cashu'
+                : transactionNames[tx.type]}
+          </h3>
+          <p className={tx.status === 'complete' ? 'wallet-success' : ''} role="status">
+            {tx.status === 'complete' && <CheckCircle2 size={18} />}
+            {transactionFeedback(tx)} · {tx.amount.toLocaleString()} sats
           </p>
           <small>{tx.mint}</small>
         </>
       )}
       {tx.lastError && <p role="status">{tx.lastError}</p>}
-      {tx.type === 'deposit' && ['invoice', 'pending'].includes(tx.status) && tx.invoice && (
+      {tx.type === 'deposit' && ['invoice', 'pending'].includes(tx.status) && (
         <>
-          <PaymentCode value={tx.invoice} label="Lightning deposit invoice" />
-          {tx.quoteExpires && (
-            <p className="muted">
-              Expires {new Date(tx.quoteExpires * 1000).toLocaleString()}. If already paid, check
-              the transaction instead of paying again.
-            </p>
+          {showDepositCode(tx, now) && (
+            <PaymentCode value={tx.invoice!} label="Lightning deposit invoice" />
           )}
-          {tx.status === 'invoice' && !!tx.quoteExpires && tx.quoteExpires < Date.now() / 1000 && (
+          {tx.status === 'invoice' &&
+            !showDepositCode(tx, now) &&
+            !['PAID', 'ISSUED'].includes(tx.quoteState ?? '') && (
+              <p role="status">
+                This invoice expired. Checking whether it was paid; do not pay it again.
+              </p>
+            )}
+          {tx.quoteExpires && (
+            <small className="muted">
+              Expires {new Date(tx.quoteExpires * 1000).toLocaleString()}.
+            </small>
+          )}
+          {tx.status === 'invoice' && !!tx.quoteExpires && tx.quoteExpires < now && (
             <Button
               variant="outline"
               disabled={busy}
@@ -402,26 +421,42 @@ function TransactionDetails({
           )}
         </div>
       )}
-      {tx.type === 'send' && tx.status === 'complete' && tx.token && (
+      {tx.type === 'send' && tx.status === 'complete' && tx.token && tx.tokenState !== 'spent' && (
         <>
-          {reveal ? (
+          {reveal && (!tx.tokenState || tx.tokenState === 'unspent') ? (
             <PaymentCode
               value={tx.token}
               label="Cashu token — anyone with this code can spend it"
             />
           ) : (
-            <Button variant="outline" onClick={onReveal}>
-              Reveal token / QR
-            </Button>
+            (!tx.tokenState || tx.tokenState === 'unspent') && (
+              <Button variant="outline" onClick={onReveal}>
+                Reveal token / QR
+              </Button>
+            )
           )}
-          <p>Send this token only once. It remains spendable until someone redeems it.</p>
-          <Button
-            variant="outline"
-            disabled={busy}
-            onClick={() => void run(async (r) => choose(await r.wallet.prepareReceive(tx.token!)))}
-          >
-            Review reclaim of unspent token
-          </Button>
+          <p>Checking for redemption while your wallet is open. Share this token only once.</p>
+          <details>
+            <summary>Token status & recovery</summary>
+            <div className="wallet-form">
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => void run((r) => r.wallet.checkSettlement(tx.id))}
+              >
+                Check token status
+              </Button>
+              <Button
+                variant="outline"
+                disabled={busy || tx.tokenState === 'pending' || tx.tokenState === 'partial'}
+                onClick={() =>
+                  void run(async (r) => choose(await r.wallet.prepareReceive(tx.token!)))
+                }
+              >
+                Review reclaim of unspent token
+              </Button>
+            </div>
+          </details>
         </>
       )}
       {tx.preimage && (
@@ -460,7 +495,7 @@ function WalletActivity({ choose }: { choose: (t: WalletTransaction) => void }) 
           <span>
             <strong>{transactionNames[tx.type]}</strong>
             <small>
-              {new Date(tx.createdAt * 1000).toLocaleString()} · {tx.status}
+              {new Date(tx.createdAt * 1000).toLocaleString()} · {transactionFeedback(tx)}
             </small>
             <small>{new URL(tx.mint).hostname}</small>
           </span>
@@ -673,7 +708,7 @@ function MintSettings({ creating = false, onSaved }: { creating?: boolean; onSav
                 if (f)
                   void run(async (r) => {
                     await r.importBackup(await f.text());
-                    setMessage('Backup restored. Check pending transactions in Activity.');
+                    setMessage('Backup restored. Check pending transactions in Transactions.');
                   });
               }}
             />

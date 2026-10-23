@@ -6,6 +6,10 @@ import { browserIdentity } from '@/lib/browser-identity';
 import type { WalletRuntime } from '@/lib/wallet-runtime';
 import type { WalletTransaction } from '../../../../../packages/wallet/src/types';
 import type { NostrEvent } from 'nostr-tools';
+import {
+  settlementCandidates,
+  transactionFeedback,
+} from '../../../../../packages/wallet/src/settlement';
 
 type Snapshot = {
   runtime?: WalletRuntime;
@@ -17,6 +21,7 @@ type Snapshot = {
   busy: boolean;
   error: string;
   opened: boolean;
+  notice: string;
 };
 const initial: Snapshot = {
   balance: 0,
@@ -27,6 +32,7 @@ const initial: Snapshot = {
   busy: false,
   error: '',
   opened: false,
+  notice: '',
 };
 const Context = createContext<
   | (Snapshot & {
@@ -38,13 +44,14 @@ const Context = createContext<
   | null
 >(null);
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const { pubkey, connect } = useNostr();
+  const { pubkey, ready, needsReconnect, connect } = useNostr();
   const [state, setState] = useState(initial);
   const active = useRef<
     { runtime: WalletRuntime; subs: Subscription; release: () => void } | undefined
   >(undefined);
   const generation = useRef(0),
-    working = useRef(false);
+    working = useRef(false),
+    autoOpened = useRef<string | null>(null);
   const lock = () => {
     generation.current++;
     active.current?.runtime.close();
@@ -55,15 +62,27 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setState(initial);
   };
   useEffect(() => {
+    autoOpened.current = null;
     lock();
     return lock;
   }, [pubkey]);
+  useEffect(() => {
+    if (!pubkey || !ready || needsReconnect || autoOpened.current === pubkey) return;
+    // Wait for restored signers. Cancel the scheduled attempt during effect
+    // cleanup; explicit locks and failed attempts must not cause reopen loops.
+    const timer = setTimeout(() => {
+      autoOpened.current = pubkey;
+      void open();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [pubkey, ready, needsReconnect]);
   const open = async () => {
     if (!pubkey) {
       await connect();
       return;
     }
     if (active.current || working.current) return;
+    autoOpened.current = pubkey;
     working.current = true;
     const turn = generation.current;
     setState((s) => ({
@@ -97,8 +116,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           })
           .catch(reject);
       });
+      if (turn !== generation.current) {
+        release();
+        return;
+      }
       if (browserIdentity().state.reconnect) await browserIdentity().reconnect();
       const { openWallet } = await import('@/lib/wallet-runtime');
+      if (turn !== generation.current) {
+        release();
+        return;
+      }
       const runtime = await openWallet(pubkey);
       if (turn !== generation.current) {
         runtime.close();
@@ -123,16 +150,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       subs.add(runtime.wallet.transactions$.subscribe((transactions) => update({ transactions })));
       subs.add(runtime.wallet.progress$.subscribe((progress) => update({ progress })));
       subs.add(runtime.nuts$.subscribe((nutzaps) => update({ nutzaps })));
-      // Receive invoices the user created; never automatically replay an outgoing payment.
+      // Check each outstanding quote/token fairly, including invoices paid near
+      // expiry. Outgoing checks cannot initiate or retry a payment.
+      const checked = new Map<string, number>();
       const timer = setInterval(() => {
         if (working.current || active.current?.runtime !== runtime) return;
-        const tx = runtime.wallet.transactions$.value.find(
-          (t) =>
-            t.type === 'deposit' &&
-            t.status === 'invoice' &&
-            (t.quoteExpires ?? Infinity) > Date.now() / 1000,
-        );
-        if (tx) void run((r) => r.wallet.resume(tx.id));
+        const tx = settlementCandidates(runtime.wallet.transactions$.value).sort(
+          (a, b) => (checked.get(a.id) ?? 0) - (checked.get(b.id) ?? 0),
+        )[0];
+        if (tx) {
+          checked.set(tx.id, Date.now());
+          void run((r) => r.wallet.checkSettlement(tx.id));
+        }
       }, 10000);
       subs.add(() => clearInterval(timer));
       update({ runtime, busy: false, progress: '' });
@@ -150,7 +179,21 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     working.current = true;
     setState((s) => ({ ...s, busy: true, error: '' }));
     try {
-      return await fn(current.runtime);
+      const before = new Map(
+        current.runtime.wallet.transactions$.value.map((t) => [t.id, transactionFeedback(t)]),
+      );
+      const result = await fn(current.runtime);
+      const changed = current.runtime.wallet.transactions$.value.find(
+        (t) =>
+          (t.status === 'complete' || t.quoteState === 'PAID' || t.quoteState === 'ISSUED') &&
+          before.get(t.id) !== transactionFeedback(t),
+      );
+      if (changed && active.current === current)
+        setState((s) => ({
+          ...s,
+          notice: `${transactionFeedback(changed)} · ${changed.amount.toLocaleString()} sats`,
+        }));
+      return result;
     } catch (error) {
       if (active.current === current) setState((s) => ({ ...s, error: walletErrorMessage(error) }));
       return undefined;

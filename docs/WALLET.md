@@ -3,6 +3,19 @@
 Implementation on `feature/nip-60-and-UI`; not deployed. The wallet belongs to the
 selected shell account. It is available beside the account button and under
 **Manage → Wallet** (`/manage#wallet`). It does not grant wallet access to napplets.
+After sign-in or restoring a saved account, wallet loading starts automatically
+once the signer is ready. It never creates a wallet or trusts mints automatically.
+Signer failures offer a manual retry instead of repeated prompts. Locking keeps
+the wallet closed during the current page session, including route changes;
+reloading the app starts automatic loading again.
+
+The header popover starts with the balance, mint selector and four actions:
+receive/pay Lightning and receive/send Cashu. Each action replaces the menu with
+its own form. QR and text views toggle instead of occupying space together;
+the **Transactions** button opens history, and mint settings and token recovery
+open only when requested. Manage → Wallet also shows history below the actions.
+Normal actions fit without internal scrolling at the verified desktop and phone sizes; overflow
+remains available for long settings/history, smaller screens and enlarged text.
 
 ## Supported flows
 
@@ -13,7 +26,10 @@ selected shell account. It is available beside the account button and under
   after reviewing the amount, maximum fee and mint. Quotes are polled while the
   wallet is open. A timeout leaves a recoverable pending transaction.
 - Send or redeem Cashu tokens, display static or animated QR codes, scan with the
-  camera, or read a QR image. Scanning fills an input; it never initiates payment.
+  camera, or read a QR image. Both the camera and pasted input accept Lightning
+  invoices and Cashu tokens and select the corresponding review flow. The camera
+  stops after a successful read. Scanning fills an input; it never initiates payment.
+  Outgoing invoices and tokens can be shown as QR or text, copied or downloaded.
   An unspent sent token can be reclaimed through the receive flow.
 - Add, edit and remove mint URLs. Minibits, Coinos and 21Mint are suggestions,
   never automatically trusted. Mints with funds or unresolved transactions cannot
@@ -82,9 +98,24 @@ store; public recipient metadata and receipt lookups use a separate signer-free
 payment client. Neither private wallet proofs nor wallet history are seeded into
 the public shell cache.
 
-Review and change wallet relays under **Manage → Wallet → Settings**. The
+Review and change wallet relays under **Manage → Wallet → Mints & settings**. The
 **Manage → Relays** form edits website relay and Blossom preferences; it does
 not migrate wallet data. See [management navigation](MANAGE.md).
+
+## Settlement feedback
+
+While unlocked, the wallet checks outstanding quotes and sent tokens in rotation,
+one transaction every ten seconds. It hides a Lightning invoice as soon as its
+mint quote is paid or issued, including while wallet synchronization is still
+pending. Expired invoices are hidden too, but remain checkable for payment near
+their deadline. Successful recovery updates the balance and shows confirmation.
+Background outgoing checks never submit or retry a Lightning payment.
+
+Creating a Cashu token means it is ready to share, not that the recipient has
+redeemed it. NUT-07 proof-state checks update this distinction. A redeemed token
+loses its QR, text and reveal controls; partial or pending redemption also hides
+the code and disables reclaim. The encrypted recovery record remains available.
+This is mint-reported proof status, not proof of who received the token.
 
 ## Money and recovery boundaries
 
@@ -110,6 +141,10 @@ the same account. Keep account recovery separately and export before clearing
 browser data. Relay-only recovery cannot reconstruct an unfinished mint request
 whose blinding secrets were only on the lost device.
 
+NIP-09 deletion timestamps never predate the superseded token events, including
+events whose timestamp was rounded up by the library. This prevents old proofs
+from reappearing in the local balance after consecutive transfers.
+
 A Web Lock prevents two tabs in this browser from spending the same wallet.
 Account switches close the old wallet. Proof-state checks detect concurrent use
 on other devices; there is no cross-device transaction lock. Pending operations
@@ -129,7 +164,13 @@ Browser checks cover creation, QR-image input, Cashu send/receive, Lightning
 quotes and settlement, balance/history, encrypted backup download, lock/reopen
 and the mobile header popover against isolated fake services. Device storage
 encryption and sign-out cleanup are checked in the browser too. They do not spend
-real funds or establish live mint/relay interoperability. Suggested mint info
+real funds or establish live mint/relay interoperability. Simulated camera video
+exercises the actual decoder for Lightning, static Cashu and animated Cashu QR,
+including stopping all camera tracks after a read. Paid invoice and redeemed-token
+QR removal are verified through automatic polling. Automatic opening on sign-in
+and saved-account restoration, manual locking across route changes, cross-tab
+locking and manual retry were checked. The wallet home, invoice and token-sharing
+popover fit at 390 × 844 without internal scrolling. Suggested mint info
 endpoints were checked for sat BOLT11, NUT-11 and NUT-12 support. Physical-camera
 scanning and an independent-wallet payment remain release acceptance checks.
 
