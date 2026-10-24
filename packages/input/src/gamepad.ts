@@ -1,4 +1,8 @@
-/** Native browser input. No NAP domain, host messages, network or storage required. */
+/**
+ * Standard browser Gamepad API input. Napplet runtimes that broker controllers
+ * (NAP-GAMEPAD) serve that API from their prelude; no requires entry, network or
+ * storage is needed.
+ */
 export type GamepadBinding = { button: number; scale?: 1 | -1 } | { axis: number; scale?: 1 | -1 };
 export type GamepadBindings = Record<string, readonly GamepadBinding[]>;
 export type GamepadAction = { value: number; down: boolean; pressed: boolean; released: boolean };
@@ -89,9 +93,18 @@ export function createGamepadInput(
   const browserWindow = typeof window !== 'undefined' ? window : undefined;
   browserWindow?.addEventListener('blur', reset);
   browserWindow?.document.addEventListener('visibilitychange', reset);
+  // A brokering runtime reports when its snapshots are live for this frame. Waiting for
+  // that avoids reading a button held across a focus change as a fresh press.
+  const brokered = () =>
+    (browserWindow as { napplet?: { gamepad?: { focused?: boolean } } } | undefined)?.napplet
+      ?.gamepad;
   const active =
     options.active ??
-    (() => !!browserWindow && !browserWindow.document.hidden && browserWindow.document.hasFocus());
+    (() =>
+      !!browserWindow &&
+      !browserWindow.document.hidden &&
+      browserWindow.document.hasFocus() &&
+      brokered()?.focused !== false);
   const read =
     options.read ??
     (() => {
@@ -155,7 +168,7 @@ export function createGamepadInput(
             value,
             down,
             pressed: enabled && activeLast && same && down && !wasDown,
-            released: wasDown && !down,
+            released: enabled && wasDown && !down,
           };
         }
         next.set(pad.index, {

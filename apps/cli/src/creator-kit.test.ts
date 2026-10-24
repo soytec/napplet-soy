@@ -275,3 +275,31 @@ test('built publications prepare external related links without modifying editab
   const second = await inspectProject(project, 'local', 'a'.repeat(64));
   expect(executableBytes(second.contents)).toEqual(prepared);
 });
+
+test('game-facing skills explain the NAP-GAMEPAD draft and the getGamepads shim', () => {
+  const installed = creatorSkills();
+  for (const name of [
+    'napplet-make',
+    'napplet-design',
+    'napplet-build',
+    'napplet-sdk',
+    'napplet-port',
+    'napplet-test',
+  ]) {
+    const body = installed[`.agents/skills/${name}/SKILL.md`].replace(/\s+/g, ' ');
+    for (const part of [
+      'https://github.com/napplet/naps/pull/108',
+      'Navigator.prototype.getGamepads',
+      'gamepad.state',
+      'window.napplet.gamepad',
+      'focused: false',
+      'Do not add `gamepad` (or SERIAL) to `requires`',
+      'docs/napplet-controllers.md',
+    ])
+      expect(body, name).toContain(part);
+  }
+  for (const name of ['napplet-ui', 'napplet-interop'])
+    expect(installed[`.agents/skills/${name}/SKILL.md`]).not.toContain('NAP-GAMEPAD');
+  expect(installed['docs/napplet-controllers.md']).toContain('napplet/naps/pull/108');
+  expect(installed['docs/napplet-space.md']).toContain('napplet/naps/pull/108');
+});

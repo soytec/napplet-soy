@@ -2,6 +2,23 @@ import { blossomBytes, readBytes } from '../../client/src/bytes';
 import { MAX_READ_ARTIFACT_BYTES, sha256 } from '../../protocol/src/artifact';
 
 export const PLAYER_SANDBOX = 'allow-scripts';
+/**
+ * Permissions-Policy for player frames. CSP cannot govern these features. Gamepads are
+ * brokered by the shell (NAP-GAMEPAD); the rest default to all frames in Chromium and
+ * are ad, attribution or cross-site storage surfaces napplets have no use for.
+ */
+export const PLAYER_ALLOW = [
+  'fullscreen',
+  ...[
+    'gamepad',
+    'browsing-topics',
+    'interest-cohort',
+    'private-state-token-issuance',
+    'private-state-token-redemption',
+    'storage-access',
+    'deferred-fetch-minimal',
+  ].map((feature) => `${feature} 'none'`),
+].join('; ');
 export const PLAYER_CSP =
   "default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; font-src data: blob:; media-src data: blob:; connect-src 'none'; worker-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
 

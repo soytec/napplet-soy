@@ -15,7 +15,7 @@ import { useNostr } from './nostr-provider';
 import { Button } from './ui/button';
 import { PlayerChrome } from './player-chrome';
 import { SoybertWalk } from './soybert-walk';
-import { loadArtifact, PLAYER_SANDBOX } from '../../../../packages/runtime/src';
+import { loadArtifact, PLAYER_ALLOW, PLAYER_SANDBOX } from '../../../../packages/runtime/src';
 import { preparePlayback } from '../../../../packages/runtime/src/playback';
 import type { Napplet } from '../../../../packages/backend/src/catalog';
 import {
@@ -277,7 +277,7 @@ export function Player({
               srcDoc={doc}
               sandbox={PLAYER_SANDBOX}
               inert={prompt !== null || settingsOpen}
-              allow="fullscreen"
+              allow={PLAYER_ALLOW}
               referrerPolicy="no-referrer"
             />
           ) : (

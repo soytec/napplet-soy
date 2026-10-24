@@ -4,16 +4,43 @@ soyLI 0.16.0 adds a **Controller tester** in the `soyli dev` workshop and a
 dependency-free input helper for creators. These are local source changes until
 the release is published. Ordinary USB/Bluetooth gamepads use the browser's
 [Gamepad API](https://www.w3.org/TR/gamepad/), not NAP-SERIAL. No server, CVM,
-account, new NAP domain or `requires` entry is needed. No shim/SDK/protocol pin
-changes are involved. Existing games must explicitly wire their actions to input.
+account or `requires` entry is needed. Existing games must explicitly wire their
+actions to input.
+
+**Isolation (unreleased source after 0.25.3).** Player frames can no longer read
+controllers directly. The runtime page is the only native reader, and it passes input
+only to the napplet that has focus (merged upstream [NAP-GAMEPAD draft](NAP-GAMEPAD.md), merged
+upstream as [napplet/naps#108](https://github.com/napplet/naps/pull/108)). A shim
+injected before your code keeps `navigator.getGamepads()` and the
+`gamepadconnected`/`gamepaddisconnected` events working, so existing games and this
+helper need no changes. Click a napplet to give it the controllers. Input arrives
+about one frame later than native input, there is no rumble (`vibrationActuator` is
+`null`), and connection events are untrusted `GamepadEvent`s.
+
+How the shim works, for creators and agents:
+
+- It installs only where the native `navigator.getGamepads()` exists but the host
+  denied it. It replaces only `Navigator.prototype.getGamepads`; listeners, `on…`
+  handlers, `Gamepad`, `GamepadButton` and `GamepadEvent` stay native. Hosts that
+  allow native access are left untouched, so the same game code runs everywhere.
+- Pads come from the shell's `gamepad.state` snapshots, in slot order with `null`
+  gaps. Without focus, connected pads read as zero axes/buttons with `timestamp` 0.
+- A `blocked` host makes `getGamepads()` throw `SecurityError`; `unavailable` returns
+  empty slots.
+- The optional `window.napplet.gamepad` offers `getGamepads()`, `available`,
+  `focused` and `onChange(callback) → { close }`. It is installed independently of the native API replacement. The pinned `@napplet/sdk` has no gamepad domain; do not import one.
+- Treat losing focus as idle input, not release events, and do not count a button
+  held while focus returns as a new press (the helper handles both). Route players by
+  `index`. Do not gate on `event.isTrusted`, own-property shape or `[native code]`.
+- Do not add `gamepad` to `requires`; keep keyboard and pointer/touch controls.
 
 ## Try a controller
 
 Pair it in the operating system's settings or plug in a data-capable USB cable.
 Run `soyli dev`, expand **Controller tester**, click inside the panel, then press
 a controller button. Some browsers withhold devices until that gesture. The
-tester runs in the same opaque `allow-scripts` sandbox with the same CSP as a
-napplet. It displays slots, raw buttons/axes and mapping, and a small movement,
+tester runs in the same opaque `allow-scripts` sandbox, with the same CSP,
+Permissions-Policy and gamepad broker as a napplet. It displays slots, raw buttons/axes and mapping, and a small movement,
 jump/fire and pause experiment. Keyboard focus must be inside it for active input.
 Close it to destroy the test session; click your napplet to return input to it.
 
@@ -45,13 +72,16 @@ From a typical `src/main.ts`:
 ```ts
 import { createGamepadInput } from '../docs/examples/gamepad.js';
 
-const input = createGamepadInput({
-  moveX: [{ axis: 0 }, { button: 14, scale: -1 }, { button: 15 }],
-  moveY: [{ axis: 1 }, { button: 12, scale: -1 }, { button: 13 }],
-  jump: [{ button: 0 }],
-  fire: [{ button: 7 }],
-  pause: [{ button: 9 }],
-}, { deadZone: 0.18 });
+const input = createGamepadInput(
+  {
+    moveX: [{ axis: 0 }, { button: 14, scale: -1 }, { button: 15 }],
+    moveY: [{ axis: 1 }, { button: 12, scale: -1 }, { button: 13 }],
+    jump: [{ button: 0 }],
+    fire: [{ button: 7 }],
+    pause: [{ button: 9 }],
+  },
+  { deadZone: 0.18 },
+);
 
 // In your existing requestAnimationFrame loop, poll exactly once:
 const frame = input.poll();
@@ -109,7 +139,9 @@ localStorage. Never assume Xbox/PlayStation lettering has identical names.
 - Test in both the workshop's actual napplet frame and the deployed shell. Confirm
   physical USB and Bluetooth operation on intended browsers. Record which devices
   were tested; synthetic snapshots and `soyli check` are not hardware certification.
-- Do not add `requires: ['gamepad']`, `serial` or an invented `napplet.gamepad` API.
-  Browser policy may restrict native Gamepad input; keep useful fallback controls.
+- Do not add `requires: ['gamepad']` or `serial`. Prefer the standard
+  `navigator.getGamepads()` API. `window.napplet.gamepad` exists only in runtimes
+  that implement the merged upstream draft. Runtimes or browser policy may withhold controller
+  input, so keep useful fallback controls.
   No WebHID, WebUSB, serial-port support, rumble or controller-driven shell navigation
   is promised by this slice. Feature-detected haptics are a possible later addition.

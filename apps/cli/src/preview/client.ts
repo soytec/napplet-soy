@@ -4,7 +4,7 @@ import { shellTheme } from '../../../../packages/runtime/src/appearance';
 import type { ExtensionSigner } from 'applesauce-signers';
 import { setupManager } from './manager-client';
 import shim from '@napplet/shim/prelude.global?raw';
-import { loadArtifact, PLAYER_SANDBOX } from '../../../../packages/runtime/src';
+import { loadArtifact, PLAYER_ALLOW, PLAYER_SANDBOX } from '../../../../packages/runtime/src';
 import { nappletPrelude } from '../../../../packages/runtime/src/prelude';
 import { missingDomains } from '../../../../packages/runtime/src/capabilities';
 import { attachNappletHost, type HostPrompt } from '../../../../packages/runtime/src/host';
@@ -213,7 +213,7 @@ async function refresh() {
     frame = document.createElement('iframe');
     frame.title = 'Your napplet';
     frame.sandbox.value = PLAYER_SANDBOX;
-    frame.allow = 'fullscreen';
+    frame.allow = PLAYER_ALLOW;
     frame.referrerPolicy = 'no-referrer';
     frame.srcdoc = doc;
     // Attach before the child's bootstrap can post shell.ready.

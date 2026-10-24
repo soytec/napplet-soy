@@ -22,6 +22,7 @@ import { WorkQueue } from './work-queue';
 import { NappletKeys } from './keys-session';
 import { NappletConfig } from './config-session';
 import { NappletMedia } from './media-session';
+import { NappletGamepad } from './gamepad-session';
 import { NappletBackend, transportSigner } from './backend-session';
 import { NappletWebrtc } from './webrtc-session';
 import { rtcConfiguration, type BackendProvider } from '../../multiplayer/src/client';
@@ -501,6 +502,7 @@ export function attachNappletHost(options: HostOptions) {
     focused: () => document.activeElement === options.frame,
   });
   options.configuration?.(config);
+  const gamepad = new NappletGamepad({ frame: options.frame, send });
   const keys = new NappletKeys({
     send,
     focused: () =>
@@ -568,6 +570,10 @@ export function attachNappletHost(options: HostOptions) {
       } catch {
         /* Invalid input has no authority. */
       }
+      return;
+    }
+    if (initialized && message.type.startsWith('gamepad.') && HOST_REQUESTS.has(message.type)) {
+      gamepad.handle(message);
       return;
     }
     if (initialized && message.type.startsWith('config.') && HOST_REQUESTS.has(message.type)) {
@@ -718,6 +724,7 @@ export function attachNappletHost(options: HostOptions) {
       unsubscribeTheme?.();
       window.removeEventListener('message', listener);
       account.close('Player closed');
+      gamepad.close();
       config.close();
       keys.close();
       options.configuration?.(null);

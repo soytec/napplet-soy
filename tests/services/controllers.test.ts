@@ -9,6 +9,8 @@ import { creatorSkills } from '../../apps/cli/src/creator-kit';
 import { previewAssets } from '../../apps/cli/src/preview/assets';
 import { startPreviewServer } from '../../apps/cli/src/preview/server';
 
+// Pads are installed on the host page: player frames are denied the native API and
+// receive the shell's focus-scoped NAP-GAMEPAD snapshots through the prelude shim.
 async function installSyntheticPads(frame: Frame) {
   await frame.evaluate(() => {
     const state = window as unknown as { testPads: (Gamepad | null)[] };
@@ -102,6 +104,17 @@ test('shipped controller helper and workshop tester operate inside the real opaq
         slots: navigator.getGamepads().length,
       })),
     ).toMatchObject({ secure: true, callable: 'function' });
+    expect(
+      await game.evaluate(() => ({
+        policy: (
+          document as unknown as { featurePolicy: { allowsFeature(name: string): boolean } }
+        ).featurePolicy.allowsFeature('gamepad'),
+        shimmed: !Object.getOwnPropertyDescriptor(Navigator.prototype, 'getGamepads')!
+          .value.toString()
+          .includes('[native code]'),
+        api: typeof (window as unknown as { napplet: { gamepad?: unknown } }).napplet.gamepad,
+      })),
+    ).toEqual({ policy: false, shimmed: true, api: 'object' });
     await browserExpect(page.locator('#stage iframe')).toHaveAttribute('sandbox', 'allow-scripts');
     expect(
       await game.evaluate(() =>
@@ -120,37 +133,48 @@ test('shipped controller helper and workshop tester operate inside the real opaq
         }
       }),
     ).toBe(true);
-    await installSyntheticPads(game);
-    await pads(game, [{ index: 0 }, { index: 2 }]);
+    const host = page.mainFrame();
+    await installSyntheticPads(host);
+    await pads(host, [{ index: 0 }, { index: 2 }]);
     const read = async () => JSON.parse(await gameLocator.locator('#readings').innerText());
     await browserExpect.poll(async () => (await read()).players.length).toBe(2);
-    await pads(game, [
+    await pads(host, [
       { index: 0, x: 0.1 },
       { index: 2, x: -1 },
     ]);
     await browserExpect
       .poll(async () => (await read()).players.map((p: any) => p.actions.moveX.value))
       .toEqual([0, -1]);
-    await pads(game, [{ index: 0, jump: 1 }, { index: 2 }]);
+    await pads(host, [{ index: 0, jump: 1 }, { index: 2 }]);
     await browserExpect.poll(async () => (await read()).jumps).toBe(1);
     await page.getByText('Controller tester', { exact: true }).click();
     const testerLocator = page.frameLocator('#controller-stage iframe');
     await testerLocator.getByRole('heading', { name: 'Controller bench.' }).click();
     await browserExpect.poll(async () => (await read()).status).toBe('inactive');
     expect((await read()).players[0].actions.jump.down).toBe(false);
+    // Isolation is enforced by the shell, not by the helper's own focus check.
+    const tester = page.frames().find((f) => f !== game && f.parentFrame())!;
+    expect(
+      await tester.evaluate(() => ({
+        policy: (document as any).featurePolicy.allowsFeature('gamepad'),
+        binding: typeof (window as any).napplet?.gamepad?.getGamepads,
+      })),
+    ).toEqual({ policy: false, binding: 'function' });
+    const raw = (frame: Frame) =>
+      frame.evaluate(() => navigator.getGamepads()[0]?.buttons[0]?.value ?? null);
+    await browserExpect.poll(() => raw(tester)).toBe(1);
+    expect(await raw(game)).toBe(0);
     await gameLocator.getByRole('button', { name: 'Focus game' }).click();
     await browserExpect.poll(async () => (await read()).status).toBe('ready');
     expect((await read()).jumps).toBe(1); // held on resume is not a fresh jump
-    await pads(game, [{ index: 2 }]);
+    await pads(host, [{ index: 2 }]);
     await browserExpect
       .poll(async () => (await read()).players.map((p: any) => p.index))
       .toEqual([2]);
 
     await testerLocator.getByRole('heading', { name: 'Controller bench.' }).click();
-    const tester = page.frames().find((f) => f !== game && f.parentFrame())!;
     expect(await tester.evaluate(() => typeof navigator.getGamepads())).toBe('object');
-    await installSyntheticPads(tester);
-    await pads(tester, [
+    await pads(host, [
       { index: 0, x: 0.6 },
       { index: 2, mapping: '' },
     ]);
@@ -160,7 +184,7 @@ test('shipped controller helper and workshop tester operate inside the real opaq
     await testerLocator.getByText('Map buttons & axes', { exact: true }).click();
     await testerLocator.getByRole('button', { name: 'Apply test mapping' }).click();
     await browserExpect(testerLocator.locator('#mapping-result')).toContainText('Mapping applied');
-    await pads(tester, [
+    await pads(host, [
       { index: 0, x: 0.6 },
       { index: 2, mapping: '', jump: 1 },
     ]);
@@ -175,7 +199,7 @@ test('shipped controller helper and workshop tester operate inside the real opaq
     );
     await tester.evaluate(() => scrollTo(0, 0));
     await page.screenshot({ path: join(images, 'mobile.png') });
-    await pads(tester, []);
+    await pads(host, []);
     await browserExpect(testerLocator.locator('#empty')).toBeVisible();
     await page.getByText('Controller tester', { exact: true }).click();
     await browserExpect(page.locator('#controller-stage iframe')).toHaveCount(0);

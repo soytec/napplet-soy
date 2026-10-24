@@ -1,7 +1,7 @@
 import shim from '@napplet/shim/prelude.global?raw';
 import { PrivateKeySigner } from 'applesauce-signers/signers/private-key-signer';
 import { generateSecretKey } from 'nostr-tools';
-import { loadArtifact, PLAYER_SANDBOX } from '../../runtime/src';
+import { loadArtifact, PLAYER_ALLOW, PLAYER_SANDBOX } from '../../runtime/src';
 import { attachNappletHost, type HostPrompt } from '../../runtime/src/host';
 import { nappletPrelude } from '../../runtime/src/prelude';
 import type { PreviewRevision } from '../../../apps/cli/src/preview/server';
@@ -38,6 +38,7 @@ async function start() {
   const frame = document.createElement('iframe');
   frame.title = 'MiniCraft';
   frame.sandbox.value = PLAYER_SANDBOX;
+  frame.allow = PLAYER_ALLOW;
   frame.referrerPolicy = 'no-referrer';
   frame.srcdoc = documentHtml;
   document.querySelector('#stage')!.replaceChildren(frame);

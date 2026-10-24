@@ -101,7 +101,7 @@ test('focus loss neutralizes held input and resume, reset and connection never i
   r.active(false);
   expect(r.input.poll()).toMatchObject({
     status: 'inactive',
-    players: [{ actions: { jump: { value: 0, down: false, pressed: false, released: true } } }],
+    players: [{ actions: { jump: { value: 0, down: false, pressed: false, released: false } } }],
   });
   r.active(true);
   expect(r.input.poll().players[0].actions.jump).toMatchObject({ down: true, pressed: false });

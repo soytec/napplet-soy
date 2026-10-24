@@ -55,7 +55,9 @@ and temporary mappings with a small playable input test. New projects and
 `skills update` receive the [controller guide](CONTROLLERS.md) and a native
 Gamepad input helper. Games must connect their actions to the helper; no new
 NAP domain, server or account is required. Physical device support needs testing
-on the intended browsers. These changes ship in **0.17.0**.
+on the intended browsers. These changes ship in **0.17.0**. Unreleased source after
+0.25.3 runs the tester through the same shell gamepad broker and shim as napplets
+([NAP-GAMEPAD draft](NAP-GAMEPAD.md)).
 
 `soyli dev` opens Play, Listing and **Manage project**. In **0.17.0**, it prefers
 port 4173 and automatically chooses a free port

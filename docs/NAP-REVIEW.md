@@ -189,6 +189,18 @@ required authoring metadata. [WASM guidance](WASM.md) and the
 [compatibility record](COMPATIBILITY.md) distinguish working specimens from engine-wide
 or independent-client conformance.
 
+2026-10-10 gamepad isolation (unreleased source after 0.25.3): native Gamepad reads
+were found to be available to every opaque player frame. CSP has no gamepad directive,
+and Chromium grants the `gamepad` feature to all frames by default. Napplets placed
+side by side therefore all received the same controller input. Player frames now
+deny it in `PLAYER_ALLOW`, along with `browsing-topics`, `interest-cohort`,
+`private-state-token-*`, `storage-access` and `deferred-fetch-minimal`. The shell
+brokers focus-scoped snapshots through the merged upstream [NAP-GAMEPAD draft](NAP-GAMEPAD.md)
+and adds `gamepad` to the advertised domains. A prelude shim keeps the standard API
+working for unmodified games. It was merged upstream as [napplet/naps#108](https://github.com/napplet/naps/pull/108); see the 2026-10-15 pin below. The shim, SDK and NIP-5D pins
+are unchanged. This supersedes the next paragraph's "no NAP domain" statement. Not
+deployed.
+
 2026-09-20 controller slice (0.16.0 source): native browser Gamepad input is
 available inside the existing sandbox on tested Chromium. The workshop tester
 and bundled creator helper add no NAP domain, shim/SDK change, new device grant
@@ -248,7 +260,7 @@ return creation errors. See [MEDIA.md](MEDIA.md) for remaining modes and verific
 
 The [runtime domain registry](../packages/runtime/src/capabilities.ts) advertises
 `shell`, `identity`, `storage`, `theme`, `resource`, `relay`, `outbox`, `common`,
-`link`, `fs` and, in the new source milestone, `config`. Several write operations are denied by current policy; domain
+`link`, `fs`, `config` and, in unreleased source, the merged upstream `gamepad` draft. Several write operations are denied by current policy; domain
 presence is not permission for every operation. The upstream
 [shim integration](../packages/runtime/src/prelude.ts) and
 [host dispatcher](../packages/runtime/src/host.ts) are shared by web and CLI previews.
@@ -555,3 +567,15 @@ The keyboard fix uses [NAP-KEYS PR 9 at 8869a4c](https://github.com/napplet/naps
 and the existing shim 0.30.0. No event kind, manifest extension, author restriction
 or NIP-5D pin changes. All publishers receive the same frame-scoped action API.
 See [runtime behavior, limits and shim normalization caveat](PUBLIC-RUNTIME.md#keyboard-actions--2026-10-13-source).
+
+## NAP-GAMEPAD merged-contract review — 2026-10-15
+
+Reviewed [NAP-GAMEPAD](https://github.com/napplet/naps/blob/19de5ce1cea40cd4c76089cdd8126e9f87648049/naps/NAP-GAMEPAD.md) at
+`19de5ce1cea40cd4c76089cdd8126e9f87648049` (merged PR #108; specification
+status remains draft). The shared web/CLI host implements its notification-only
+subscribe/unsubscribe/state contract and standard binding independently of native
+API replacement. Native access is denied through player Permissions-Policy;
+unfocused frames receive neutral values and timestamps. Required `gamepad` is
+supported by capability admission; creator guidance recommends fallback controls.
+All publishers use the same host. No NIP-5D identity or SDK pin changes.
+See [implementation and verification limits](NAP-GAMEPAD.md).
