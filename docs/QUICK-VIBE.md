@@ -390,11 +390,18 @@ project, but cannot authorize public writes through the agent.
    are pinned to the selected public key, validate allowed event kinds and exact
    signed contents, and invalidate on account change/sign-out. A saved release
    review still checks its original author before resuming.
-2. **Prepare.** Edit the title, description and tags. A fresh landscape screenshot
+2. **Prepare.** For a first release, edit the title, description and tags. A fresh landscape screenshot
    is required; a short clip is selected by default, and portrait promotional
    captures are optional. The controller runs the existing checks and capture
    helpers, commits a local candidate, validates source history, and produces a
    soyLI dry-run plan. This phase makes no public uploads or signed events.
+   A previously published draft or completed proposal merge opens **Publish update**.
+   It defaults to the previous release's listing and selected media. Metadata edits
+   are optional under **Change title, description or tags**. **Keep existing cover
+   and clip** restores exact bytes from the published source revision and binds the
+   review to the newly checked build. **Capture new media** offers **Re-record the
+   preview clip**. Missing prior media disables reuse; source/runtime checks and
+   final review/signing are required in either case.
    Captures follow the project's `preview.recording` timing/input recipe. Use
    **Prepare gameplay recording in chat** to prepare a prompt, then send it
    when ready. This runs a maker turn, not a publish command, even though the prompt
@@ -486,7 +493,7 @@ can be retried without signing another identical state or status event.
 
 This action updates source only. **Publish** is a separate explicit review that
 updates the original named napplet under its author's account. Its confirmation also
-shares the reviewed source commit containing the newly captured release media before
+shares the reviewed source commit containing the selected release media before
 publishing a manifest that points to it. A fresh merge checkout
 can continue the reviewed release without possessing the original publication
 journal, but only when the current manifest, author, identifier and linked repository

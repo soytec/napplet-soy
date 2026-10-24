@@ -201,6 +201,13 @@ export function PublicationDialog({
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [form, setForm] = useState<Listing>();
+  const [updating, setUpdating] = useState(
+    p.merge?.status === 'merged' ||
+      !!p.publication?.lastPublished ||
+      p.publication?.attempt?.status === 'published',
+  );
+  const [existingMedia, setExistingMedia] = useState({ image: false, video: false });
+  const [reuseNotice, setReuseNotice] = useState('');
   const [recordingPlanned, setRecordingPlanned] = useState(false);
   const [tagsText, setTagsText] = useState('');
   const [editing, setEditing] = useState(!p.publication?.review);
@@ -262,8 +269,11 @@ export function PublicationDialog({
   }, [signer.pubkey]);
   useEffect(() => {
     void api<ListingDetails>(`projects/${p.id}/listing`)
-      .then(({ recordingPlanned, ...form }) => {
+      .then(({ recordingPlanned, updating, existingMedia, reuseNotice, ...form }) => {
         setRecordingPlanned(recordingPlanned);
+        setUpdating(updating);
+        setExistingMedia(existingMedia);
+        setReuseNotice(reuseNotice ?? '');
         setForm(form);
         setTagsText(form.topics.join(', '));
       })
@@ -296,13 +306,19 @@ export function PublicationDialog({
       <div className="publication-header">
         <div>
           <span className="eyebrow">FROM YOUR WORKSHOP TO THE WORLD</span>
-          <h2 id="publication-title">Publish your napplet</h2>
+          <h2 id="publication-title">{updating ? 'Publish update' : 'Publish your napplet'}</h2>
         </div>
         <button aria-label="Close publication" onClick={close}>
           <X size={20} />
         </button>
       </div>
       <div className="publication-body">
+        {updating && (
+          <p>
+            Release your updated code under the same napplet. Keep the existing listing and media
+            for a small change, or refresh them below.
+          </p>
+        )}
         <div className="signer-card">
           <div>
             <strong>Your shell account</strong>
@@ -345,6 +361,10 @@ export function PublicationDialog({
                     setResume(true);
                     setEditing(false);
                     setConfirmed(false);
+                  } else if (
+                    /PREVIEW_CAPTURE|taking element screenshot/.test(JSON.stringify(p.error))
+                  ) {
+                    setEditing(true);
                   } else
                     void call(async () => {
                       await api(`projects/${p.id}/fix-publication`, {});
@@ -352,9 +372,11 @@ export function PublicationDialog({
                     });
                 }}
               >
-                {p.publication?.preparationFailed
-                  ? 'Ask the agent to fix this'
-                  : 'Review saved release to retry'}
+                {/PREVIEW_CAPTURE|taking element screenshot/.test(JSON.stringify(p.error))
+                  ? 'Review capture options'
+                  : p.publication?.preparationFailed
+                    ? 'Ask the agent to fix this'
+                    : 'Review saved release to retry'}
               </button>
             )}
           </div>
@@ -434,89 +456,133 @@ export function PublicationDialog({
               });
             }}
           >
-            <label className="field">
-              Title
-              <input
-                value={form.title}
-                maxLength={160}
-                disabled={busy}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
-            </label>
-            <label className="field">
-              Description
-              <textarea
-                value={form.description}
-                maxLength={1000}
-                required
-                rows={3}
-                disabled={busy}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-              />
-            </label>
-            <label className="field">
-              Tags · comma separated
-              <input
-                value={tagsText}
-                disabled={busy}
-                onChange={(e) => setTagsText(e.target.value)}
-              />
-            </label>
-            <div className="capture-options">
-              <label>
+            <details open={updating ? undefined : true} className="publication-destinations">
+              <summary>
+                {updating ? 'Change title, description or tags' : 'Listing details'}
+              </summary>
+              <label className="field">
+                Title
                 <input
-                  type="checkbox"
-                  checked={form.video}
+                  value={form.title}
+                  maxLength={160}
                   disabled={busy}
-                  onChange={(e) => setForm({ ...form, video: e.target.checked })}
-                />{' '}
-                Record a short preview clip
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                />
               </label>
-              <label>
+              <label className="field">
+                Description
+                <textarea
+                  value={form.description}
+                  maxLength={1000}
+                  required
+                  rows={3}
+                  disabled={busy}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                />
+              </label>
+              <label className="field">
+                Tags · comma separated
                 <input
-                  type="checkbox"
-                  checked={form.portrait}
+                  value={tagsText}
                   disabled={busy}
-                  onChange={(e) => setForm({ ...form, portrait: e.target.checked })}
-                />{' '}
-                Also create portrait promotional media
+                  onChange={(e) => setTagsText(e.target.value)}
+                />
               </label>
-            </div>
-            <p className="muted">
-              A fresh screenshot is included. For clips, the saved recipe must start the app and
-              demonstrate its core interaction. Watch the result before publishing. Preparing a
-              recipe in chat does not capture a clip. After the maker finishes, this dialog reopens
-              so you can prepare the release and review the actual recording.
-            </p>
-            {form.video && !recordingPlanned && (
-              <div className="capture-plan-note">
-                <p>
-                  No gameplay recording plan is saved yet. Prepare one in chat before capturing.
-                </p>
+            </details>
+            {updating && (
+              <fieldset className="release-media-choice" disabled={busy}>
+                <legend>Listing media</legend>
                 <label>
                   <input
-                    type="checkbox"
-                    checked={!!form.autoplay}
-                    disabled={busy}
-                    onChange={(e) => setForm({ ...form, autoplay: e.target.checked })}
+                    type="radio"
+                    name="release-media"
+                    checked={!!form.keepMedia}
+                    disabled={!existingMedia.image}
+                    onChange={() => setForm({ ...form, keepMedia: true, portrait: false })}
                   />{' '}
-                  This app runs automatically and needs no input to demonstrate it
+                  Keep existing cover{existingMedia.video ? ' and clip' : ''}
                 </label>
-              </div>
+                <small>
+                  Best for fixes and small changes. You will confirm that the media still represents
+                  this version.
+                </small>
+                <label>
+                  <input
+                    type="radio"
+                    name="release-media"
+                    checked={!form.keepMedia}
+                    onChange={() => setForm({ ...form, keepMedia: false })}
+                  />{' '}
+                  Capture new media
+                </label>
+                {reuseNotice && <p role="status">{reuseNotice}</p>}
+              </fieldset>
+            )}
+            {!form.keepMedia && (
+              <>
+                <div className="capture-options">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={form.video}
+                      disabled={busy}
+                      onChange={(e) => setForm({ ...form, video: e.target.checked })}
+                    />{' '}
+                    {existingMedia.video
+                      ? 'Re-record the preview clip'
+                      : 'Record a short preview clip'}
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={form.portrait}
+                      disabled={busy}
+                      onChange={(e) => setForm({ ...form, portrait: e.target.checked })}
+                    />{' '}
+                    Also create portrait promotional media
+                  </label>
+                </div>
+                <p className="muted">
+                  A fresh screenshot is included. For clips, the saved recipe must start the app and
+                  demonstrate its core interaction. Watch the result before publishing. Preparing a
+                  recipe in chat does not capture a clip. After the maker finishes, this dialog
+                  reopens so you can prepare the release and review the actual recording.
+                </p>
+                {form.video && !recordingPlanned && (
+                  <div className="capture-plan-note">
+                    <p>
+                      No gameplay recording plan is saved yet. Prepare one in chat before capturing.
+                    </p>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={!!form.autoplay}
+                        disabled={busy}
+                        onChange={(e) => setForm({ ...form, autoplay: e.target.checked })}
+                      />{' '}
+                      This app runs automatically and needs no input to demonstrate it
+                    </label>
+                  </div>
+                )}
+              </>
             )}
             <div className="publication-actions">
-              <button
-                className="outline"
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  chat(
-                    'Prepare a gameplay recording plan for this app. Inspect its actual start screen and controls. Configure preview.recording in napplet.json with an early start action and timed inputs that demonstrate the core interaction, not just the menu. Coordinates use a 960 × 600 viewport; durationMs is 2000–8000 and actions use atMs, type click with x/y, or keyDown/keyUp with key. Keep the app working. Do not publish or claim a clip was captured. I will use Publish to capture and watch the result.',
-                  )
-                }
-              >
-                Prepare gameplay recording in chat
-              </button>
+              {!form.keepMedia && (
+                <button
+                  className="outline"
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    chat(
+                      'Prepare a gameplay recording plan for this app. Inspect its actual start screen and controls. Configure preview.recording in napplet.json with an early start action and timed inputs that demonstrate the core interaction, not just the menu. Coordinates use a 960 × 600 viewport; durationMs is 2000–8000 and actions use atMs, type click with x/y, or keyDown/keyUp with key. Keep the app working. Do not publish or claim a clip was captured. I will use Publish to capture and watch the result.',
+                    )
+                  }
+                >
+                  {existingMedia.video
+                    ? 'Update recording plan in chat'
+                    : 'Prepare gameplay recording in chat'}
+                </button>
+              )}
               <button
                 className="primary"
                 disabled={
@@ -524,10 +590,10 @@ export function PublicationDialog({
                   !signer.session ||
                   !form.title.trim() ||
                   !form.description.trim() ||
-                  (form.video && !recordingPlanned && !form.autoplay)
+                  (!form.keepMedia && form.video && !recordingPlanned && !form.autoplay)
                 }
               >
-                Prepare release
+                {updating ? 'Prepare update' : 'Prepare release'}
               </button>
             </div>
           </form>
@@ -536,7 +602,11 @@ export function PublicationDialog({
           <>
             <div className="release-summary">
               <span className="eyebrow">
-                {resume ? 'RESUME THIS SAVED RELEASE' : 'REVIEW YOUR LISTING'}
+                {resume
+                  ? 'RESUME THIS SAVED RELEASE'
+                  : updating
+                    ? 'REVIEW YOUR UPDATE'
+                    : 'REVIEW YOUR LISTING'}
               </span>
               <h3>{review.plan.title}</h3>
               <p>{review.plan.description}</p>
@@ -553,11 +623,17 @@ export function PublicationDialog({
               </small>
               {review.previousCurrent && (
                 <p>
-                  Publishing shares this reviewed source and its captured media with the original
+                  Publishing shares this reviewed source and its selected media with the original
                   repository, then updates the original napplet listing.
                 </p>
               )}
             </div>
+            {review.media.some((m) => m.reused) && (
+              <p className="capture-plan-note">
+                Existing media retained from the previous release. Check that it still represents
+                this update; nothing was re-recorded.
+              </p>
+            )}
             <div className="capture-grid">
               {review.media.map((item) => (
                 <Capture key={item.name} item={item} project={p.id} review={review} media={media} />
@@ -591,8 +667,11 @@ export function PublicationDialog({
                 onChange={(e) => setConfirmed(e.target.checked)}
               />
               <span>
-                I reviewed the listing and captures
-                {review.media.some((m) => m.mime === 'video/webm')
+                {review.media.some((m) => m.reused)
+                  ? 'I reviewed the update and confirm the existing media still represents it'
+                  : 'I reviewed the listing and captures'}
+                {!review.media.some((m) => m.reused) &&
+                review.media.some((m) => m.mime === 'video/webm')
                   ? ', and watched the clip demonstrate the app’s core interaction'
                   : ''}
                 . Publish this version, including its source and Git history, under the account
@@ -616,7 +695,7 @@ export function PublicationDialog({
                   setConfirmed(false);
                 }}
               >
-                Edit listing / recapture
+                Change listing or media
               </button>
               <button
                 className="primary"
@@ -635,7 +714,11 @@ export function PublicationDialog({
                 }
               >
                 <Send size={15} />
-                {resume ? 'Resume publication' : 'Publish this version'}
+                {resume
+                  ? 'Resume publication'
+                  : updating
+                    ? 'Publish update'
+                    : 'Publish this version'}
               </button>
             </div>
           </>

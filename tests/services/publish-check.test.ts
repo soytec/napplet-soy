@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
-import { checkPublication } from '../../apps/cli/src/publish-check';
+import { capturePreview, checkPublication } from '../../apps/cli/src/publish-check';
+import { browserEngine } from '../../apps/cli/src/browser';
 import sharp from 'sharp';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -7,6 +8,40 @@ import { join } from 'node:path';
 import { screenshotProject } from '../../apps/cli/src/project-config';
 import { recordingSchema } from '../../packages/publish/src/config';
 import { RUNTIME_PROFILE } from '../../packages/runtime/src/capabilities';
+import { sha256 } from '../../packages/protocol/src';
+
+test('capture uses the pinned viewport without waiting for element stability', async () => {
+  const browser = await (await browserEngine()).chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1200, height: 850 } });
+    await page.setContent(
+      '<style>@keyframes drift{to{transform:translateY(40px)}}iframe{position:fixed;left:0;top:0;width:1200px;height:750px;border:0;animation:drift .25s infinite alternate linear}</style><iframe srcdoc="<style>html,body{background:rgb(20,100,180)}</style>"></iframe>',
+    );
+    await expect(page.locator('iframe').screenshot({ timeout: 150 })).rejects.toThrow('stable');
+    const screenshot = await capturePreview(page, { width: 1200, height: 750 });
+    const pixel = await sharp(screenshot)
+      .extract({ left: 600, top: 400, width: 1, height: 1 })
+      .removeAlpha()
+      .raw()
+      .toBuffer();
+    expect([...pixel]).toEqual([20, 100, 180]);
+  } finally {
+    await browser.close();
+  }
+}, 15000);
+
+test('a real capture process failure preserves the browser cause and does not blame app startup', async () => {
+  const child = Bun.spawn(
+    [process.execPath, new URL('./fixtures/capture-failure.ts', import.meta.url).pathname],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  const [code, output] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+  expect(code).toBe(1);
+  expect(output).toContain('PREVIEW_CAPTURE');
+  expect(output).toContain('Target page, context or browser has been closed');
+  expect(output).toContain('Retry capture or keep the existing release media');
+  expect(output).not.toContain('BROWSER_CHECK');
+}, 15000);
 
 test('scripted captures focus keyboard controls, scale portrait clicks and take the cover during play', async () => {
   const config = new TextEncoder().encode(
@@ -180,3 +215,54 @@ test('capture contains the app pixels, saves a selected image, and validates cho
     await rm(root, { recursive: true, force: true });
   }
 }, 30000);
+
+test('CLI checks explicitly retained media without capture-only selectors, but rejects changed clips and broken updates', async () => {
+  const html = new TextEncoder().encode('<!doctype html><p>Updated creation</p>');
+  const clip = await Bun.file(new URL('../fixtures/preview.webm', import.meta.url)).bytes();
+  const image = new Uint8Array(
+    await sharp({ create: { width: 8, height: 8, channels: 3, background: '#006563' } })
+      .png()
+      .toBuffer(),
+  );
+  const config = {
+    schema: 'space-local-project/v1',
+    name: 'Reviewed update',
+    entry: 'index.html',
+    license: 'MIT',
+    previewId: crypto.randomUUID(),
+    preview: {
+      delayMs: 250,
+      image: 'cover.png',
+      readySelector: '.needs-live-relay-data',
+      video: {
+        file: 'clip.webm',
+        artifactHash: '0'.repeat(64),
+        reviewedFor: { artifactHash: await sha256(html), videoHash: await sha256(clip) },
+      },
+    },
+  };
+  const contents = new Map([
+    ['napplet.json', new TextEncoder().encode(JSON.stringify(config))],
+    ['index.html', html],
+    ['cover.png', image],
+    ['clip.webm', clip],
+  ]);
+  const passing = await checkCli(contents);
+  expect(passing.code, passing.out + passing.err).toBe(0);
+  contents.set('clip.webm', new Uint8Array([...clip, 0]));
+  const changedClip = await checkCli(contents);
+  expect(changedClip.data.error.code).toBe('PREVIEW_VIDEO_STALE');
+  contents.set('clip.webm', clip);
+  const broken = new TextEncoder().encode(
+    '<!doctype html><script>throw new Error("Broken merged creation")</script>',
+  );
+  contents.set('index.html', broken);
+  const changedBuild = await checkCli(contents);
+  expect(changedBuild.data.error.code).toBe('PREVIEW_VIDEO_STALE');
+  config.preview.video.reviewedFor.artifactHash = await sha256(broken);
+  contents.set('napplet.json', new TextEncoder().encode(JSON.stringify(config)));
+  const brokenBuild = await checkCli(contents);
+  expect(brokenBuild.code).toBe(1);
+  expect(brokenBuild.data.error.code).toBe('BROWSER_CHECK');
+  expect(brokenBuild.out).toContain('Broken merged creation');
+}, 40000);

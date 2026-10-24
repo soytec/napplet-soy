@@ -10,6 +10,7 @@ import {
 } from '../../packages/diagnostics/src';
 import { regularFile, checkSource, inspectProject } from '../../packages/publish/src/project';
 import { checkPublication } from '../cli/src/publish-check';
+import { releaseBaseline } from './release-baseline';
 import {
   ASSET_LOCK,
   readAssets,
@@ -1221,7 +1222,7 @@ export class Studio {
     });
   }
   async listing(id: string) {
-    return listing(this.workspace(id));
+    return listing(this.workspace(id), releaseBaseline(this.project(id)));
   }
   async preparePublication(id: string, session: string, input: Listing) {
     this.available();
@@ -1237,7 +1238,7 @@ export class Studio {
     p.stage = 'Preparing your release';
     p.publication.progress = {
       step: 0,
-      detail: 'Checking the build, sandbox and conformance before capture.',
+      detail: 'Checking the build, sandbox and conformance before preparing release media.',
       hint: 'Your existing playable preview stays available.',
       at: Date.now(),
     };
@@ -1251,6 +1252,7 @@ export class Studio {
           input,
           signal,
           {
+            baseline: releaseBaseline(p),
             env: this.options.env,
             capture: this.options.capture,
             verify: (signal) => this.verify(p, signal),
@@ -1259,7 +1261,9 @@ export class Studio {
               p.publication!.progress = {
                 step: 1,
                 detail: label,
-                hint: 'Running the saved gameplay inputs against the actual build.',
+                hint: input.keepMedia
+                  ? 'Reusing the previous release media; the updated app still passes its project checks.'
+                  : 'Running the saved gameplay inputs against the actual build.',
                 at: Date.now(),
               };
               return this.stage(p, 'preparing_release', label);
@@ -1274,7 +1278,9 @@ export class Studio {
       p.publication!.review = review;
       p.publication!.progress = {
         step: 2,
-        detail: 'Review your listing and watch the captured clip.',
+        detail: input.keepMedia
+          ? 'Review the update and confirm the existing media still represents it.'
+          : 'Review your listing and watch the captured clip.',
         hint: 'Nothing is published until you confirm.',
         at: Date.now(),
       };
@@ -1282,7 +1288,9 @@ export class Studio {
       this.message(
         p,
         'system',
-        'Your release candidate is ready. Review the listing and actual captures, then confirm Publish. Nothing has been uploaded or signed.',
+        input.keepMedia
+          ? 'Your update is ready. The previous listing media is retained. Check that it still represents this version, then confirm Publish update. Nothing has been uploaded or signed.'
+          : 'Your release candidate is ready. Review the listing and actual captures, then confirm Publish. Nothing has been uploaded or signed.',
       );
       await this.stage(p, 'ready', 'Release ready for review');
     });
@@ -1299,6 +1307,8 @@ export class Studio {
         'Connect the publishing account shown in this review.',
       );
     p.publication ??= {};
+    if (p.publication.attempt?.status === 'published')
+      p.publication.lastPublished = p.publication.attempt.review;
     p.publication.preparationFailed = false;
     const attempt = { review, stage: 'Starting publication', status: 'running' as const };
     p.publication.attempt = attempt;
@@ -1345,6 +1355,7 @@ export class Studio {
           result,
         };
         p.publication!.progress = publishProgress('website');
+        p.publication!.lastPublished = review;
         this.message(
           p,
           'system',

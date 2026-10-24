@@ -14,6 +14,7 @@ import type { Network } from '../../packages/identity/src/signer';
 import { DiagnosticError } from '../../packages/diagnostics/src';
 import type { Diagnostic } from '../../packages/diagnostics/src';
 import { run } from './process';
+import { releaseConfig, releaseFile } from './release-baseline';
 
 export const listingSchema = z
   .object({
@@ -23,14 +24,25 @@ export const listingSchema = z
     video: z.boolean(),
     portrait: z.boolean(),
     autoplay: z.boolean().optional(),
+    keepMedia: z.boolean().optional(),
   })
   .strict();
 export type Listing = z.infer<typeof listingSchema>;
-export type ListingDetails = Listing & { recordingPlanned: boolean };
+export type ListingDetails = Listing & {
+  recordingPlanned: boolean;
+  updating: boolean;
+  existingMedia: { image: boolean; video: boolean };
+  reuseNotice?: string;
+};
 
 /** A default idle screencast is not a gameplay recipe. Passive apps are an explicit choice. */
 export function requireRecordingPlan(config: z.infer<typeof projectSchema>, input: Listing) {
-  if (input.video && !input.autoplay && !config.preview?.recording?.actions.length)
+  if (
+    !input.keepMedia &&
+    input.video &&
+    !input.autoplay &&
+    !config.preview?.recording?.actions.length
+  )
     throw new DiagnosticError('STUDIO_RECORDING_PLAN', 'The preview clip needs a recording plan.', {
       operation: 'prepare publication recording',
       recovery:
@@ -44,6 +56,7 @@ export type Media = {
   hash: string;
   bytes: number;
   promotional: boolean;
+  reused?: boolean;
 };
 export type ReleaseReview = {
   id: string;
@@ -56,6 +69,7 @@ export type ReleaseReview = {
 };
 export type Published = Exclude<Awaited<ReturnType<typeof publishProject>>, { status: 'dry_run' }>;
 export type PublicationState = {
+  lastPublished?: ReleaseReview;
   progress?: import('./publication-progress').PublicationProgress;
   review?: ReleaseReview;
   preparationFailed?: boolean;
@@ -68,6 +82,7 @@ export type PublicationState = {
   };
 };
 export type PublicationHooks = {
+  baseline?: string;
   env: NodeJS.ProcessEnv;
   verify: (signal: AbortSignal) => Promise<void>;
   checkpoint: (label: string, signal: AbortSignal) => Promise<string>;
@@ -87,22 +102,95 @@ export const reviewChanged = () =>
     recovery: 'Prepare and review the release again before publishing.',
   });
 
-export async function listing(root: string): Promise<ListingDetails> {
-  const config = projectSchema.parse(
+export async function listing(root: string, baseline?: string): Promise<ListingDetails> {
+  const current = projectSchema.parse(
     JSON.parse(new TextDecoder().decode(await regularFile(root, 'napplet.json', 16384))),
   );
+  let config = current,
+    reuseNotice: string | undefined;
+  if (baseline) {
+    try {
+      config = await releaseConfig(root, baseline);
+    } catch {
+      reuseNotice =
+        'The previous release could not be loaded. Showing your draft listing instead; retry or capture new media.';
+    }
+  }
+  let canKeep = !reuseNotice && !!config.preview?.image;
+  if (baseline && canKeep) {
+    try {
+      await releaseFile(root, baseline, config.preview!.image!, 5 * 1024 * 1024);
+      if (config.preview?.video)
+        await releaseFile(root, baseline, config.preview.video.file, 5 * 1024 * 1024);
+    } catch {
+      canKeep = false;
+      reuseNotice = 'The previous release media could not be loaded. Retry, or capture new media.';
+    }
+  }
   return {
     title: config.title ?? config.name,
     description: config.description,
     topics: config.topics,
-    video: true,
+    video: baseline ? !!config.preview?.video : true,
     portrait: false,
     autoplay: false,
-    recordingPlanned: !!config.preview?.recording?.actions.length,
+    keepMedia: !!baseline && canKeep,
+    updating: !!baseline,
+    existingMedia: {
+      image: !!config.preview?.image && canKeep,
+      video: !!config.preview?.video && canKeep,
+    },
+    reuseNotice,
+    recordingPlanned: !!current.preview?.recording?.actions.length,
   };
 }
 
 export async function prepareRelease(
+  root: string,
+  storage: string,
+  pubkey: string,
+  input: Listing,
+  signal: AbortSignal,
+  hooks: PublicationHooks,
+): Promise<ReleaseReview> {
+  const original = await regularFile(root, 'napplet.json', 16384);
+  try {
+    return await prepareReleaseCandidate(root, storage, pubkey, input, signal, hooks);
+  } catch (error) {
+    // Failed verification/capture must not erase the user's selected release media.
+    try {
+      const config = projectSchema.parse(
+        JSON.parse(new TextDecoder().decode(await regularFile(root, 'napplet.json', 16384))),
+      );
+      const prior = projectSchema.parse(JSON.parse(new TextDecoder().decode(original)));
+      if (
+        JSON.stringify([config.preview?.image, config.preview?.video]) !==
+        JSON.stringify([prior.preview?.image, prior.preview?.video])
+      ) {
+        config.preview = {
+          ...config.preview,
+          image: prior.preview?.image,
+          video: prior.preview?.video,
+        };
+        await writeFile(join(root, 'napplet.json'), JSON.stringify(config, null, 2) + '\n');
+      }
+    } catch (restoreError) {
+      throw new DiagnosticError(
+        'STUDIO_RELEASE_RESTORE',
+        'Release preparation failed, and its previous media selections could not be restored.',
+        {
+          operation: 'prepare release',
+          cause: new AggregateError([error, restoreError]),
+          recovery:
+            'Your source is saved. Review the causes below, then retry preparation using the previous release.',
+        },
+      );
+    }
+    throw error;
+  }
+}
+
+async function prepareReleaseCandidate(
   root: string,
   storage: string,
   pubkey: string,
@@ -120,11 +208,50 @@ export async function prepareRelease(
       'Backend deployment is not supported in this studio yet.',
     );
   requireRecordingPlan(config, input);
+  const id = crypto.randomUUID();
+  const media: Media[] = [];
+  let keptVideo: NonNullable<NonNullable<typeof config.preview>['video']> | undefined;
+  if (input.keepMedia) {
+    if (!hooks.baseline)
+      throw new DiagnosticError(
+        'STUDIO_RELEASE_MEDIA',
+        'There is no previous release to reuse. Capture media for this first publication.',
+      );
+    const prior = await releaseConfig(root, hooks.baseline);
+    if (!prior.preview?.image)
+      throw new DiagnosticError(
+        'STUDIO_RELEASE_MEDIA',
+        'The previous release has no selected cover. Capture new media for this update.',
+      );
+    for (const clip of prior.preview.video ? [false, true] : [false]) {
+      const bytes = await releaseFile(
+        root,
+        hooks.baseline,
+        clip ? prior.preview.video!.file : prior.preview.image,
+        5 * 1024 * 1024,
+      );
+      const hash = await sha256(bytes);
+      const name = `studio-${id.slice(0, 8)}-kept.${clip ? 'webm' : 'png'}`;
+      await writeFile(join(root, name), bytes, { flag: 'wx' });
+      media.push({
+        name,
+        hash,
+        bytes: bytes.length,
+        label: `Existing listing ${clip ? 'clip' : 'cover'}`,
+        mime: clip ? 'video/webm' : 'image/png',
+        promotional: false,
+        reused: true,
+      });
+      if (clip) keptVideo = { file: name, artifactHash: prior.preview.video!.artifactHash };
+      else config.preview = { ...config.preview, image: name };
+    }
+  }
   // Changes remain in ordinary Git; private credentials/chat never enter this tree.
   config.title = input.title;
   config.description = input.description;
   config.topics = input.topics;
-  config.preview = { ...config.preview, image: undefined, video: undefined };
+  // Keep a selected cover during runtime verification; it is replaced only after capture succeeds.
+  config.preview = { ...config.preview, video: undefined };
   await writeFile(join(root, 'napplet.json'), JSON.stringify(config, null, 2) + '\n');
   await prepareSharingIdentity(root, 'public', pubkey);
   await hooks.verify(signal);
@@ -135,8 +262,6 @@ export async function prepareRelease(
     input,
   );
   const before = await inspectProject(root, 'public', pubkey);
-  const id = crypto.randomUUID();
-  const media: Media[] = [];
   const capture =
     hooks.capture ??
     (async (root, pubkey, target, video, portrait, signal) => {
@@ -159,14 +284,29 @@ export async function prepareRelease(
         },
       );
     });
-  for (const portrait of input.portrait ? [false, true] : [false]) {
+  if (input.keepMedia) {
+    await hooks.stage('Keeping the previous release cover and clip');
+    for (const item of media) {
+      if ((await sha256(await regularFile(root, item.name, 5 * 1024 * 1024))) !== item.hash)
+        throw reviewChanged();
+    }
+    if (keptVideo)
+      config.preview!.video = {
+        ...keptVideo,
+        reviewedFor: {
+          artifactHash: before.plan.artifactHash,
+          videoHash: media.find((m) => m.mime === 'video/webm')!.hash,
+        },
+      };
+  }
+  for (const portrait of input.keepMedia ? [] : input.portrait ? [false, true] : [false]) {
     await hooks.stage(portrait ? 'Capturing portrait media' : 'Capturing your cover and clip');
     const target = join(storage, id, portrait ? 'portrait' : 'landscape');
     await capture(root, pubkey, target, input.video, portrait, signal);
     if ((await inspectProject(root, 'public', pubkey)).fingerprint !== before.fingerprint)
       throw reviewChanged();
   }
-  for (const portrait of input.portrait ? [false, true] : [false]) {
+  for (const portrait of input.keepMedia ? [] : input.portrait ? [false, true] : [false]) {
     const target = join(storage, id, portrait ? 'portrait' : 'landscape');
     for (const clip of input.video ? [false, true] : [false]) {
       const name = `studio-${id.slice(0, 8)}-${portrait ? 'portrait' : 'cover'}.${clip ? 'webm' : 'png'}`;
@@ -187,7 +327,12 @@ export async function prepareRelease(
     }
   }
   await writeFile(join(root, 'napplet.json'), JSON.stringify(config, null, 2) + '\n');
-  await hooks.checkpoint('Studio: publication candidate and media', signal);
+  await hooks.checkpoint(
+    input.keepMedia
+      ? 'Studio: update with reviewed existing media'
+      : 'Studio: publication candidate and media',
+    signal,
+  );
   await inspectHistory(root, await committedSource(root));
   const account = {
     id: crypto.randomUUID(),

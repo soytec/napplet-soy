@@ -2,7 +2,7 @@ import type { Project } from './types';
 
 export const publicationSteps = [
   'Check project',
-  'Capture media',
+  'Prepare media',
   'Review release',
   'Sign release',
   'Share source',
