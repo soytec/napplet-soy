@@ -336,15 +336,10 @@ test('keeping a clip preserves its recorded build and approves only the newly ch
     videoHash: await sha256(clip),
   });
   expect(review.media.filter((m) => m.reused)).toHaveLength(2);
-  const final = await checkPublication(
-    new Map([
-      ['napplet.json', new TextEncoder().encode(JSON.stringify(updated))],
-      ['index.html', await Bun.file(join(f.root, 'index.html')).bytes()],
-      [updated.preview.image, await Bun.file(join(f.root, updated.preview.image)).bytes()],
-      [updated.preview.video.file, clip],
-    ]),
-  );
-  expect(final.video).toEqual(clip);
+  const retainedClip = review.media.find((media) => media.mime === 'video/webm')!;
+  expect((await reviewedMedia(f.storage, review, retainedClip.name)).bytes).toEqual(clip);
+  // Real browser startup and stale-media rejection run in tests/services/publish-check.test.ts.
+  // The ordinary test suite must not download or launch Chromium on the controller.
 }, 15000);
 
 test('recording requires inputs or an explicit automatic-app choice, independently of screenshots', async () => {
