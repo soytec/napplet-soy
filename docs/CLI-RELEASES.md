@@ -1,11 +1,11 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The current published version is **0.31.2**. The repository has transferred to
+The current published version is **0.31.3**. The repository has transferred to
 [`soytec/napplet-soy`](https://github.com/soytec/napplet-soy), including its history,
 issues, pull requests and releases.
 
-**0.31.3 — prepared for release: reviewed media reuse and capture reliability**
+**0.31.3 — reviewed media reuse and capture reliability**
 
 Updates can retain the previous publication’s description, topics, cover and clip.
 The creator explicitly reviews retained media; a clip’s approval binds its exact
@@ -18,6 +18,18 @@ on animated applications. Runtime checks with an approved existing cover do not
 wait for capture-only selectors. Fresh captures still honor the recording recipe
 and readiness selector. Capture failures retain their browser cause separately from
 application startup failures. See [preview behavior](PREVIEWS.md).
+
+Published **2026-10-24 (Europe/Vienna)** from
+`2928f3ead930abab844ff74483f40a7470098e2f`, the squash merge of
+[PR #41](https://github.com/soytec/napplet-soy/pull/41).
+[Release](https://github.com/soytec/napplet-soy/releases/tag/soyli-v0.31.3),
+[four-platform release CI](https://github.com/soytec/napplet-soy/actions/runs/40066427457),
+[Nix package/VM CI](https://github.com/soytec/napplet-soy/actions/runs/40066421522)
+and [Studio integration CI](https://github.com/soytec/napplet-soy/actions/runs/40066421529)
+passed. All 11 public assets match their checksums and GitHub digests; the manifest
+and installer match the tagged source. An isolated macOS ARM64 fresh install passed
+`doctor` and `update`; a real **0.31.2 → 0.31.3** upgrade preserved account/project
+markers and the legacy command. See the [website rollout record](DEPLOYMENT.md).
 
 **0.31.2 — proposal status during publication:**
 

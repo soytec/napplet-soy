@@ -3,9 +3,56 @@
 Deployment is operator-run. Routine changes are verified and committed locally;
 do not deploy or upload releases unless the user explicitly requests deployment.
 
-Updated 2026-10-23. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
+Updated 2026-10-24. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-### Most recent application deployment — Proposal reviews, 2026-10-23
+### Most recent application deployment — Update publishing, 2026-10-24
+
+Website release **`20261024054808804-1`** runs source
+`408ee86d3e7d858961e8d1a48e83984be64e126f`. [PR #41](https://github.com/soytec/napplet-soy/pull/41)
+merged as `2928f3e`; the follow-up isolates an ordinary test from browser installation.
+Existing and merged publications now open as **Publish update** with their prior
+metadata and media. Creators can retain reviewed covers/clips, edit metadata or
+re-record. Capture uses a fixed viewport instead of waiting for iframe stability;
+errors preserve their browser cause. No user napplet was republished during rollout.
+
+[soyLI 0.31.3](https://github.com/soytec/napplet-soy/releases/tag/soyli-v0.31.3)
+was published and verified before activation. Its optional reviewed-media field
+binds unchanged clip bytes to the updated executable, preserving the original
+recorded-build hash. Four native release builds, Nix package/VM checks and Studio
+integration CI passed. See the [CLI release evidence](CLI-RELEASES.md).
+The [test-only follow-up](https://github.com/soytec/napplet-soy/actions/runs/40067658768)
+also passed Studio CI. On the VPS, all 908 application tests, 5 relay, 18 Blossom,
+9 GRASP and 3 backend isolation checks passed, followed by the production build.
+
+The additive worker image is
+`sha256:6000d26beb55030bffb7f70fdfcbc265b13e04ae46187f06e698348974250eed`.
+It preserves both installed dependency profiles and the legacy CPU runtime.
+Disposable copies of the affected merged Funclet draft passed both retained-media
+and fresh-screenshot checks; changed clip bytes were rejected. Scripted server and
+browser-build repair, desktop/portrait capture, timeout/crash recovery, cancellation
+and subsequent job reuse passed without paid inference or public events.
+
+An initial candidate stopped before activation because a new ordinary test attempted
+to download Chromium on the controller. The correction verifies saved media bytes in
+that test; real browser startup and stale-media regressions remain in the browser
+integration suite. The empty-browser-cache VPS regression passed in 2.4 seconds.
+No runtime timeout was relaxed, and the published CLI runtime is unchanged.
+
+Public HTTPS routes and the completed catalog scan identify the new release. The
+served installer matches the verified 0.31.3 release asset. External relay query
+timeouts remain visible; they did not prevent completion through healthy relays.
+
+Deployed source hashes match. All five application processes have zero restarts;
+Studio, CVM, TURN and Caddy are active. All 11 existing draft records and Git
+workspaces are preserved. Unrelated private configuration and Studio egress policy
+are unchanged. No active creator jobs were present at activation.
+
+Rollback retains application release `20261023204030207-1`, worker image
+`sha256:1c61376651dfdb8dd0eeffe4ae7ffc501ca83a214d7722b38418a7d2cb633128`
+and a protected copy of the previous Studio configuration. Local evidence is in
+`.local/update-publication/` and `.local/release-0.31.3/`.
+
+### Previous application deployment — Proposal reviews, 2026-10-23
 
 Verified website release: **`20261023204030207-1`**, application source
 `9618fbf7664a99728eda6c2de68e07d7ea99a7fd`. [PR #40](https://github.com/soytec/napplet-soy/pull/40)
