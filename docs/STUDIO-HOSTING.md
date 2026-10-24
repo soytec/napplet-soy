@@ -34,6 +34,12 @@ its **Remix this** entry point and the Studio proposal flow. Existing proposals 
 listed in that napplet's source section and **Manage → My work → Proposals**.
 The original author can prepare a private Studio merge review; confirming it updates
 the source and proposal status. Releasing the updated napplet remains a separate action.
+For an existing release, **Publish update** keeps its published listing and media
+by default. Authors can expand the metadata fields or choose new captures. Both
+paths rebuild/check the candidate and require a separate review and signature;
+keeping media skips recording, not validation. Capture errors retain the useful
+browser cause and offer capture options instead of asking the maker to rewrite
+working app code.
 
 Both build modes first import the exact signed release and its published source
 using soyLI on the controller. Hosted imports use a credential-free Node worker

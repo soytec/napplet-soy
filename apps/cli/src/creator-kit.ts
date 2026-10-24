@@ -147,7 +147,8 @@ and report missing coverage honestly. Never invent a portrait recording option.
   For an interaction recipe set preview.recording.actions: timed click (x/y in a
   960 × 600 viewport), keyDown or keyUp with atMs relative to recording start.
   preview.recording.durationMs is 2000–8000; startMs is 0–10000 after normal startup.
-  A changed build needs a fresh clip, or remove preview.video to publish only a PNG.
+  A changed build needs a fresh clip or explicit media review in Studio's Publish
+  update flow; remove preview.video to publish only a PNG.
 - soyli publish --dry-run inspects source and destinations;
   soyli publish requires a committed clean tree, builds dist/index.html projects,
   then checks the artifact and publishes. Preview/review opening never runs build scripts.
@@ -260,6 +261,10 @@ soyli record produces 960 × 600 video; the recorder may add a brief final frame
 Publishing freezes its bytes and a signed preview hash/MIME on the napplet manifest,
 retaining a screenshot for clients that do not display video. Never fabricate a clip
 or change preview.video.artifactHash to bypass the stale-build check.
+Studio can retain a previous release's cover and clip after explicit review. It
+keeps the original artifactHash and records reviewedFor with the exact new build
+and clip hashes. Do not invent this approval; the user reviews the retained media
+before signing. Changing the build or clip invalidates it. Re-recording replaces it.
 The local preview setting is authoring configuration, not a new Nostr manifest tag.
 
 Readable routes are a one-time website claim, not an automatic publish step.

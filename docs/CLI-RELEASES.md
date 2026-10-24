@@ -5,6 +5,20 @@ The current published version is **0.31.2**. The repository has transferred to
 [`soytec/napplet-soy`](https://github.com/soytec/napplet-soy), including its history,
 issues, pull requests and releases.
 
+**0.31.3 — prepared for release: reviewed media reuse and capture reliability**
+
+Updates can retain the previous publication’s description, topics, cover and clip.
+The creator explicitly reviews retained media; a clip’s approval binds its exact
+bytes to the new executable hash while preserving the original recorded-build hash.
+Changed builds or clips invalidate that approval. Existing projects stay readable.
+Upgrade soyLI before editing a Studio project that contains `preview.video.reviewedFor`.
+
+Preview screenshots use a fixed viewport crop, avoiding element-stability timeouts
+on animated applications. Runtime checks with an approved existing cover do not
+wait for capture-only selectors. Fresh captures still honor the recording recipe
+and readiness selector. Capture failures retain their browser cause separately from
+application startup failures. See [preview behavior](PREVIEWS.md).
+
 **0.31.2 — proposal status during publication:**
 
 `soyli publish` marks included open/draft NIP-34 Git proposals merged after

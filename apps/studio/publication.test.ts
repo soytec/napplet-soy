@@ -18,6 +18,8 @@ import { sha256, verifiedEvent, type SignedEvent } from '../../packages/protocol
 import { publishProject, type PublishOptions } from '../../packages/publish/src';
 import { checkPublication } from '../cli/src/publish-check';
 import { ProtocolClient } from '../../packages/client/src/nostr';
+import { releaseBaseline } from './release-baseline';
+import type { Project } from './types';
 
 const cleanup: Array<() => Promise<unknown>> = [];
 afterEach(async () => {
@@ -218,6 +220,132 @@ test('Studio refuses an unplanned passive clip before changing source or running
   expect(f.signatures()).toBe(0);
   expect(await readFile(join(f.root, 'napplet.json'), 'utf8')).toBe(before);
 });
+
+test('a small release update restores prior media after failed preparation without capturing again', async () => {
+  const f = await fixture();
+  const previous = await f.prepare();
+  const beforeCaptures = f.captures();
+  const config = await Bun.file(join(f.root, 'napplet.json')).json();
+  delete config.preview.image; // The old failed prepare flow cleared this selection.
+  config.description = 'Unreviewed draft wording';
+  await writeFile(join(f.root, 'napplet.json'), JSON.stringify(config));
+  await writeFile(join(f.root, 'index.html'), '<!doctype html><p>Improved toy</p>');
+  const details = await listing(f.root, previous.plan.sourceCommit);
+  expect(details).toMatchObject({ description: 'Tap the stars', keepMedia: true, updating: true });
+  let checks = 0;
+  const { recordingPlanned, updating, existingMedia, reuseNotice, ...input } = details;
+  const review = await prepareRelease(f.root, f.storage, f.pubkey, input, f.controller.signal, {
+    ...f.hooks,
+    baseline: previous.plan.sourceCommit,
+    verify: async () => {
+      checks++;
+      expect((await Bun.file(join(f.root, 'napplet.json')).json()).preview.image).toMatch(
+        /kept\.png$/,
+      );
+    },
+  });
+  expect(checks).toBe(1);
+  expect(f.captures()).toBe(beforeCaptures);
+  expect(review.media).toHaveLength(1);
+  expect(review.media[0].reused).toBe(true);
+  expect((await reviewedMedia(f.storage, review, review.media[0].name)).bytes).toEqual(png);
+  expect(review.plan.artifactHash).not.toBe(previous.plan.artifactHash);
+  expect(f.signatures()).toBe(0);
+});
+
+test('failed recapture retains the previous image and clip selection', async () => {
+  const f = await fixture();
+  await f.prepare();
+  const prior = await Bun.file(join(f.root, 'napplet.json')).json();
+  await expect(
+    prepareRelease(f.root, f.storage, f.pubkey, f.input, f.controller.signal, {
+      ...f.hooks,
+      capture: async () => {
+        throw new Error('capture failed');
+      },
+    }),
+  ).rejects.toThrow('capture failed');
+  expect((await Bun.file(join(f.root, 'napplet.json')).json()).preview).toEqual(prior.preview);
+});
+
+test('missing previous release offers a fresh capture without pretending it can reuse media', async () => {
+  const f = await fixture();
+  const details = await listing(f.root, '0'.repeat(40));
+  expect(details).toMatchObject({ updating: true, keepMedia: false, description: 'A toy' });
+  expect(details.reuseNotice).toContain('Showing your draft listing');
+  await expect(
+    prepareRelease(
+      f.root,
+      f.storage,
+      f.pubkey,
+      { ...f.input, keepMedia: true },
+      f.controller.signal,
+      {
+        ...f.hooks,
+        baseline: '0'.repeat(40),
+      },
+    ),
+  ).rejects.toMatchObject({ code: 'STUDIO_RELEASE_MEDIA' });
+  expect(f.signatures()).toBe(0);
+});
+
+test('update baseline survives a failed later attempt and prefers the last published update over the merge parent', () => {
+  const project = {
+    merge: {
+      status: 'merged',
+      review: { manifest: { tags: [['source-commit', '1'.repeat(40)]] } },
+    },
+    publication: {
+      attempt: { status: 'failed', review: { plan: { sourceCommit: '3'.repeat(40) } } },
+    },
+  } as unknown as Project;
+  expect(releaseBaseline(project)).toBe('1'.repeat(40));
+  project.publication!.lastPublished = { plan: { sourceCommit: '2'.repeat(40) } } as NonNullable<
+    Project['publication']
+  >['lastPublished'];
+  expect(releaseBaseline(project)).toBe('2'.repeat(40));
+  delete project.merge;
+  expect(releaseBaseline(project)).toBe('2'.repeat(40));
+});
+
+test('keeping a clip preserves its recorded build and approves only the newly checked artifact', async () => {
+  const f = await fixture();
+  await f.prepare();
+  const config = await Bun.file(join(f.root, 'napplet.json')).json();
+  const clip = await Bun.file(
+    new URL('../../tests/fixtures/preview.webm', import.meta.url),
+  ).bytes();
+  const recordedHash = await sha256(await Bun.file(join(f.root, 'index.html')).bytes());
+  await writeFile(join(f.root, 'prior.webm'), clip);
+  config.preview.video = { file: 'prior.webm', artifactHash: recordedHash };
+  await writeFile(join(f.root, 'napplet.json'), JSON.stringify(config));
+  const baseline = await f.checkpoint('Published clip');
+  await writeFile(join(f.root, 'index.html'), '<!doctype html><p>Updated</p>');
+  const review = await prepareRelease(
+    f.root,
+    f.storage,
+    f.pubkey,
+    { ...f.input, keepMedia: true, video: true },
+    f.controller.signal,
+    { ...f.hooks, baseline },
+  );
+  const updated = await Bun.file(join(f.root, 'napplet.json')).json();
+  expect(updated.preview.video.artifactHash).toBe(recordedHash);
+  expect(updated.preview.video.reviewedFor).toEqual({
+    artifactHash: review.plan.artifactHash,
+    videoHash: await sha256(clip),
+  });
+  expect(review.media.filter((m) => m.reused)).toHaveLength(2);
+  const final = await checkPublication(
+    new Map([
+      ['napplet.json', new TextEncoder().encode(JSON.stringify(updated))],
+      ['index.html', await Bun.file(join(f.root, 'index.html')).bytes()],
+      [updated.preview.image, await Bun.file(join(f.root, updated.preview.image)).bytes()],
+      [updated.preview.video.file, clip],
+    ]),
+  );
+  expect(final.video).toEqual(clip);
+}, 15000);
 
 test('recording requires inputs or an explicit automatic-app choice, independently of screenshots', async () => {
   const f = await fixture();

@@ -199,6 +199,11 @@ period. Host controls are excluded. `napplet.json` may set `preview.delayMs` fro
 250 to 10000, or `preview.image` to a project PNG (up to 5 MiB, 4096 × 4096).
 Explicit images are validated and included in the frozen source; automatic
 captures are saved as `preview.png` beside the release's journal and source archive.
+The capture reads the fixed app viewport directly; it does not scroll or wait for
+the iframe element to become stable. Screenshot failures report `PREVIEW_CAPTURE`
+with their browser cause, separately from handshake or script failures. A selected
+cover does not wait for a capture-only `readySelector` during runtime checks;
+fresh screenshots and recordings still wait for that milestone.
 
 For an image the creator/AI can inspect before publishing:
 
@@ -288,9 +293,19 @@ selected cover remains unchanged. Use the start/duration controls to select the
 captured interval; there is no separate editing timeline or audio track.
 `soyli record preview-2.webm` preserves an existing clip and selects the new file.
 The saved `preview.video` contains `file` and `artifactHash`. Publishing rejects an
-older-build selection; record again or remove `preview.video` for a static-only
-release. The clip is included in source/remixes and frozen in the release journal.
+older-build selection unless it was explicitly reviewed for this update. Record
+again, use Studio's **Keep existing cover and clip** update flow, or remove
+`preview.video` for a static-only release. The clip is included in source/remixes and frozen in the release journal.
 Resuming preserves its bytes, destinations and signatures.
+
+Studio retains the originally recorded `artifactHash` and writes an optional
+`reviewedFor: { artifactHash, videoHash }` for the exact new executable and retained
+clip bytes. A subsequent code or clip change invalidates that approval. The final
+publication still requires the author to confirm that the media represents the
+update. This is local authoring configuration, not a new Nostr tag or playback
+requirement. Older soyLI versions that reject `reviewedFor` need an updated CLI;
+alternatively record a new clip, which replaces this selection. Do not rewrite
+the original `artifactHash` or invent a review approval to bypass validation.
 
 ### Signed association and interoperability
 
@@ -398,3 +413,12 @@ use the existing manifest presentation format. Portrait files are promotional
 downloads included in the source, with no additional protocol fields. Capture
 recipes still need to demonstrate the app: idle animation alone is not evidence
 of gameplay or a successful interaction.
+
+For a previously published Studio draft or a completed proposal merge, **Publish
+update** defaults to the last published title, description, tags and selected
+cover/clip. **Change title, description or tags** and **Capture new media** are
+optional. Saved media is read from the exact published Git revision, so a failed
+earlier capture that cleared the draft's selections can be recovered. If that
+revision or its files are unavailable, capture new media instead. Failed preparation
+restores the draft's prior image/video selections. Runtime/build checks, frozen
+source review and explicit shell-account signing remain required for both paths.

@@ -1174,6 +1174,30 @@
     font-size: 12px;
     margin: 20px 0;
   }
+  .release-media-choice {
+    display: grid;
+    gap: 12px;
+    margin: 20px 0;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .release-media-choice legend {
+    padding: 0 6px;
+    font-weight: 600;
+  }
+  .release-media-choice label {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .release-media-choice input {
+    accent-color: var(--primary);
+  }
+  .release-media-choice small {
+    color: var(--muted-foreground);
+    line-height: 1.5;
+  }
   .capture-options label,
   .publication-consent {
     display: flex;

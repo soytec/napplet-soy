@@ -579,7 +579,11 @@ export function StudioApp({
                 disabled={busy || !p.preview || (!!p.merge && p.merge.status !== 'merged')}
                 onClick={() => setPublishOpen(true)}
               >
-                Publish
+                {p.merge?.status === 'merged' ||
+                p.publication?.lastPublished ||
+                p.publication?.attempt?.status === 'published'
+                  ? 'Publish update'
+                  : 'Publish'}
               </button>
               {p.source && !p.merge && (
                 <button

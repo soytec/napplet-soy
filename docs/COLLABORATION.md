@@ -180,7 +180,10 @@ The private sandbox check tests the merged executable independently of inherited
 listing clips and capture-only ready selectors, without changing those settings in
 source. An existing cover is retained and validated. The offline sandbox still
 requires the host handshake and rejects script errors; a selector waiting for live
-relay data belongs to the separate capture flow. A stale clip must still be replaced or removed when preparing the next release. Older failed reviews without
+relay data belongs to the separate capture flow. After merging, **Publish update**
+can retain the original listing and media, subject to an explicit review against
+the updated build; **Capture new media** offers re-recording instead. See
+[media reuse](PREVIEWS.md#short-video-previews--soyli-070). Older failed reviews without
 a pinned candidate require a fresh review. These profile/review checks were deployed
 with the controller and additive worker image on 2026-10-23; see the
 [deployment evidence](DEPLOYMENT.md#most-recent-application-deployment--proposal-reviews-2026-10-23).
