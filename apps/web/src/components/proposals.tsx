@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { GitPullRequest, Play, Copy, RefreshCw, Terminal } from 'lucide-react';
+import { GitPullRequest, Play, Copy, RefreshCw, Terminal, Zap } from 'lucide-react';
 import { Button } from './ui/button';
 import { Player } from './player';
 import { network, protocolClient, manifestAllowed } from '@/lib/network';
@@ -20,9 +20,18 @@ import { useNostr } from './nostr-provider';
 import { useStudio } from './studio-provider';
 import { useNavigate, useLocation } from '@tanstack/react-router';
 import { CreatorLink } from './creator-link';
+import { ContributionGraph } from './contribution-graph';
+import { ZapButton } from './zap-button';
+import { socialScope } from '../../../../packages/protocol/src/social';
+import { retainedLifecycleHistory } from '@/lib/lifecycle';
 
 export function Proposals({ manifest, reference }: { manifest?: SignedEvent; reference?: string }) {
   const identity = useNostr();
+  const [releaseHistory, setReleaseHistory] = useState<{
+    id: string;
+    events: SignedEvent[];
+    unavailable: boolean;
+  }>();
   const { client: studio } = useStudio();
   const navigate = useNavigate();
   const search = useLocation({ select: (location) => location.searchStr });
@@ -40,10 +49,26 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
     [generation, refresh] = useState(0),
     [copied, setCopied] = useState(false);
   useEffect(() => {
+    if (!manifest) return;
+    let active = true;
+    void retainedLifecycleHistory(manifest).then((result) => {
+      if (active)
+        setReleaseHistory({
+          id: manifest.id,
+          events: result.manifests.filter(manifestAllowed),
+          unavailable: !result.complete,
+        });
+    });
+    return () => {
+      active = false;
+    };
+  }, [manifest?.id, generation]);
+  useEffect(() => {
     setSelected(undefined);
     setRevision(undefined);
     setPlaying(null);
     setRows([]);
+    setRepository(undefined);
     return () => {
       playback.current++;
     };
@@ -136,17 +161,39 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
     }
   }
   if (!source?.startsWith('nostr://') && !reference) return null;
+  function selectProposal(p: Proposal) {
+    playback.current++;
+    setLoading(false);
+    setError('');
+    setSelected(p.root.id);
+    setRevision(p.revision.id);
+    setPlaying(null);
+    setCopied(false);
+    requestAnimationFrame(() => {
+      const review = document.getElementById('proposal-review');
+      review?.focus({ preventScroll: true });
+      review?.scrollIntoView({ block: 'nearest' });
+    });
+  }
   const command = proposal ? `soyli review ${proposal.root.id}` : undefined;
   return (
-    <section id="proposals" className="proposal-section" aria-label="Proposed changes">
+    <section
+      id="proposals"
+      className="proposal-section"
+      aria-label={manifest ? 'Contribution history' : 'Proposed changes'}
+    >
       <div className="source-section-heading">
         <div>
           <span className="eyebrow">BUILD ON EACH OTHER</span>
           <h2>
-            <GitPullRequest size={25} /> Proposed changes
+            <GitPullRequest size={25} /> {manifest ? 'How it grew.' : 'Proposed changes'}
             <span className="proposal-count">{rows.length}</span>
           </h2>
-          <p>Play someone’s idea, discuss it, then bring it into the original.</p>
+          <p>
+            {manifest
+              ? 'Follow an idea from one creator to the next. Explore a contribution, or send its author a little lightning.'
+              : 'Play someone’s idea, discuss it, then bring it into the original.'}
+          </p>
         </div>
         <Button
           variant="ghost"
@@ -174,38 +221,79 @@ export function Proposals({ manifest, reference }: { manifest?: SignedEvent; ref
           <code>soyli propose "Description"</code> with soyLI.
         </p>
       )}
-      <div className="proposal-list">
-        {rows.map((p) => (
-          <button
-            type="button"
-            key={p.root.id}
-            className={`proposal-row ${selected === p.root.id ? 'selected' : ''}`}
-            onClick={() => {
-              playback.current++;
-              setLoading(false);
-              setError('');
-              setSelected(p.root.id);
-              setRevision(p.revision.id);
-              setPlaying(null);
-              setCopied(false);
-            }}
-          >
-            <span>
-              <strong>{p.title}</strong>
-              <span className="proposal-byline">
-                <span>Proposed by</span> <CreatorLink pubkey={p.root.pubkey} linked={false} />
+      {manifest ? (
+        <>
+          <ContributionGraph
+            manifest={manifest}
+            history={releaseHistory?.id === manifest.id ? releaseHistory.events : []}
+            proposals={rows}
+            selected={selected}
+            onSelect={selectProposal}
+            renderZap={(node) =>
+              node.event && (
+                <ZapButton
+                  key={node.event.id}
+                  data={{
+                    manifest,
+                    scope: socialScope(manifest),
+                    relays: repository?.relays ?? network().relays,
+                  }}
+                  reference={node.event.id}
+                  contribution={{ event: node.event, title: node.title }}
+                  trigger={
+                    <button
+                      type="button"
+                      className="contribution-zap"
+                      aria-label={`Zap ${node.title}`}
+                    >
+                      <Zap size={12} /> Zap
+                    </button>
+                  }
+                />
+              )
+            }
+          />
+          {releaseHistory?.id === manifest.id && releaseHistory.unavailable && (
+            <p className="muted" role="status">
+              Some release history could not be loaded. Showing the available contributions; refresh
+              to retry.
+            </p>
+          )}
+        </>
+      ) : (
+        <div className="proposal-list">
+          {rows.map((p) => (
+            <button
+              type="button"
+              key={p.root.id}
+              className={`proposal-row ${selected === p.root.id ? 'selected' : ''}`}
+              onClick={() => {
+                playback.current++;
+                setLoading(false);
+                setError('');
+                setSelected(p.root.id);
+                setRevision(p.revision.id);
+                setPlaying(null);
+                setCopied(false);
+              }}
+            >
+              <span>
+                <strong>{p.title}</strong>
+                <span className="proposal-byline">
+                  <span>Proposed by</span> <CreatorLink pubkey={p.root.pubkey} linked={false} />
+                </span>
+                <small>{new Date(p.root.created_at * 1000).toLocaleDateString()}</small>
               </span>
-              <small>{new Date(p.root.created_at * 1000).toLocaleDateString()}</small>
-            </span>
-            <span className="proposal-state">
-              {p.status}
-              {tag(p.revision, 'soy-preview') ? ' · playable' : ''}
-            </span>
-          </button>
-        ))}
-      </div>
+              <span className="proposal-state">
+                {p.status}
+                {tag(p.revision, 'soy-preview') ? ' · playable' : ''}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
       {proposal && chosen && (
-        <div className="proposal-review">
+        <div className="proposal-review" id="proposal-review" tabIndex={-1}>
           <div className="proposal-toolbar">
             <label>
               Revision{' '}

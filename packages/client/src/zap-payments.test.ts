@@ -6,16 +6,16 @@ import { bytesToHex } from '@noble/hashes/utils.js';
 import { ZapPayments, zapReceiptFilters } from './zap-payments';
 import { ZapTotalsStore } from './zap-totals';
 import { inspectInvoice } from '../../protocol/src/invoice';
-import { socialScope } from '../../protocol/src/social';
+import { socialScope, eventScope } from '../../protocol/src/social';
 import { invoice } from '../../../tests/fixtures/direct-wallet';
 
-function fixture() {
+function fixture(kind = 35129, exact = false) {
   const key = new Uint8Array(32).fill(3),
     author = new Uint8Array(32).fill(4);
   const now = Math.floor(Date.now() / 1000);
   const target = finalizeEvent(
     {
-      kind: 35129,
+      kind,
       created_at: now,
       content: 'Fixture',
       tags: [
@@ -25,7 +25,7 @@ function fixture() {
     },
     author,
   );
-  const scope = socialScope(target);
+  const scope = exact ? eventScope(target) : socialScope(target);
   const endpoint = {
     pubkey: target.pubkey,
     nostrPubkey: getPublicKey(key),
@@ -47,8 +47,8 @@ function fixture() {
       tags: [
         ['p', target.pubkey],
         ['e', target.id],
-        ['a', scope.key],
-        ['k', '35129'],
+        ...(scope.address ? [['a', scope.address]] : []),
+        ['k', String(kind)],
         ['amount', '21000'],
         ['lnurl', endpoint.lnurl],
         ['relays', 'wss://relay.example'],
@@ -65,7 +65,13 @@ function fixture() {
     verify: 'https://wallet.example/verify/fixture',
   };
   const preimage = bytesToHex(sha256(new TextEncoder().encode(serialized)));
-  const record = { target, endpoint, invoice: prepared, relays: ['wss://relay.example'] };
+  const record = {
+    target,
+    endpoint,
+    invoice: prepared,
+    relays: ['wss://relay.example'],
+    ...(exact ? { attribution: 'event' as const } : {}),
+  };
   return { scope, record, preimage, key };
 }
 function storage() {
@@ -234,3 +240,24 @@ test('confirmation requires an exact provider receipt, and failures remain recov
   expect(totals.get(scope.key)).toEqual({ zapCount: 1, msats: 21000 });
   close();
 });
+
+for (const kind of [35129, 1617, 1618, 1619])
+  test(`exact contribution invoice (${kind}) resumes and confirms under its author and event, not the listing address`, async () => {
+    const { record, scope, preimage } = fixture(kind, true);
+    const saved = storage(),
+      totals = new ZapTotalsStore(saved.get);
+    const options = { totals, storage: saved.get, query: async () => [], check: async () => false };
+    const first = new ZapPayments(options);
+    first.remember(record);
+    expect(first.pending(scope.key)?.target.pubkey).toBe(record.target.pubkey);
+    const filters = zapReceiptFilters({ ...record, savedAt: Date.now() });
+    expect(filters).toHaveLength(1);
+    expect('#e' in filters[0] && filters[0]['#e']).toEqual([record.target.id]);
+    expect(filters[0]['#p']).toEqual([record.target.pubkey]);
+    const restored = new ZapPayments(options);
+    expect(restored.pending(scope.key)?.attribution).toBe('event');
+    if (kind === 35129) expect(restored.pending(socialScope(record.target).key)).toBeUndefined();
+    expect(restored.confirmPreimage(scope.key, record.invoice.paymentHash, preimage)).toBe(true);
+    expect(restored.pending(scope.key)).toBeUndefined();
+    first.confirmPreimage(scope.key, record.invoice.paymentHash, preimage);
+  });

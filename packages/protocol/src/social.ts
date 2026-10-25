@@ -67,17 +67,18 @@ export function likeTemplate(
     ],
   };
 }
-/** A comment is an event target; it never inherits its napplet's payment recipient. */
-export function commentScope(comment: SignedEvent): SocialScope {
+/** An exact contribution/comment never inherits the containing napplet's recipient or address. */
+export function eventScope(event: SignedEvent): SocialScope {
   return {
-    key: comment.id,
+    key: event.id,
     address: null,
-    kind: 1111,
-    author: comment.pubkey,
-    eventId: comment.id,
-    eventKind: 1111,
+    kind: event.kind,
+    author: event.pubkey,
+    eventId: event.id,
+    eventKind: event.kind,
   };
 }
+export const commentScope = eventScope;
 export function commentLikeTemplate(comment: SignedEvent, now = Math.floor(Date.now() / 1000)) {
   return likeTemplate(commentScope(comment), comment, now);
 }
@@ -167,8 +168,8 @@ export function targetManifest(
   }
   return (
     !!target &&
-    (scope.kind === 1111
-      ? target.kind === 1111 && target.id === scope.key
+    (scope.address === null
+      ? target.kind === scope.kind && target.id === scope.key && target.pubkey === scope.author
       : [35129, 15129, 5129].includes(target.kind) && socialScope(target).key === scope.key) &&
     e.tags.filter((t) => t[0] === 'a').length <= 1 &&
     e.tags.filter((t) => t[0] === 'k').length <= 1 &&
