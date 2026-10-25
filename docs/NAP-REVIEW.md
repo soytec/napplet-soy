@@ -566,5 +566,6 @@ NIP-5D publication history supply the visualization; no selected upstream pin or
 writer contract changes. Named-release Lightning tips can be scoped to an exact
 version, while existing listing-wide zaps retain their address scope. Signed
 regressions cover wrong authors, versions, inherited addresses and recovery.
-Graph edges distinguish signed merge claims from verified Git ancestry. This is
-local source implementation, not an independent interoperability or deployment claim.
+Graph edges distinguish signed merge claims from verified Git ancestry. This source
+review is not independent interoperability certification. Deployment verification
+is recorded in [DEPLOYMENT.md](DEPLOYMENT.md#most-recent-application-deployment--contribution-graph-2026-10-25).

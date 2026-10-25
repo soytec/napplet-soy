@@ -434,7 +434,7 @@ The shell's contribution graph reads existing verified NIP-34 proposal/status
 and NIP-5D publication events. Branch origins require exact optional commit matches;
 merge reports and chronological release ordering do not assert verified Git ancestry.
 No kind, manifest tag, NAP permission, source requirement or upstream pin changes.
-See [contribution graph](COLLABORATION.md#contribution-graph--local-implementation).
+See [contribution graph](COLLABORATION.md#contribution-graph).
 
 NIP-57 contribution payments bind `e`, `k` and `p` to the selected signed release
 or proposal. The optional address tag is omitted for exact-version Lightning tips;

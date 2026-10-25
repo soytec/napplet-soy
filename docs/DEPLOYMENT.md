@@ -3,9 +3,45 @@
 Deployment is operator-run. Routine changes are verified and committed locally;
 do not deploy or upload releases unless the user explicitly requests deployment.
 
-Updated 2026-10-24. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
+Updated 2026-10-25. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-### Most recent application deployment — Update publishing, 2026-10-24
+### Most recent application deployment — Contribution graph, 2026-10-25
+
+Website release **`20261025092259843-68824`** runs source
+`6b16f33604f499954d569a82180c15345103da6f`, the squash merge of
+[PR #42](https://github.com/soytec/napplet-soy/pull/42). Napplet listings now show
+the [contribution graph](COLLABORATION.md#contribution-graph): release milestones,
+proposal branches, contributor profiles and signed merge reports. Each release or
+proposal can be tipped individually through the existing Lightning/Cashu dialog.
+
+[Nix package/rebuild/VM checks](https://github.com/soytec/napplet-soy/actions/runs/40180023322),
+[application and four native platform checks](https://github.com/soytec/napplet-soy/actions/runs/40180023338),
+and [Studio integration checks](https://github.com/soytec/napplet-soy/actions/runs/40180023355)
+passed on the exact PR head. The merged tree is identical. On the VPS, typecheck,
+916 application tests, 5 relay, 18 Blossom, 9 GRASP and 3 backend isolation checks
+passed, followed by the production build and candidate activation checks.
+
+A fresh anonymous browser on public HTTPS loaded Funclet's four retained releases,
+the merged proposal and both contributor profiles. The all-releases toggle and
+proposal selection passed. The proposal zap dialog identifies hzrd149; the first
+retained release identifies Schlaus Kwab. No invoice, payment or signed event was
+created. Local fixture checks also cover dark theme and mobile overflow. External
+relay errors remain visible; healthy relays supplied the live proposal/profile data.
+
+Public health and the completed catalog scan identify the new release. The homepage,
+Manage, Studio, Blossom and the other hosted site respond successfully over HTTPS.
+Deployed source hashes match, all five application processes are online with zero
+restarts, and Studio, CVM, TURN and Caddy are active. All 11 existing draft records
+and Git workspaces, private configuration and Studio egress policy are unchanged.
+No active or queued creator jobs were present at activation.
+
+soyLI remains **0.31.3** and the Studio worker remains
+`sha256:6000d26beb55030bffb7f70fdfcbc265b13e04ae46187f06e698348974250eed`.
+Application release `20261024054808804-1` is retained for rollback. Local verification
+evidence is in `.local/contribution-graph/`; the live graph screenshot is in
+`output/playwright/contributions-live.png`.
+
+### Previous application deployment — Update publishing, 2026-10-24
 
 Website release **`20261024054808804-1`** runs source
 `408ee86d3e7d858961e8d1a48e83984be64e126f`. [PR #41](https://github.com/soytec/napplet-soy/pull/41)

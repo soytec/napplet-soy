@@ -277,7 +277,7 @@ commit does not prove the target was merged. A changed or unknown target stops
 status delivery with an actionable error; correcting the target lets resume reuse
 the original signatures. Switching local branches does not retarget saved statuses.
 
-## Contribution graph — local implementation
+## Contribution graph
 
 On a napplet listing, **How it grew** presents a horizontal history of published
 versions, proposals and signed merge reports. Each release/proposal shows its
@@ -311,4 +311,5 @@ contribution tipping, not automatic contributor splits or cumulative graph total
 Existing pending napplet/comment invoices remain readable. No real payment is
 made by opening or browsing the graph.
 
-This graph is implemented locally; deployment is a separate step.
+Deployed on 2026-10-25. See the [deployment verification](DEPLOYMENT.md#most-recent-application-deployment--contribution-graph-2026-10-25)
+for the released source, checks and retained limitations.
