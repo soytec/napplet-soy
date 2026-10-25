@@ -86,6 +86,8 @@ jobs:
         # Keep Chromium and Bun's embedded service servers in separate processes;
         # combining the suites can stall service teardown on Linux.
         run: bun run test:studio:services
+      - name: Verify contribution history and exact author payments
+        run: bun test apps/web/src/lib/contribution-history.test.ts packages/community/src/zaps.test.ts packages/client/src/zap-payments.test.ts
       - name: Verify production shell and Studio account composition
         run: bun run build && bun test tests/services/studio-shell.test.ts && bun test tests/services/studio-preview.test.ts
       - name: Verify initial remix gameplay and preview transitions
