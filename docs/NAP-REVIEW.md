@@ -555,3 +555,16 @@ The keyboard fix uses [NAP-KEYS PR 9 at 8869a4c](https://github.com/napplet/naps
 and the existing shim 0.30.0. No event kind, manifest extension, author restriction
 or NIP-5D pin changes. All publishers receive the same frame-scoped action API.
 See [runtime behavior, limits and shim normalization caveat](PUBLIC-RUNTIME.md#keyboard-actions--2026-10-13-source).
+
+## Contribution graph — 2026-10-25
+
+Reviewed official [NIP-57 Appendix A](https://github.com/nostr-protocol/nips/blob/master/57.md#appendix-a-zap-request-event)
+and [NIP-61](https://github.com/nostr-protocol/nips/blob/master/61.md) for contribution
+targeting: event tips carry the selected event ID and recipient key; NIP-57's
+address tag is optional. The existing signed NIP-34 root/status projection and
+NIP-5D publication history supply the visualization; no selected upstream pin or
+writer contract changes. Named-release Lightning tips can be scoped to an exact
+version, while existing listing-wide zaps retain their address scope. Signed
+regressions cover wrong authors, versions, inherited addresses and recovery.
+Graph edges distinguish signed merge claims from verified Git ancestry. This is
+local source implementation, not an independent interoperability or deployment claim.

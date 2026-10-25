@@ -1,0 +1,274 @@
+.contributions {
+  margin-block: 1.5rem;
+  border: 1px solid var(--subtle-border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--card);
+}
+.contribution-caption {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  padding: 0.6rem 1.2rem;
+  border-bottom: 1px solid var(--subtle-border);
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+}
+.contribution-caption strong {
+  color: var(--foreground);
+}
+.contribution-key {
+  display: flex;
+  gap: 1rem;
+  margin-left: auto;
+}
+.contribution-key span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.contribution-key i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mint);
+}
+.contribution-key span:nth-child(2) i {
+  background: var(--lilac);
+}
+.contribution-navigation {
+  display: flex;
+  gap: 0.2rem;
+}
+.contribution-viewport {
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--subtle-border) transparent;
+  background-image: radial-gradient(var(--subtle-border) 0.65px, transparent 0.65px);
+  background-size: 20px 20px;
+}
+.contribution-viewport:focus-visible {
+  outline-offset: -3px;
+}
+.contribution-canvas {
+  position: relative;
+  min-width: 100%;
+}
+.contribution-lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.contribution-nodes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.contribution-node {
+  position: absolute;
+  width: 220px;
+}
+.contribution-point {
+  display: grid;
+  place-items: center;
+  height: 32px;
+  width: 32px;
+  border: 2px solid var(--contribution-color);
+  border-radius: 50%;
+  color: var(--contribution-color);
+  background: var(--card);
+  margin: 0 auto 12px;
+  box-shadow: 0 0 0 5px var(--card);
+}
+.contribution-card {
+  background: var(--card);
+  border: 1px solid var(--subtle-border);
+  border-top: 3px solid var(--contribution-color);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--contribution-color) 10%, transparent);
+}
+.contribution-card-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 8px;
+  font: 10px var(--font-code);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
+}
+.contribution-status {
+  background: var(--accent);
+  color: var(--mint);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.contribution-status.status-open,
+.contribution-status.status-draft {
+  background: var(--tint-lilac);
+  color: var(--lilac);
+}
+.contribution-status.status-closed {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.contribution-card h3,
+.contribution-title {
+  font: 600 14px/1.4 var(--font-body);
+  color: var(--foreground);
+  margin: 0 0 10px;
+  overflow-wrap: anywhere;
+}
+.contribution-title {
+  text-align: left;
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  width: 100%;
+}
+.contribution-title svg {
+  flex: none;
+  margin-top: 3px;
+}
+.contribution-title:hover {
+  color: var(--contribution-color);
+}
+.contribution-card .nostr-creator {
+  font-size: 12px;
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+}
+.contribution-card .creator-name {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+.contribution-card .profile-avatar {
+  width: 25px;
+  height: 25px;
+  flex: none;
+}
+.contribution-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  margin-top: 8px;
+}
+.contribution-meta code {
+  font: 10px var(--font-code);
+}
+.contribution-detail {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  margin: 6px 0 0;
+}
+.contribution-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 10px;
+}
+.contribution-actions > a,
+.contribution-actions > button {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--contribution-color);
+}
+.contribution-actions > button:first-child {
+  background: none;
+  padding: 0;
+  border: 0;
+}
+.contribution-actions > a:hover,
+.contribution-actions > button:first-child:hover {
+  text-decoration: underline;
+}
+.contribution-zap {
+  border-radius: 5px;
+  border: 1px solid var(--subtle-border);
+  background: var(--tint-gold);
+  color: var(--gold) !important;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 4px 8px;
+}
+.contribution-node.is-selected .contribution-card {
+  border-color: var(--contribution-color);
+  background: color-mix(in srgb, var(--tint-lilac) 35%, var(--card));
+}
+.contribution-source .contribution-card {
+  border-top-style: dashed;
+  box-shadow: none;
+}
+.contribution-source .contribution-point {
+  border-style: dashed;
+}
+.contribution-footnote {
+  margin: 0;
+  padding: 0.85rem 1.2rem;
+  border-top: 1px solid var(--subtle-border);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.contribution-recipient {
+  display: grid;
+  gap: 0.4rem;
+  border-bottom: 1px solid var(--subtle-border);
+  padding-bottom: 1rem;
+}
+.contribution-recipient small {
+  color: var(--muted-foreground);
+}
+@media (max-width: 600px) {
+  .contribution-caption {
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    padding: 0.5rem 0.8rem;
+  }
+  .contribution-key {
+    display: none;
+  }
+  .contribution-navigation {
+    margin-left: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .contribution-viewport {
+    scroll-behavior: auto;
+  }
+}
+
+.contribution-title > span {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.contribution-density {
+  font-size: 11px;
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.proposal-section:has(.contributions) .source-section-heading h2 {
+  font-size: clamp(1.5rem, 2.2vw, 2rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}

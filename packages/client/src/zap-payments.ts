@@ -2,7 +2,7 @@ import { bytesToHex } from '@noble/hashes/utils.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { inspectInvoice } from '../../protocol/src/invoice';
 import { verifiedEvent, type SignedEvent } from '../../protocol/src';
-import { commentScope, socialScope, oneTag } from '../../protocol/src/social';
+import { eventScope, socialScope, oneTag } from '../../protocol/src/social';
 import { resourceUrl } from './bytes';
 import {
   checkZapPayment,
@@ -18,6 +18,7 @@ const KEY = 'napplet:zap-invoices:v1';
 const RETENTION = 86400000;
 export type PendingZap = {
   target: SignedEvent;
+  attribution?: 'event';
   endpoint: ZapEndpoint;
   relays: string[];
   invoice: ZapInvoice;
@@ -25,8 +26,12 @@ export type PendingZap = {
 };
 export type ZapPaymentState = 'waiting' | 'paid' | 'expired' | 'unavailable';
 type Notice = { paymentHash: string; state: ZapPaymentState };
+// Keep legacy address-scoped reminders readable; new contribution payments pin
+// their exact event even when it is an older version of an addressable listing.
 const scopeOf = (record: PendingZap) =>
-  record.target.kind === 1111 ? commentScope(record.target) : socialScope(record.target);
+  record.attribution === 'event' || [1111, 1617, 1618, 1619].includes(record.target.kind)
+    ? eventScope(record.target)
+    : socialScope(record.target);
 export function zapReceiptFilters(record: PendingZap) {
   const scope = scopeOf(record);
   const base = {
@@ -76,7 +81,8 @@ export class ZapPayments {
   private valid(input: unknown): PendingZap {
     const record = input as PendingZap;
     const target = verifiedEvent(record.target);
-    if (![35129, 15129, 5129, 1111].includes(target.kind)) throw new Error('Wrong payment target');
+    if (![35129, 15129, 5129, 1111, 1617, 1618, 1619].includes(target.kind))
+      throw new Error('Wrong payment target');
     const request = verifiedEvent(record.invoice.request);
     const invoice = inspectInvoice(record.invoice.invoice);
     const endpoint = record.endpoint;

@@ -5,7 +5,7 @@ import { sha256 as hashBytes } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools';
 import { inspectInvoice } from '../../protocol/src/invoice';
-import { socialScope, commentScope, commentTemplate } from '../../protocol/src/social';
+import { socialScope, commentScope, commentTemplate, eventScope } from '../../protocol/src/social';
 import {
   resolveZapEndpoint,
   requestZapInvoice,
@@ -381,3 +381,65 @@ test('verified addressed zap receipts survive replacement when the old manifest 
     ).toBe(21000);
   }
 });
+
+for (const kind of [1617, 1618, 1619, 35129])
+  test(`contribution zap (${kind}) rejects another author, release, or inherited napplet address`, async () => {
+    const { context: napplet, endpoint: authorEndpoint } = await fixture();
+    const contribution = finalizeEvent(
+      { kind, created_at: now, content: 'A useful contribution', tags: [['d', 'version']] },
+      alice,
+    );
+    const context = { ...napplet, manifest: contribution, scope: eventScope(contribution) };
+    const targets = new Map([[contribution.id, contribution]]);
+    const endpoint = { ...authorEndpoint, pubkey: contribution.pubkey };
+    const request = finalizeEvent(
+      {
+        kind: 9734,
+        created_at: now,
+        content: '',
+        tags: [
+          ['p', contribution.pubkey],
+          ['e', contribution.id],
+          ['k', String(kind)],
+          ['amount', '21000'],
+          ['lnurl', endpoint.lnurl],
+          ['relays', ...context.relays],
+        ],
+      },
+      author,
+    );
+    const description = JSON.stringify(verifiedEvent(request));
+    const result = await requestZapInvoice(context, targets, endpoint, request, async () => ({
+      pr: invoice(21000, description),
+    }));
+    expect(result.msats).toBe(21000);
+    await expect(requestZapInvoice(context, targets, authorEndpoint, request)).rejects.toThrow();
+    await expect(requestZapInvoice(napplet, targets, endpoint, request)).rejects.toThrow();
+    const changed = finalizeEvent({ ...contribution, content: 'A later version' }, alice);
+    await expect(
+      requestZapInvoice({ ...context, scope: eventScope(changed) }, targets, endpoint, request),
+    ).rejects.toThrow();
+    const inherited = finalizeEvent(
+      { ...request, tags: [...request.tags, ['a', napplet.scope.key]] },
+      author,
+    );
+    await expect(requestZapInvoice(context, targets, endpoint, inherited)).rejects.toThrow();
+    const receipt = finalizeEvent(
+      {
+        kind: 9735,
+        created_at: now,
+        content: '',
+        tags: [
+          ['p', contribution.pubkey],
+          ['e', contribution.id],
+          ['description', description],
+          ['bolt11', result.invoice],
+        ],
+      },
+      provider,
+    );
+    expect((await verifiedZapReceipt(receipt, context.scope, targets, endpoint)).msats).toBe(21000);
+    await expect(
+      verifiedZapReceipt(receipt, napplet.scope, targets, authorEndpoint),
+    ).rejects.toThrow();
+  });

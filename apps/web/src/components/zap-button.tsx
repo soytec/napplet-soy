@@ -12,7 +12,7 @@ import {
   zapTotals,
   type ZapInvoice,
 } from '../../../../packages/client/src/zaps';
-import { commentScope } from '../../../../packages/protocol/src/social';
+import { commentScope, eventScope } from '../../../../packages/protocol/src/social';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Zap, Check, LoaderCircle } from 'lucide-react';
 import { Button } from './ui/button';
@@ -27,7 +27,8 @@ import {
 } from './ui/dialog';
 import { signForAccount, signAnonymousZap } from '@/lib/community-client';
 import { network } from '@/lib/network';
-import { useZapRecipient } from '@/lib/zap-recipient';
+import { useZapRecipient, paymentClient } from '@/lib/zap-recipient';
+import { CreatorLink } from './creator-link';
 import { walletBootstrapRelays } from '../../../../packages/wallet/src/network';
 import { zapTotalsStore, useZapTotals } from '@/lib/zap-totals';
 import { zapPayments } from '@/lib/zap-payments';
@@ -40,11 +41,13 @@ export function ZapButton({
   data,
   reference,
   commentTarget,
+  contribution,
   trigger,
 }: {
   data: { manifest: SignedEvent; scope: SocialScope; relays: string[] };
   reference: string;
   commentTarget?: SignedEvent;
+  contribution?: { event: SignedEvent; title: string };
   trigger?: ReactElement;
 }) {
   const { pubkey } = useNostr();
@@ -64,8 +67,12 @@ export function ZapButton({
     [relayHints, setRelayHints] = useState(data.relays),
     [anonymous, setAnonymous] = useState(!pubkey);
   const asAnonymous = !pubkey || anonymous;
-  const target = commentTarget ?? data.manifest;
-  const scope = commentTarget ? commentScope(commentTarget) : data.scope;
+  const target = contribution?.event ?? commentTarget ?? data.manifest;
+  const scope = contribution
+    ? eventScope(target)
+    : commentTarget
+      ? commentScope(commentTarget)
+      : data.scope;
   const totals = useZapTotals(scope.key);
   const recipient = useZapRecipient(target.pubkey, data.relays);
   const current = useRef({ open, invoice, target: scope.key });
@@ -130,7 +137,13 @@ export function ZapButton({
         controller.signal,
       );
       // Receipt totals are independent of preparing a payment. Keep them in the background.
-      void readSocial(data.manifest, data.relays, controller.signal)
+      void (
+        contribution
+          ? paymentClient()
+              .query([{ kinds: [9735], '#e': [target.id], limit: 150 }], relays, controller.signal)
+              .then((events) => ({ events, manifests: new Map([[target.id, target]]) }))
+          : readSocial(data.manifest, data.relays, controller.signal)
+      )
         .then(async (social) => {
           const context = { ...data, manifest: target, scope };
           const targets = commentTarget
@@ -201,15 +214,24 @@ export function ZapButton({
       <DialogContent className="zap-dialog">
         <DialogHeader>
           <DialogTitle>
-            {commentTarget
-              ? 'A little lightning for the commenter'
-              : 'A little lightning for the creator'}
+            {contribution
+              ? 'A little lightning for this contribution'
+              : commentTarget
+                ? 'A little lightning for the commenter'
+                : 'A little lightning for the creator'}
           </DialogTitle>
           <DialogDescription>
             Send Lightning sats or Cashu nutzaps to the author. Review the amount and confirm with
             your chosen wallet.
           </DialogDescription>
         </DialogHeader>
+        {contribution && (
+          <div className="contribution-recipient">
+            <strong>{contribution.title}</strong>
+            <CreatorLink pubkey={target.pubkey} />
+            <small>This zap goes to this author for this specific contribution.</small>
+          </div>
+        )}
         {endpoint && !invoice && (
           <form
             className="community-form"
@@ -239,7 +261,7 @@ export function ZapButton({
                     ['p', endpoint.pubkey],
                     ['e', target.id],
                     ['k', String(target.kind)],
-                    ...(!commentTarget && data.scope.address ? [['a', data.scope.address]] : []),
+                    ...(scope.address ? [['a', scope.address]] : []),
                     ['amount', String(msats)],
                     ['lnurl', endpoint.lnurl],
                     ['relays', ...relays],
@@ -253,7 +275,7 @@ export function ZapButton({
                 const context = {
                   ...data,
                   manifest: target,
-                  scope: commentTarget ? commentScope(commentTarget) : data.scope,
+                  scope,
                 };
                 const prepared = await requestZapInvoice(
                   context,
@@ -264,6 +286,7 @@ export function ZapButton({
                 if (!current.current.open || current.current.target !== targetKey) return;
                 const pending = zapPayments.remember({
                   target,
+                  ...(contribution ? { attribution: 'event' as const } : {}),
                   endpoint,
                   relays: relayHints.filter((relay) => new URL(relay).protocol === 'wss:'),
                   invoice: prepared,

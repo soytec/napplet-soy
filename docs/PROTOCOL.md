@@ -427,3 +427,18 @@ The keyboard fix uses [NAP-KEYS PR 9 at 8869a4c](https://github.com/napplet/naps
 and the existing shim 0.30.0. No event kind, manifest extension, author restriction
 or NIP-5D pin changes. All publishers receive the same frame-scoped action API.
 See [runtime behavior, limits and shim normalization caveat](PUBLIC-RUNTIME.md#keyboard-actions--2026-10-13-source).
+
+## Contribution history and tipping — 2026-10-25 source
+
+The shell's contribution graph reads existing verified NIP-34 proposal/status
+and NIP-5D publication events. Branch origins require exact optional commit matches;
+merge reports and chronological release ordering do not assert verified Git ancestry.
+No kind, manifest tag, NAP permission, source requirement or upstream pin changes.
+See [contribution graph](COLLABORATION.md#contribution-graph--local-implementation).
+
+NIP-57 contribution payments bind `e`, `k` and `p` to the selected signed release
+or proposal. The optional address tag is omitted for exact-version Lightning tips;
+ordinary listing zaps keep their address scope. Existing NIP-61 target events and
+recipient discovery are reused. Pending invoice recovery recognizes proposal
+roots/updates and preserves existing address-scoped payments. No automatic split
+payments, Git-author payment inference or napplet-frame wallet access is added.

@@ -276,3 +276,39 @@ maintainer authority and the clone's served branch. A tag retaining the release
 commit does not prove the target was merged. A changed or unknown target stops
 status delivery with an actionable error; correcting the target lets resume reuse
 the original signatures. Switching local branches does not retarget saved statuses.
+
+## Contribution graph — local implementation
+
+On a napplet listing, **How it grew** presents a horizontal history of published
+versions, proposals and signed merge reports. Each release/proposal shows its
+signed author through the shared profile/avatar cache, date and source commit;
+proposals also show status, revision count and comment count. Selecting a proposal
+opens the existing revision, playback and author-management controls below it.
+
+The default milestone view keeps the first known release, the viewed release and
+releases referenced as proposal bases. **All releases** includes the remaining
+retained versions. The graph scrolls within its own region on small screens, with
+keyboard focus and earlier/later controls. It uses the shared light/dark theme.
+
+Proposal data still comes from Nostr with repository relay hints. Optional signed
+release history comes from the existing retained-history endpoint and is validated
+in the client. Missing history leaves available releases and proposals visible.
+An exact `merge-base`/`source-commit` match links a branch to a release; otherwise
+an unattributed source marker makes the gap explicit. Signed merge statuses are
+shown as reports, separately from publication. The dotted main line indicates
+time, not verified Git parentage. Neither the earliest retained version nor an
+unavailable base is asserted to be the initial Git commit. The graph does not fetch
+or execute Git source, introduce events or change the existing proposal-query bounds.
+
+**Zap** on a release/proposal pays that event's author, not the enclosing napplet's
+author or the maintainer who merged it. The dialog identifies both contribution
+and recipient. Lightning requests/receipts pin the exact event ID and kind;
+version-specific invoice recovery remains separate from address-wide payments.
+Nutzaps use the same signed event target and recipient's NIP-61 wallet; existing
+addressable-event tags remain supported. Buttons require discovered recipient
+payment metadata and retain the existing split-zap guard. This is individual
+contribution tipping, not automatic contributor splits or cumulative graph totals.
+Existing pending napplet/comment invoices remain readable. No real payment is
+made by opening or browsing the graph.
+
+This graph is implemented locally; deployment is a separate step.
