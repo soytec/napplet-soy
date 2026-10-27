@@ -9,14 +9,16 @@ upgrade installed CLIs; the 0.7.0 distribution does not expose `media`.
 ## Contract and supported subset
 
 Authority: [NAP-MEDIA PR 10, revision 2b2d29e90c30b994bf5035a65b57e5fe7f08a9a2](https://github.com/napplet/naps/blob/2b2d29e90c30b994bf5035a65b57e5fe7f08a9a2/naps/NAP-MEDIA.md).
-Bindings remain `@napplet/shim` 0.30.0; the maintained starter SDK is 0.24.4. We use
+Current bindings are `@napplet/shim` 0.31.0 with core/nap 0.33.0. We use
 the proposal's **Wire Protocol** table, which agrees with that shim:
 `media.session.create`, `.update`, `.destroy`, `media.command`, `.state`,
 `.capabilities` and `.controls`. The proposal's introductory API table uses different
 spellings; no second invented wire alias is exposed. No NIP-5D kind, manifest identity,
 iframe sandbox or creator SDK change is needed.
 
-The host advertises `media` and accepts **shell-owned audio** sessions. Use
+The host advertises `media` and accepts **shell-owned audio** sessions. The
+2026-10-27 source also accepts **napplet-owned sessions** (not yet deployed or
+released in soyLI); the selected wire contract is unchanged. Use
 `media.createSession({ owner: 'shell', source: { url }, metadata, live, autoplay })`;
 `source.url` must be public HTTPS. The native audio element loads that original
 URL directly; actual MIME/codec support is determined by the browser. Subscribe to state and capability
@@ -26,18 +28,21 @@ IDs are replaced. Unknown sessions and unsupported commands are ignored.
 
 Metadata title changes update the host control label. Artwork and related context
 are not fetched/rendered. Source Nostr hints/context do not grant relay or network
-authority. Hash-only/Nostr-only source resolution, napplet-owned sessions, video,
-HLS/DASH/playlist resolution, seeking, next/previous, OS media keys and persistent
+authority. Hash-only/Nostr-only source resolution, shell-owned video,
+HLS/DASH/playlist resolution, shell-owned seeking/next/previous, OS media keys and persistent
 background playback are **not implemented**. Unsupported owner/source modes return
 a correlated creation error. The standard permits hosts to support a subset.
 
 ## Playback and lifecycle
 
 Web and CLI use the same session manager and controls. Four sessions are allowed
-per iframe, with one active audio output across host sessions in the page. Playing
-another pauses the previous one. Pause retains the browser buffer; stop releases
+per iframe. Playing another session pauses the previous shell-owned output or
+requests pause (otherwise stop, if advertised) from its napplet owner. This is
+cooperative coordination; it cannot force an uncooperative iframe audio graph to stop. Pause retains the browser buffer; stop releases
 the source connection and replay starts from the beginning/current live stream.
-No seeking is advertised. Embedded sounds/Web Audio remain distinct browser features.
+The host UI offers play/pause, stop and volume where supported; it does not offer
+seeking. Embedded sounds and Web Audio should participate through napplet-owned
+sessions as described below.
 
 The native audio element lives in the trusted host, never in the napplet. Requests
 that the browser refuses for lack of user activation offer a host **Play audio**
@@ -53,10 +58,49 @@ uses Chromium touch emulation; physical iOS/Safari acceptance remains outstandin
 Device/browser audio policies can still limit volume or playback.
 
 Destroy, iframe teardown, identity change and preview reload release audio, pending
-requests and native media sources. Existing web visibility/offscreen rules still stop the
-player; this is not a background radio service. Viewport expansion preserves the
+requests and native media sources. Napplet-owned sessions receive a stop (or pause)
+request before account retirement. Their IDs cannot be revived in the new account.
+Tab/window visibility alone no longer closes the player; explicit close or eviction
+still tears it down. Browser background throttling/activation rules still apply. Viewport expansion preserves the
 same iframe and audio session. A release/profile change causes discovery to retry
 previously unsupported media creations (`space-playback-2`).
+
+## Napplet-owned sound — 2026-10-27 source
+
+Games using Web Audio or embedded audio create a session with `owner: 'napplet'`,
+optional metadata and the actions they implement, for example `capabilities:
+['play', 'pause', 'stop', 'volume']`. Wait for the canonical session ID, subscribe
+with `onCommand`, operate the local audio graph and use `reportState` for the actual
+status/volume. `reportCapabilities` updates supported actions. Commands are requests,
+not acknowledgements: the host does not manufacture a new state when sending one.
+The napplet must handle browser activation refusal and keep an in-app sound control.
+
+One session should represent the game's audio graph, including effects. Pause and
+stop silence all output; volume controls its master gain. Destroy the session and
+close listeners/audio resources on teardown. Account changes retire the session:
+stop sound and establish a new session before resuming. A game with optional MEDIA
+keeps working silently when the domain is absent or session creation is rejected.
+A media-first app explains the unsupported mode. Do not fall back to unregistered
+sound, remote URLs in the frame or weaker CSP.
+
+State reports are accepted only for this frame/account's napplet-owned sessions.
+Incoming commands affect only shell-owned sessions; an app cannot use a forged
+report to change their state. Source and context on napplet-owned sessions are
+advisory: the host neither fetches them nor creates an audio element. Unknown and
+retired IDs are ignored. The opaque `allow-scripts` sandbox and CSP are unchanged.
+
+The existing lifecycle/command budget remains 360 messages per minute. Playback
+state reports have a separate 120/second budget, so frequent position reports do
+not prevent session cleanup. Repeated reports with unchanged displayed state do
+not trigger UI updates. Creators should report changes, not every animation frame.
+The UI disables controls that the playback owner does not advertise.
+
+Regression coverage includes owner direction, canonical IDs, state validation,
+frame/account isolation before SHELL readiness, two host instances competing for
+focus, teardown and actual Web Audio with the installed shim in a Chromium preview.
+This establishes Soy behavior; other shells and existing published games still need
+separate acceptance tests. Host-owned remote-stream DNS/redirect policy remains a
+separate audit item.
 
 ## Direct streaming boundary
 

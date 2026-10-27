@@ -19,6 +19,7 @@ on:
       - 'tests/services/studio-original-preview.test.ts'
       - 'tests/services/studio-publication.test.ts'
       - 'tests/services/publish-check.test.ts'
+      - 'tests/services/media.test.ts'
       - 'tests/services/fixtures/publication-server.ts'
       - 'tests/services/fixtures/studio-publication.tsx'
       - 'tests/services/fixtures/capture-failure.ts'
@@ -94,5 +95,7 @@ jobs:
         run: bun test tests/services/studio-original-preview.test.ts
       - name: Verify update publication and sandbox media capture
         run: bun test tests/services/studio-publication.test.ts && bun test tests/services/publish-check.test.ts
+      - name: Verify media ownership and audio controls through the real shim
+        run: bun test tests/services/media.test.ts
       - name: Verify napplet sessions survive visibility changes
         run: bun test tests/services/keys-preview.test.ts && bun test tests/services/rich-comments.test.ts

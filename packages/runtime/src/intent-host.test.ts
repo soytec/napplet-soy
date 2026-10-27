@@ -148,7 +148,11 @@ test('bound host delivers structured payloads and returns correlated limit error
     request: { archetype: 'test', action: 'open', convention: 'napplet:test/open', payload },
   });
   try {
-    send(message('before-init', 'ignored'));
+    send(message('before-init', 'available without SHELL'));
+    await Bun.sleep(10);
+    expect(replies.find((reply) => reply.id === 'before-init')).toMatchObject({
+      result: { ok: true },
+    });
     send({ type: 'shell.ready' });
     send(message('wrong-source', 'ignored'), { postMessage: () => {} });
     send(message('wrong-origin', 'ignored'), frame, 'https://example.com');
@@ -175,11 +179,9 @@ test('bound host delivers structured payloads and returns correlated limit error
         delivery: { sender: 'source', payload },
       });
     }
-    expect(deliveries).toHaveLength(accepted.length);
+    expect(deliveries).toHaveLength(accepted.length + 1);
     expect(
-      replies.some((reply) =>
-        ['before-init', 'wrong-source', 'wrong-origin'].includes(String(reply.id)),
-      ),
+      replies.some((reply) => ['wrong-source', 'wrong-origin'].includes(String(reply.id))),
     ).toBe(false);
     const deep: Record<string, unknown> = {};
     let cursor = deep;
@@ -207,7 +209,7 @@ test('bound host delivers structured payloads and returns correlated limit error
     expect(replies.find((reply) => reply.id === 'extra-field')).toMatchObject({
       result: { ok: false, error: 'intent payload too large' },
     });
-    expect(deliveries).toHaveLength(accepted.length);
+    expect(deliveries).toHaveLength(accepted.length + 1);
     // Refusal leaves the session usable, with the existing non-INTENT envelope cap intact.
     send({ type: 'theme.get', id: 'oversized-other', extra: 'x'.repeat(400 * 1024) });
     send(message('after-refusal', 'still works'));
