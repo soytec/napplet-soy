@@ -418,6 +418,16 @@ the napplet or weaken checks to make the report green. Keep the conformance resu
 soyli check result and real interaction evidence separate. The pinned suite can
 skip manifest, wire and lifecycle cases; that is unmeasured coverage.
 
+soyli check reports startup separately from interaction. It replays configured
+preview.recording inputs even when not recording a video; without inputs, interaction
+is explicitly not measured. Inspect coverage and warnings in its result. Inputs
+executed without errors do not prove gameplay correctness, coordinated sound or
+compatibility with another shell. Test core behavior and optional-domain denial,
+including missing MEDIA and unsupported owner modes. Test the same final artifact
+in an independent shell such as Paja; record its version and actual failures or
+unavailable checks. Do not replace the artifact, inject Soy helpers or wrap a current
+manifest in a legacy event and call that current-manifest interoperability.
+
 For optional capabilities, wrap the SDK call itself in try/await/catch; attaching
 .catch to its result alone misses synchronous exceptions. If an optional save fails,
 keep the app usable and explain that progress was not saved. Do not silently treat
@@ -468,7 +478,7 @@ around a lookup failure or bypass the iframe's network restrictions.
 Check injected domain availability before implementing a capability-dependent feature:
 an SDK export or passing upstream reference-shell test does not mean soyLI or the
 deployed website implements that domain. Local and deployed versions may differ.
-soyLI 0.8.0 adds NAP-MEDIA shell-owned audio/stream playback. The website needs the
+The shared runtime supports NAP-MEDIA shell-owned and napplet-owned audio. The website needs the
 matching deployment; upgrading one does not upgrade the other. Use the upstream SDK
 media.createSession with owner: 'shell', source.url (public HTTPS), optional audio
 metadata, live: true for radio, and autoplay: false when showing your own play button.
@@ -476,12 +486,32 @@ Wait for the result's canonical sessionId, subscribe with onState/onCapabilities
 then sendCommand for play/pause/stop/volume. Destroy sessions when leaving the view.
 MP3, Ogg audio and WAV are supported subject to browser codecs. The host handles
 streaming, source checks and gesture prompts. Only use advertised controls; no seek,
-playlists/HLS/DASH, video, napplet-owned sessions or hash/Nostr-only source resolution
+playlists/HLS/DASH, video or hash/Nostr-only source resolution
 is implemented. Nostr hints and session context are metadata, not network authority.
 Artwork is not loaded by this audio host. Four sessions per frame are allowed; one
-plays at a time. Streams stop at 128 MiB or two hours and close with the napplet.
-Small embedded data/blob audio and Web Audio are separate browser features, subject
-to user activation and codec support. Do not work around missing media support by
+plays at a time under cooperative session control. Host streams close with the napplet.
+
+Embedded data/blob audio and synthesized Web Audio must also coordinate through
+NAP-MEDIA: createSession({ owner: 'napplet', capabilities: ['play', 'pause', 'stop',
+'volume'], metadata: { title: 'Game sound', mediaType: 'audio' } }). Advertise only
+controls you implement. Wait for the canonical sessionId, attach
+onCommand(sessionId, (action, value) => { /* operate local audio */ }), and
+reportState with the actual status and volume. Implement commands against your
+local audio graph/element; do not sendCommand to your own napplet-owned session.
+Report state on changes, and reportCapabilities when supported controls change.
+Pause/stop must silence all output, including effects; volume must affect all output.
+Keep one session for the game's audio graph, not one per sound effect. Release the
+graph, listeners and session on teardown. Suspend audio on identity change and
+recreate the session if the current account scope has retired it.
+
+AudioContext resume/local playback still needs a user gesture. A host play request
+does not guarantee browser activation inside the frame; retain an in-app sound
+button and report the actual paused state when activation is refused. Handle missing
+media and createSession rejection: a game should remain playable silently; a media
+app should explain the unsupported mode. Do not continue unregistered sound as a
+fallback. A source field on a napplet-owned session is advisory, not permission for
+remote URLs. Test two napplets playing in turn and host pause/stop/volume controls.
+Do not work around missing media support by
 adding direct remote URLs, fetch, an unbounded resource download or a looser CSP.
 For clients without media, keep a clear unavailable state or user-confirmed link
 fallback; if playback is the core purpose, declare media required and report the

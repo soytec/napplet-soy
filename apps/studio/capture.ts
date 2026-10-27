@@ -28,6 +28,8 @@ try {
       artifactHash: plan.artifactHash,
       profile: checked.profile,
       browser: checked.browser,
+      coverage: checked.coverage,
+      warnings: checked.warnings,
     }),
   );
 } catch (error) {

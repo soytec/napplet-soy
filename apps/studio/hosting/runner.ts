@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { agentFinishReasons, type Agent, type AgentEvent } from '../agent';
 import type { Connections } from '../connections';
 import { inspectProject } from '../../../packages/publish/src/project';
+import { checkReportSchema } from '../../../packages/publish/src/check-report';
 import type { PublicationHooks } from '../publication';
 import type { StudioOptions } from '../studio';
 import { DiagnosticError } from '../../../packages/diagnostics/src';
@@ -169,9 +170,9 @@ export class HostedTools {
       const data = result.files['.studio-result/' + name];
       return data === undefined ? undefined : Buffer.from(data, 'base64');
     };
-    const metadata = z
-      .object({ profile: z.string().min(1).max(256), browser: z.string().min(1).max(256) })
-      .parse(JSON.parse(output('result.json')?.toString() ?? 'null'));
+    const metadata = checkReportSchema.parse(
+      JSON.parse(output('result.json')?.toString() ?? 'null'),
+    );
     const preview = output('cover.png'),
       clip = output('clip.webm');
     if ((cover && !preview?.length) || (video && !clip?.length))

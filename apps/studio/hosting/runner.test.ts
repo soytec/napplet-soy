@@ -8,6 +8,37 @@ import { HostedTools } from './runner';
 import { DiagnosticError } from '../../../packages/diagnostics/src';
 import type { ContainerJobs } from './container';
 
+test('isolated publication checks retain measured coverage and warnings; older workers remain readable', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'studio-check-report-'));
+  try {
+    const coverage = {
+      startup: 'passed',
+      interaction: { status: 'exercised', actions: 2, source: 'preview.recording' },
+      mediaCoordination: 'not-verified',
+      independentHost: 'not-run',
+    };
+    const warnings = ['Independent-host compatibility not measured.'];
+    let report: object = { profile: 'test', browser: 'test', coverage, warnings };
+    const tools = new HostedTools(
+      {
+        run: async () => ({
+          output: '',
+          files: {
+            '.studio-result/result.json': Buffer.from(JSON.stringify(report)).toString('base64'),
+          },
+        }),
+      },
+      new Connections(root),
+    );
+    const check = tools.adapters(new AbortController().signal).publicationCheck!;
+    expect(await check(new Map())).toMatchObject({ coverage, warnings });
+    report = { profile: 'old', browser: 'old' };
+    expect((await check(new Map())).coverage).toBeUndefined();
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('hosted agent/build adapters import only permitted files and never pass reusable keys to the job', async () => {
   const root = await mkdtemp(join(tmpdir(), 'studio-runner-'));
   try {

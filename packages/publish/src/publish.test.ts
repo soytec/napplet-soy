@@ -221,6 +221,35 @@ test('large valid publication journals round-trip without exceeding the bounded 
   }
 });
 
+test('publication journals retain check coverage and warnings across resume', async () => {
+  const f = await fixture();
+  try {
+    const check = {
+      profile: 'test',
+      browser: 'test',
+      coverage: {
+        startup: 'passed' as const,
+        interaction: { status: 'not-run' as const, actions: 0 },
+        mediaCoordination: 'not-verified' as const,
+        independentHost: 'not-run' as const,
+      },
+      warnings: ['Interaction not measured.'],
+    };
+    await publishProject({ ...f.options, check: async () => check });
+    expect((await f.load()).check).toEqual(check);
+    await publishProject({
+      ...f.options,
+      resume: true,
+      check: async () => {
+        throw new Error('Must reuse frozen evidence');
+      },
+    });
+    expect((await f.load()).check).toEqual(check);
+  } finally {
+    await f.close();
+  }
+});
+
 test('explicit additive source selections share the 1024-file bound', async () => {
   const f = await fixture();
   try {
