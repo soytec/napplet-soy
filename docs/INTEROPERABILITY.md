@@ -1,5 +1,13 @@
 # Cross-client and standalone release checks
 
+The [2026-10-27 compliance audit](NIP5D-COMPLIANCE-AUDIT-2026-10-27.md) adds live
+Paja evidence and an inventory of retained public releases. Funclet's reproduced
+radio failure is an unsupported MEDIA owner mode; Naped Snowboarding's Ride
+interaction starts in Paja. Neither observation qualifies all features. The
+existing legacy-wrapper acceptance below does not establish portability of every
+current standalone publication. Broader current-manifest and interaction checks
+remain pending.
+
 ## Forkless proposals and acceptance
 
 2026-10-12 local source qualification uses native GRASP 3.0.2 at
