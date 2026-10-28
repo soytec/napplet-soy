@@ -1,6 +1,6 @@
 # NAP concepts and expansion review
 
-## Compliance corrections — 2026-10-27 source, not deployed
+## Compliance corrections — deployed and released 2026-10-28
 
 The selected NIP-5D authority remains `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d51`.
 The SHELL clarification at `25b29ee49e5bff8ebfe031f4b76dce98705c8b7e` confirms
@@ -18,8 +18,10 @@ The newer MEDIA revision `7806f43` is a comparison, not an adopted contract.
 Runtime profile `space-playback-7` identifies these corrections. The intentional
 Nostr source amendment and `soy.app-data/1` convention remain unchanged. See the
 [dated audit](NIP5D-COMPLIANCE-AUDIT-2026-10-27.md), [media policy](MEDIA.md) and
-[check coverage](PUBLISHING.md#source-and-sandbox-checks). Local regression success
-does not qualify every published napplet or another host's implementation.
+[check coverage](PUBLISHING.md#source-and-sandbox-checks). The compatible host is
+deployed and soyLI 0.31.4 is released; see the
+[rollout evidence](DEPLOYMENT.md). Regression success does not qualify every
+published napplet or another host's implementation.
 
 ## OUTBOX integration — released 0.29.0
 

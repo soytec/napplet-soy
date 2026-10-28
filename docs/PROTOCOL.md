@@ -7,12 +7,17 @@ intentional metadata extensions, a SHELL readiness dependency, media coordinatio
 gaps and the limits of startup-only checks. Its per-event inventory separates
 baseline differences, documented conventions and runtime review leads. Nostr
 source references are covered by our proposed source/media amendment; neither
-they nor `soy.app-data/1` usage alone are defect marks. The first remediation batch is implemented locally: domains no longer depend on
-SHELL readiness, the shared host supports napplet-owned NAP-MEDIA sessions, and
-soyLI reports startup, configured interactions and unmeasured coverage separately.
-See the audit’s remediation record and [media contract](MEDIA.md). Independent Paja acceptance and eight owner-scoped source repairs are verified
-locally; deployment and author-signed replacement releases remain outstanding.
-The historical rollout records below are not a claim of complete conformance. The selected NIP-5D pin is unchanged.
+they nor `soy.app-data/1` usage alone are defect marks. The first remediation batch
+is deployed and released in soyLI 0.31.4: domains no
+longer depend on SHELL readiness, the shared host supports napplet-owned NAP-MEDIA
+sessions, and soyLI reports startup, configured interactions and unmeasured
+coverage separately. See the [rollout evidence](DEPLOYMENT.md), audit's remediation
+record and [media contract](MEDIA.md). Independent Paja acceptance and eight
+owner-scoped source repairs are verified. Author-signed replacement publications
+are recorded separately in the [repair evidence](audits/2026-10-28/repairs/README.md);
+earthly.city's Obsidian Breaker and Truffle Rush are deferred to a dedicated session.
+The historical rollout records below are not a claim of complete conformance.
+The selected NIP-5D pin is unchanged.
 
 ## Shell wallet — local implementation, not deployed
 

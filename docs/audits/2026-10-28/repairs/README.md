@@ -1,12 +1,38 @@
 # Owner-scoped source repairs — 2026-10-28
 
-These are **local corrections, not published replacements**. Repair scope is the
-operator's napplets: six local Git projects and two earlier Studio publications.
-Third-party projects are not modified. The original signed events, authors, source
-references and historical audit results remain unchanged. [repairs.json](repairs.json)
-records the exact published inputs, repair commits, patch hashes and tested HTML
-hashes. Manifests, dependencies, licenses, intentional `nostr://` source metadata
-and `soy.app-data/1` are preserved.
+Six repaired napplets were **republished and verified on 2026-10-28**, under their
+original authors and stable identifiers, after the compatible shell and Studio
+worker were deployed. [publications.json](publications.json) records old/new event
+IDs, release commits, executable hashes, verified source archives and live links.
+Funclet, Napplet Machines V8, GRAV / RIFT, Rail Game, Soybert 3D and Outbreak all have
+matching signed relay events and website-ready receipts. Downloaded HTML, source
+archives and media match their advertised SHA-256 hashes.
+
+**Obsidian Breaker and Truffle Rush remain unpublished repair candidates**, deferred
+by the user for a dedicated earthly.city session. Their exact-source patches are
+preserved. No third-party project was modified.
+
+The original signed events and historical audit results remain unchanged.
+[repairs.json](repairs.json) records the original published inputs, repair commits,
+patch hashes and tested HTML hashes; the separate publication ledger records the
+subsequent source commits, including five freshly recorded clips. Machines retains
+its screenshot-only presentation. Dependencies, licenses, intentional `nostr://`
+source metadata and `soy.app-data/1` are preserved.
+
+Funclet's local publication journal predated its merged Studio release. The guard
+correctly refused a stale update; the exact current Studio journal was restored
+locally with a backup of the old index, then the normal frozen-byte and ancestry
+checks passed. The published merge remains an ancestor. Existing Studio drafts
+were not overwritten. Outbreak's newer local branch and Soybert's unrelated
+artwork edit were preserved; isolated release worktrees supplied their repairs.
+
+Catalog verification initially lagged the relay acknowledgements. Normal targeted
+discovery jobs verified the six releases through the existing worker; no signature,
+artifact or deletion check was bypassed. Optional relay/outbox copies still include
+policy refusals and connectivity failures; required primary publications and the
+website are confirmed. A live Rail Game smoke test starts gameplay and exposes a
+napplet-owned MEDIA session whose host Pause control changes to Play, with no
+browser errors. This complements, but does not expand, the bounded acceptance below.
 
 | Project                | Source preparation                                                   | Repair                                                                                                     |
 | ---------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -96,5 +122,6 @@ Verified scope and limits:
 
 The remaining interoperability question is MEDIA owner/source discovery and focus
 policy for effects alongside primary playback. It does not justify direct iframe
-networking or looser CSP. Nix package/VM validation is still required before
-pushing the soyLI changes; Nix is unavailable on the current machine.
+networking or looser CSP. The exact candidate passed Linux Nix package/rebuild/VM
+CI before merge; local Nix was unavailable. The [0.31.4 release checks](../../../CLI-RELEASES.md)
+and [production rollout](../../../DEPLOYMENT.md) are recorded separately.

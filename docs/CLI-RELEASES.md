@@ -1,11 +1,11 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The current published version is **0.31.3**. The repository has transferred to
+The current published version is **0.31.4**. The repository has transferred to
 [`soytec/napplet-soy`](https://github.com/soytec/napplet-soy), including its history,
 issues, pull requests and releases.
 
-**0.31.4 — compliance corrections (release candidate)**
+**0.31.4 — compliance corrections**
 
 The shared sandbox accepts domain calls before SHELL readiness and coordinates
 napplet-owned audio using the pinned NAP-MEDIA wire contract. New creator projects
@@ -16,8 +16,22 @@ certification. Source metadata and `soy.app-data/1` conventions are preserved.
 
 Independent Paja acceptance covers current signed manifests and eight repaired
 owner-controlled artifacts. See the [repair evidence](audits/2026-10-28/repairs/README.md).
-Deploy the compatible shared shell before publishing this CLI release. Release,
-Linux/Nix checks and production verification are pending for this candidate.
+Published **2026-10-28 (Europe/Vienna)** from
+`0ed9f119059b37c7c05477b2a810186e3c4344da`, the squash merge of
+[PR #43](https://github.com/soytec/napplet-soy/pull/43), after deploying the compatible
+shell and Studio worker. [Release](https://github.com/soytec/napplet-soy/releases/tag/soyli-v0.31.4),
+[four-platform release CI](https://github.com/soytec/napplet-soy/actions/runs/40655065789),
+[exact-candidate Nix package/VM CI](https://github.com/soytec/napplet-soy/actions/runs/40651317703)
+and [Studio integration CI](https://github.com/soytec/napplet-soy/actions/runs/40651317648)
+passed. The merged tree matches the tested candidate `6682423`.
+
+All 11 public assets match their checksums and GitHub digests; the release manifest
+and installer match the tag. An isolated macOS ARM64 fresh install passed `doctor`
+and `update`; a real **0.31.3 → 0.31.4** upgrade preserved account/project markers
+and the legacy command. The website installer was switched only after these checks
+and matches the public release asset byte for byte. Native and worker builds embed
+the coordinated-audio helper as text; a compiled-CLI regression checks its emitted
+bytes. See the [deployment record](DEPLOYMENT.md).
 
 **0.31.3 — reviewed media reuse and capture reliability**
 

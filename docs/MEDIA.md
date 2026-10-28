@@ -17,8 +17,8 @@ spellings; no second invented wire alias is exposed. No NIP-5D kind, manifest id
 iframe sandbox or creator SDK change is needed.
 
 The host advertises `media` and accepts **shell-owned audio** sessions. The
-2026-10-27 source also accepts **napplet-owned sessions** (not yet deployed or
-released in soyLI); the selected wire contract is unchanged. Use
+shared host also accepts **napplet-owned sessions**, deployed and released in
+soyLI 0.31.4 on 2026-10-28; the selected wire contract is unchanged. Use
 `media.createSession({ owner: 'shell', source: { url }, metadata, live, autoplay })`;
 `source.url` must be public HTTPS. The native audio element loads that original
 URL directly; actual MIME/codec support is determined by the browser. Subscribe to state and capability
@@ -65,7 +65,7 @@ still tears it down. Browser background throttling/activation rules still apply.
 same iframe and audio session. A release/profile change causes discovery to retry
 previously unsupported media creations (`space-playback-2`).
 
-## Napplet-owned sound — 2026-10-27 source
+## Napplet-owned sound — deployed 2026-10-28
 
 Games using Web Audio or embedded audio create a session with `owner: 'napplet'`,
 optional metadata and the actions they implement, for example `capabilities:

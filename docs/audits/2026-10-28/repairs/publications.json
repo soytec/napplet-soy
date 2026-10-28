@@ -1,0 +1,143 @@
+{
+  "date": "2026-10-28",
+  "shellRelease": "20261028073825802-68374",
+  "soyliRelease": "0.31.4",
+  "scope": "Six original-author replacement releases. Historical audit inventory and third-party publications are unchanged.",
+  "verificationLimits": "Bounded startup, configured-input and independent Paja tests; not full NAP or gameplay certification. Optional relay copies can fail independently of confirmed primary publication.",
+  "published": [
+    {
+      "title": "Funclet",
+      "pubkey": "3aa5817273c3b2f94f491840e0472f049d0f10009e23de63006166bca9b36ea3",
+      "identifier": "n-6b7a37cac1d",
+      "previousEventId": "0b497cfc2f66c55144f6420c1363b63316e02981c828ffe75473d43e66675778",
+      "eventId": "fea4f4287961f3c5ce48905de3fec837a96f1ca109ae3c7c18852816e3306fe3",
+      "previousSourceCommit": "1e531b24f4905e2df9a788a3b0b53129322abf9c",
+      "sourceCommit": "4871c32e0e6e832e154d2a2d5abc0ff892d93323",
+      "artifactHash": "c143b6780c3e7e5a2628a2cb7ae7837362473d2e29f2e4de0619b4f1f5788ffb",
+      "sourceArchive": "https://blossom.napplet.soy/8b936703385cc8ee438dff078c95437cce228f616694016ac4fcb838d1ece4f3",
+      "url": "https://napplet.soy/n/naddr1qvzqqqyf8ypzqw49s9e88sajl985jxzquprj7pyapugqp83rme3sqctxhj5mxm4rqyv8wumn8ghj7un9d3shjtnwv9c8qmr9wsh8xmme9uq3wamnwvaz7tmjv4kxz7fwwpexjmtpdshxuet59uq3wamnwvaz7tmjv4kxz7fwdehhxtnnda3kjctv9uq3vamnwvaz7tmjv4kxz7fwdehhxarj9ehx2ap0qy2hwumn8ghj7mn0wd68ytn00p68ytnyv4mz7qgawaehxw309ahx7um5wgknqvfw09skk6tgdahxuefwvdhk6tcpremhxue69uhhyetvv9ujumn0wd68ytnhd9ex2erwv46zu6ns9uqq6m3dxe3rwcfnxa3kzce3vs9fun7e",
+      "pinnedUrl": "https://napplet.soy/r/fea4f4287961f3c5ce48905de3fec837a96f1ca109ae3c7c18852816e3306fe3",
+      "verification": {
+        "signature": "pass",
+        "htmlSha256": "pass",
+        "sourceArchiveSha256": "pass",
+        "mediaSha256": "pass",
+        "website": "ready"
+      }
+    },
+    {
+      "title": "Napplet Machines V8",
+      "pubkey": "3aa5817273c3b2f94f491840e0472f049d0f10009e23de63006166bca9b36ea3",
+      "identifier": "n-b5572362d4a",
+      "previousEventId": "a48ffab2ae1e79bfcb87a68cee792d346c954196a9987f32f4da7b164b7ebf61",
+      "eventId": "0bce27aa208d98f75f2d289fdbdce93e291c37300d29aa20502ce2ddf3c8c3ff",
+      "previousSourceCommit": "2a817e4d389e85fbf630112fd32177bd895ce60d",
+      "sourceCommit": "1d539a5462645fd933884e97e21fc4cd475e7a92",
+      "artifactHash": "434eecd409c2b38f5ecb4266db50ced44c1b42c493117ce043e98ac09e2ba722",
+      "sourceArchive": "https://blossom.napplet.soy/269dc5ff2b343f20c53c6837afd8f926a78645c1a3baff6db5079a3932f79f1e",
+      "url": "https://napplet.soy/n/naddr1qvzqqqyf8ypzqw49s9e88sajl985jxzquprj7pyapugqp83rme3sqctxhj5mxm4rqyv8wumn8ghj7un9d3shjtnwv9c8qmr9wsh8xmme9uqsuamnwvaz7tmwdaejumr0dshsz9mhwden5te0wfjkccte9ec8y6tdv9kzumn9wshszyrhwden5te0dehhxarj9ekk7mf0qyd8wumn8ghj7un9d3shjtnsda3kket5wd68ytnrdakj7qqddckkydf4xuerxd3jvs6xzw0cahs",
+      "pinnedUrl": "https://napplet.soy/r/0bce27aa208d98f75f2d289fdbdce93e291c37300d29aa20502ce2ddf3c8c3ff",
+      "verification": {
+        "signature": "pass",
+        "htmlSha256": "pass",
+        "sourceArchiveSha256": "pass",
+        "mediaSha256": "pass",
+        "website": "ready"
+      }
+    },
+    {
+      "title": "GRAV / RIFT",
+      "pubkey": "3aa5817273c3b2f94f491840e0472f049d0f10009e23de63006166bca9b36ea3",
+      "identifier": "n-8a7361981e8",
+      "previousEventId": "2d708dc1528144b490b5530b4e27a238ced1cd1cf95ee89f483ff51e955f7c07",
+      "eventId": "288aa261ce076ca77a143c69e3d23f7d76d353623ae2c8ca57e856954a034abc",
+      "previousSourceCommit": "e050bd098fefc66986002e9803a49a70582d09c9",
+      "sourceCommit": "c549b5a4e17e68a1f461f6b18a3b6c7848a0b0ea",
+      "artifactHash": "79e587a10fa1dd1f6fe409d2c860d0b2eb083b748b4bec49e65c975a1da81f0d",
+      "sourceArchive": "https://blossom.napplet.soy/e52a01aff70810b3bc645e071d6188d733ffff28f1ebccf8187c99b4b26e3834",
+      "url": "https://napplet.soy/n/naddr1qvzqqqyf8ypzqw49s9e88sajl985jxzquprj7pyapugqp83rme3sqctxhj5mxm4rqyv8wumn8ghj7un9d3shjtnwv9c8qmr9wsh8xmme9uqsuamnwvaz7tmwdaejumr0dshsz9mhwden5te0wfjkccte9ec8y6tdv9kzumn9wshszyrhwden5te0dehhxarj9ekk7mf0qyd8wumn8ghj7un9d3shjtnsda3kket5wd68ytnrdakj7qqddcknscfhxvmrzwfcx9jns0kgjms",
+      "pinnedUrl": "https://napplet.soy/r/288aa261ce076ca77a143c69e3d23f7d76d353623ae2c8ca57e856954a034abc",
+      "verification": {
+        "signature": "pass",
+        "htmlSha256": "pass",
+        "sourceArchiveSha256": "pass",
+        "mediaSha256": "pass",
+        "website": "ready"
+      }
+    },
+    {
+      "title": "Rail Game",
+      "pubkey": "99d1d395c7be96c77766e4124164ce3a2443d486e146644f762d29832f7faf25",
+      "identifier": "n-91ec90c6fdf",
+      "previousEventId": "ccdd5b913413a364713e5d0e2293857edc8ea630ecd5b11ac0bb92b890fade8e",
+      "eventId": "68ae2f0149034ffbcb5db370f4e0f74093405288a2f66048678a314e0e414b3a",
+      "previousSourceCommit": "ddf0122b6acc85bff9ea2a6a7e446f06744e5438",
+      "sourceCommit": "bd5a281ba5d3b5225274fb3397a9b092c35dedaa",
+      "artifactHash": "9453132ff164db54cc73c3341731fc681ad32e9ca6a0768a1ceb49313c969bc9",
+      "sourceArchive": "https://blossom.napplet.soy/91dbed0695b968d766fe9250ff6113473f66818ce30c579e0afe11f0ced6b03c",
+      "url": "https://napplet.soy/n/naddr1qvzqqqyf8ypzpxw36w2u005kcamkdeqjg9jvuw3yg02gdc2xv38hvtffsvhhlte9qyv8wumn8ghj7un9d3shjtnwv9c8qmr9wsh8xmme9uqsuamnwvaz7tmwdaejumr0dshsz9mhwden5te0wfjkccte9ec8y6tdv9kzumn9wshszyrhwden5te0dehhxarj9ekk7mf0qyd8wumn8ghj7un9d3shjtnsda3kket5wd68ytnrdakj7qqddcknjvt9vvunqcekvejxvxpjaph",
+      "pinnedUrl": "https://napplet.soy/r/68ae2f0149034ffbcb5db370f4e0f74093405288a2f66048678a314e0e414b3a",
+      "verification": {
+        "signature": "pass",
+        "htmlSha256": "pass",
+        "sourceArchiveSha256": "pass",
+        "mediaSha256": "pass",
+        "website": "ready"
+      }
+    },
+    {
+      "title": "Soybert 3D",
+      "pubkey": "99d1d395c7be96c77766e4124164ce3a2443d486e146644f762d29832f7faf25",
+      "identifier": "n-9021e1b6a96",
+      "previousEventId": "4bf80e758af17a4100681b92acabb81d6ed7c564ccec3952749280bdb51f5815",
+      "eventId": "23b6785d0ac6e3204c61d682a6f111765c20688902282a251cacf5f8b43d0828",
+      "previousSourceCommit": "298fa2d0e8b1c3e7b9788dc25ab64b3408e0f69f",
+      "sourceCommit": "4b065931154c868e890be06a097dee604ed2d344",
+      "artifactHash": "3f7817dd73df63d4f88855a60cbecebef24b6b0b697d3b4ee35c4dd6c65fd8b8",
+      "sourceArchive": "https://blossom.napplet.soy/af90956bb91e7a260c6816175515616e6c00d34ff552ac255ce011d359afa24a",
+      "url": "https://napplet.soy/n/naddr1qvzqqqyf8ypzpxw36w2u005kcamkdeqjg9jvuw3yg02gdc2xv38hvtffsvhhlte9qyv8wumn8ghj7un9d3shjtnwv9c8qmr9wsh8xmme9uq32amnwvaz7tmjv4kxz7fwv3sk6atn9e5k7tcppemhxue69uhkummn9ekx7mp0qythwumn8ghj7un9d3shjtnswf5k6ctv9ehx2ap0qyg8wumn8ghj7mn0wd68ytnddakj7qg6waehxw309aex2mrp0yh8qmmrddjhgum5wghxxmmd9uqq6m3d8ycryvt9x93rvcfexc8ucmx3",
+      "pinnedUrl": "https://napplet.soy/r/23b6785d0ac6e3204c61d682a6f111765c20688902282a251cacf5f8b43d0828",
+      "verification": {
+        "signature": "pass",
+        "htmlSha256": "pass",
+        "sourceArchiveSha256": "pass",
+        "mediaSha256": "pass",
+        "website": "ready"
+      }
+    },
+    {
+      "title": "Outbreak: Soycoon City",
+      "pubkey": "3aa5817273c3b2f94f491840e0472f049d0f10009e23de63006166bca9b36ea3",
+      "identifier": "n-b87c04571a9",
+      "previousEventId": "db7750b1d009b54ee7fb54a453bb80c7f49fa6f4a8f1bb66a557a9463df12ea7",
+      "eventId": "cacd70626c3c4a3b66b24ef55fcdf3013abbbe92c1240e56bdb33e523e066f24",
+      "previousSourceCommit": "3ee3f5fd27a64be365ce8704030fb7c4cf63ab1b",
+      "sourceCommit": "4962ba7c1061bd86a2ac36bd102d65cfc33147a5",
+      "artifactHash": "9d98f9a6771cf6f172909253cd19a4f71977e16062f7925645c4185521723016",
+      "sourceArchive": "https://blossom.napplet.soy/eddc3880e36cfcb2abd90eaa1bf0a5ae9018aa78ea0b35cc026c97658bbe78e6",
+      "url": "https://napplet.soy/n/naddr1qvzqqqyf8ypzqw49s9e88sajl985jxzquprj7pyapugqp83rme3sqctxhj5mxm4rqyv8wumn8ghj7un9d3shjtnwv9c8qmr9wsh8xmme9uqsuamnwvaz7tmwdaejumr0dshsz9mhwden5te0wfjkccte9ec8y6tdv9kzumn9wshszyrhwden5te0dehhxarj9ekk7mf0qyd8wumn8ghj7un9d3shjtnsda3kket5wd68ytnrdakj7qqddckkywphvvcrgdfhx9snjr7zpgh",
+      "pinnedUrl": "https://napplet.soy/r/cacd70626c3c4a3b66b24ef55fcdf3013abbbe92c1240e56bdb33e523e066f24",
+      "verification": {
+        "signature": "pass",
+        "htmlSha256": "pass",
+        "sourceArchiveSha256": "pass",
+        "mediaSha256": "pass",
+        "website": "ready"
+      }
+    }
+  ],
+  "deferred": [
+    {
+      "title": "Obsidian Breaker",
+      "pubkey": "6ef777a78b2405fad6b4db2a619116441123b03cf148688084280db15439dac4",
+      "identifier": "n-de5dc6a02e7",
+      "reason": "earthly.city releases deferred by the author for a dedicated session; repair patch retained"
+    },
+    {
+      "title": "Truffle Rush",
+      "pubkey": "6ef777a78b2405fad6b4db2a619116441123b03cf148688084280db15439dac4",
+      "identifier": "n-dad0644224b",
+      "reason": "earthly.city releases deferred by the author for a dedicated session; repair patch retained"
+    }
+  ]
+}

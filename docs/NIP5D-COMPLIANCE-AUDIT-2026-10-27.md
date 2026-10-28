@@ -1,8 +1,12 @@
 # NIP-5D compliance audit — 2026-10-27
 
-Status: **audit performed; first remediation batch implemented locally, not deployed**.
-The findings and release inventory below describe the repository at `730c4b79fb9ab6d8b555c4afe1d9a679d712bca6`. No public event, listing,
-moderation decision, creator source or production configuration was changed.
+Status: **audit performed; first remediation batch deployed and released as soyLI
+0.31.4 on 2026-10-28**. The findings and historical release inventory below describe
+the repository at `730c4b79fb9ab6d8b555c4afe1d9a679d712bca6`. The initial audit changed
+no public event, listing, moderation decision, creator source or production configuration.
+The subsequent [deployment](DEPLOYMENT.md) and [owner-scoped replacement releases](audits/2026-10-28/repairs/README.md)
+are separate evidence; historical event verdicts are not relabeled as repaired.
+Obsidian Breaker and Truffle Rush remain deferred for their earthly.city author.
 
 The complaints expose real weaknesses, but implementation defects, intentional
 extensions, application conventions and host capability differences require
@@ -309,7 +313,8 @@ egress-policy testing. No claim of complete NIP-5D certification is made.
 
 ## First remediation batch — 2026-10-27
 
-Implemented on `fix/strenghen-5d-compliance`, not deployed or released:
+Implemented on `fix/strenghen-5d-compliance`; the following records the initial
+local batch before the 2026-10-28 rollout:
 
 - **C02:** Requests and identity/theme notifications no longer require SHELL init;
   `shell.supports` observes installed namespaces immediately. Frame/origin checks,
@@ -369,8 +374,25 @@ packaging, with lifecycle and packaging regressions. Local projects' stale audio
 guidance is corrected as part of each repair.
 
 [Repair bundle and per-candidate hashes](audits/2026-10-28/repairs/README.md).
-These are **prepared local corrections**, not replacement publications. Historical
-inventory marks remain immutable. Author review/publication, remaining inventory
-interaction qualification, MEDIA capability/focus discovery and host media egress
-policy remain separate work. Nix is unavailable on this machine; its package/VM
-gate remains required before push/release. Nothing was pushed or deployed.
+At this stage these were **prepared local corrections**, not replacement publications.
+Historical inventory marks remain immutable. The subsequent rollout is recorded
+below. Remaining inventory interaction qualification, MEDIA capability/focus
+discovery and host media egress policy remain separate work.
+
+## Deployment and release — 2026-10-28
+
+[PR #43](https://github.com/soytec/napplet-soy/pull/43) merged as `0ed9f119`, with the
+same tree as tested candidate `6682423`. The shared shell and additive Studio worker
+are deployed in release `20261028073825802-68374`. [soyLI 0.31.4](CLI-RELEASES.md)
+was released afterwards, with four native builds and all 11 public assets verified.
+Fresh installation and a real 0.31.3 upgrade passed. Linux Nix package/rebuild/VM
+and Studio integration CI passed on the exact candidate, resolving the local Nix
+availability limitation. Source checks passed 924 tests; the independent Paja suite
+passed 28 browser cases. See [deployment verification and rollback details](DEPLOYMENT.md).
+
+Author-signed replacement results are recorded separately in the
+[repair evidence](audits/2026-10-28/repairs/README.md). The original 89-event inventory,
+72 HTML hashes and 39 source archives remain the historical audit evidence.
+The earthly.city repairs are preserved but explicitly deferred. No third-party
+napplet was modified. These corrections do not certify every NAP, gameplay path
+or independent host.

@@ -3,9 +3,49 @@
 Deployment is operator-run. Routine changes are verified and committed locally;
 do not deploy or upload releases unless the user explicitly requests deployment.
 
-Updated 2026-10-25. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
+Updated 2026-10-28. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-### Most recent application deployment — Contribution graph, 2026-10-25
+### Most recent application deployment — NIP-5D compliance corrections, 2026-10-28
+
+Website release **`20261028073825802-68374`** runs the tested tree `6682423`,
+identical to merged source `0ed9f119059b37c7c05477b2a810186e3c4344da`
+([PR #43](https://github.com/soytec/napplet-soy/pull/43)). The compatible shared
+shell and Studio worker were deployed before releasing [soyLI 0.31.4](CLI-RELEASES.md).
+Domain calls no longer depend on SHELL readiness; napplet-owned MEDIA sessions and
+explicit check-coverage reporting are shared by hosted and local previews.
+No iframe network permission, protocol pin or publisher-specific exception was added.
+
+The additive worker image is
+`sha256:f05391c3277f190ae85a78e38060fb56d18f17381b611abf1ef26bd0ca86cd31`.
+It preserves the legacy CPU runtime and both installed dependency profiles.
+Disposable VPS tests covered server and browser-build agent paths, tool repair,
+truncated turns, timeout/crash recovery, cancellation, subsequent reuse, thread
+pressure and desktop/portrait capture. No paid inference or public test events
+were used for worker acceptance.
+
+Local source checks passed **924 tests / 7,268 assertions**; the VPS passed
+**924 tests / 7,270 assertions**, five relay, 18 Blossom, nine GRASP and three
+backend isolation checks, followed by the production build. Exact-candidate Nix
+package, forced-rebuild and Linux VM checks passed in CI; local Nix was unavailable.
+Independent Paja acceptance passed 28 browser cases; its scope and remaining
+capability differences are recorded in the [repair evidence](audits/2026-10-28/repairs/README.md).
+
+The first activation rolled back after the private rollout helper replaced the
+Studio configuration without preserving the service user's read permission.
+Service access was restored. The corrected retry verified all 1,057 archived source
+files, preserved `root:napplet-studio` / `0640`, and checked service readability before
+activation. It reused the already successful build/check results; no failed test
+was bypassed. All 11 existing drafts, workspace Git state and bindings were preserved,
+as were unrelated private configuration and Studio egress rules.
+
+Public HTTPS routes, five PM2 services, Studio, CVM, TURN and Caddy passed post-deploy
+checks. The served 0.31.4 installer matches the verified release asset. External relay
+failures remain visible in catalog health; healthy-relay delivery is verified separately.
+Previous application release `20261025092259843-68824` and worker image `6000d26b…`
+remain available for rollback. Physical devices, reboot recovery and long-term uptime
+are outside this rollout's evidence.
+
+### Previous application deployment — Contribution graph, 2026-10-25
 
 Website release **`20261025092259843-68824`** runs source
 `6b16f33604f499954d569a82180c15345103da6f`, the squash merge of
