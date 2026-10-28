@@ -112,7 +112,7 @@ test('missing/unsupported sources, owner modes and excessive sessions return cor
   try {
     for (const override of [
       { owner: undefined },
-      { owner: 'napplet' },
+      { owner: 'invalid' },
       { source: undefined },
       { source: { url: 'http://audio.example' } },
       { metadata: { mediaType: 'video' } },
@@ -123,6 +123,90 @@ test('missing/unsupported sources, owner modes and excessive sessions return cor
     expect((await f.create()).error).toBe('session limit exceeded');
   } finally {
     f.host.close();
+  }
+});
+
+test('napplet-owned sessions report state and capabilities without granting source fetch authority', async () => {
+  const f = fixture();
+  try {
+    const result = await f.create({
+      owner: 'napplet',
+      source: { url: 'http://127.0.0.1/private' },
+      metadata: { title: 'Game sounds' },
+      capabilities: ['pause', 'play', 'volume'],
+    });
+    expect(result.owner).toBe('napplet');
+    expect(result.sessionId).toBeString();
+    const id = result.sessionId;
+    await Bun.sleep(5);
+    expect(f.players).toEqual([]);
+    expect(f.requests).toEqual([]);
+    expect(f.messages.find((m) => m.type === 'media.controls')?.controls).toEqual([
+      'play',
+      'pause',
+      'volume',
+    ]);
+    f.host.handle({ type: 'media.state', sessionId: id, status: 'playing', volume: 0.6 });
+    expect(f.host.getSnapshot()[0]).toMatchObject({ status: 'playing', volume: 0.6 });
+    const count = f.messages.length;
+    f.host.handle({ type: 'media.command', sessionId: id, action: 'pause' });
+    expect(f.messages).toHaveLength(count); // A napplet cannot impersonate its controller.
+    f.host.command(id, 'volume', 2);
+    f.host.command(id, 'stop'); // Not advertised.
+    expect(f.messages).toHaveLength(count);
+    f.host.command(id, 'pause');
+    expect(f.messages.at(-1)).toEqual({ type: 'media.command', sessionId: id, action: 'pause' });
+    expect(f.host.getSnapshot()[0].status).toBe('playing'); // Wait for owner acknowledgement.
+    f.host.handle({ type: 'media.state', sessionId: id, status: 'paused', volume: 2 });
+    expect(f.host.getSnapshot()[0].status).toBe('playing');
+    f.host.handle({ type: 'media.state', sessionId: id, status: 'paused', volume: 0.6 });
+    f.host.handle({ type: 'media.capabilities', sessionId: id, actions: ['play'] });
+    expect(f.host.getSnapshot()[0]).toMatchObject({ status: 'paused', actions: ['play'] });
+    expect(f.messages.at(-1)).toEqual({
+      type: 'media.controls',
+      sessionId: id,
+      controls: ['play'],
+    });
+    f.host.handle({ type: 'media.session.destroy', sessionId: id });
+    const afterDestroy = f.messages.length;
+    f.host.handle({ type: 'media.state', sessionId: id, status: 'playing' });
+    f.host.command(id, 'play');
+    expect(f.host.getSnapshot()).toEqual([]);
+    expect(f.messages).toHaveLength(afterDestroy);
+  } finally {
+    f.host.close();
+  }
+});
+
+test('audio focus crosses frame and owner boundaries; closing requests stop before retiring the endpoint', async () => {
+  const first = fixture(),
+    second = fixture();
+  try {
+    const a = (
+      await first.create({
+        owner: 'napplet',
+        source: undefined,
+        capabilities: ['play', 'pause', 'stop'],
+      })
+    ).sessionId;
+    const b = (await second.create()).sessionId;
+    expect(a).toBeString();
+    first.host.handle({ type: 'media.state', sessionId: a, status: 'playing' });
+    second.host.command(b, 'play');
+    expect(first.messages.at(-1)).toEqual({ type: 'media.command', sessionId: a, action: 'pause' });
+    first.host.handle({ type: 'media.state', sessionId: a, status: 'paused' });
+    first.host.handle({ type: 'media.state', sessionId: a, status: 'playing' });
+    expect(second.players[0].paused).toBe(true);
+    first.host.close();
+    expect(first.messages.at(-1)).toEqual({ type: 'media.command', sessionId: a, action: 'stop' });
+    const count = first.messages.length;
+    first.host.handle({ type: 'media.state', sessionId: a, status: 'playing' });
+    first.host.close();
+    expect(first.messages).toHaveLength(count);
+    expect(first.host.getSnapshot()).toEqual([]);
+  } finally {
+    first.host.close();
+    second.host.close();
   }
 });
 test('browser gesture denial is recoverable, focus pauses other sessions and stale gestures do nothing', async () => {

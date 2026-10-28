@@ -939,12 +939,12 @@ export class Studio {
           const checked = this.options.publicationCheck
             ? await this.options.publicationCheck(input, signal)
             : await checkPublication(input, false, undefined, false, signal);
-          result = `Merged runtime checked with ${checked.profile}. Listing media is checked separately when publishing.`;
+          result = `Merged runtime checked with ${checked.profile}. Listing media is checked separately when publishing.\n${checked.warnings?.join('\n') ?? 'Interaction and independent-host compatibility not measured by this check.'}`;
         } else result = await this.command(p, [...this.options.soyli, ...args], signal, name);
         check.state = 'passed';
         const skipped = result
           .split('\n')
-          .filter((line) => /skip|not measured/i.test(line))
+          .filter((line) => /skip|not measured|not verified|not-run|coverage|warnings/i.test(line))
           .map((line) => redactDiagnostic(line))
           .slice(-12)
           .join('\n');
@@ -1030,8 +1030,8 @@ export class Studio {
       browserHtml !== undefined
         ? 'Your browser compiled and type-checked this preview. Full soyLI, guidance and conformance checks have not run; Publish runs them before release review. Try the controls and report any problems.'
         : p.budgetReached
-          ? 'Studio’s independent build, sandbox and conformance commands passed; skipped cases are listed below. The agent reached its step limit, so some requested work may remain. Play the preview and send a follow-up to continue. No additional inference starts automatically.'
-          : 'Studio’s independent build, sandbox and conformance commands passed; skipped cases are listed below. Your preview is ready to play. Media capture and publication are separate steps in Publish.',
+          ? 'Build and configured checks passed; skipped and unmeasured cases are listed below. Gameplay, audio coordination and compatibility with other shells still need review. The agent reached its step limit, so some requested work may remain. Play the preview and send a follow-up to continue. No additional inference starts automatically.'
+          : 'Build and configured checks passed; skipped and unmeasured cases are listed below. Your preview is ready to try. Check gameplay and sound; compatibility with other shells still needs review. Media capture and publication are separate steps in Publish.',
     );
     if (p.timeLimitReached)
       this.message(

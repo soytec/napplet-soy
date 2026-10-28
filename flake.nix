@@ -73,6 +73,7 @@
             ./docs/DYNAMIC-BACKENDS-CREATOR.md
             ./docs/SHARED-DATA.md
             ./docs/OUTBOX.md
+            ./docs/examples/coordinated-audio.ts
           ]
         );
       };

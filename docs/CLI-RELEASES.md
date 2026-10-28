@@ -5,6 +5,20 @@ The current published version is **0.31.3**. The repository has transferred to
 [`soytec/napplet-soy`](https://github.com/soytec/napplet-soy), including its history,
 issues, pull requests and releases.
 
+**0.31.4 — compliance corrections (release candidate)**
+
+The shared sandbox accepts domain calls before SHELL readiness and coordinates
+napplet-owned audio using the pinned NAP-MEDIA wire contract. New creator projects
+include a coordinated Web Audio example with silent absent/denied-MEDIA fallback.
+Checks exercise configured recording inputs and report skipped or unmeasured
+coverage explicitly; startup success alone is not gameplay or interoperability
+certification. Source metadata and `soy.app-data/1` conventions are preserved.
+
+Independent Paja acceptance covers current signed manifests and eight repaired
+owner-controlled artifacts. See the [repair evidence](audits/2026-10-28/repairs/README.md).
+Deploy the compatible shared shell before publishing this CLI release. Release,
+Linux/Nix checks and production verification are pending for this candidate.
+
 **0.31.3 — reviewed media reuse and capture reliability**
 
 Updates can retain the previous publication’s description, topics, cover and clip.

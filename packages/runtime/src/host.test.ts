@@ -1,5 +1,82 @@
 import { test, expect } from 'bun:test';
 import { attachNappletHost } from './host';
+import type { NappletMedia } from './media-session';
+
+test('media reports are frame/account bound without SHELL and cannot exhaust lifecycle commands', () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {} });
+  const sent: Record<string, unknown>[] = [];
+  const source = { postMessage: (message: Record<string, unknown>) => sent.push(message) };
+  let listener: (event: MessageEvent) => void = () => {};
+  let media: NappletMedia | null = null;
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      addEventListener(type: string, fn: typeof listener) {
+        if (type === 'message') listener = fn;
+      },
+      removeEventListener() {},
+    },
+  });
+  const host = attachNappletHost({
+    frame: { contentWindow: source } as unknown as HTMLIFrameElement,
+    identity: 'media-test',
+    manifestId: 'a'.repeat(64),
+    relays: [],
+    pubkey: null,
+    prompt() {},
+    files() {},
+    media(value) {
+      media = value;
+    },
+  });
+  const deliver = (data: object, from: unknown = source, origin = 'null') =>
+    listener({ data, source: from, origin } as MessageEvent);
+  const create = (id: string) => {
+    deliver({
+      type: 'media.session.create',
+      id,
+      owner: 'napplet',
+      capabilities: ['pause', 'stop'],
+    });
+    return sent.find((m) => m.id === id)?.sessionId;
+  };
+  try {
+    const sessionId = create('first');
+    expect(sessionId).toBeString();
+    for (const [from, origin] of [
+      [{}, 'null'],
+      [source, 'https://evil.example'],
+    ])
+      deliver({ type: 'media.state', sessionId, status: 'playing' }, from, origin as string);
+    expect(media!.getSnapshot()[0].status).toBe('stopped');
+    deliver({ type: 'media.state', sessionId, status: 'playing' });
+    expect(media!.getSnapshot()[0].status).toBe('playing');
+    host.updateIdentity('b'.repeat(64));
+    expect(sent).toContainEqual({ type: 'media.command', sessionId, action: 'stop' });
+    deliver({ type: 'media.state', sessionId, status: 'playing' });
+    expect(media!.getSnapshot()).toEqual([]);
+    const replacement = create('replacement');
+    expect(replacement).toBeString();
+    for (let i = 0; i < 500; i++)
+      deliver({ type: 'media.state', sessionId: replacement, status: 'playing', position: i });
+    deliver({ type: 'media.session.destroy', sessionId: replacement });
+    expect(media!.getSnapshot()).toEqual([]);
+    expect(create('after-flood')).toBeString();
+    expect(sent.some((m) => m.type === 'shell.init')).toBe(false);
+    host.close();
+    const count = sent.length;
+    create('closed');
+    expect(sent).toHaveLength(count);
+  } finally {
+    host.close();
+    if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow);
+    else Reflect.deleteProperty(globalThis, 'window');
+    if (originalStorage) Object.defineProperty(globalThis, 'localStorage', originalStorage);
+    else Reflect.deleteProperty(globalThis, 'localStorage');
+  }
+});
 
 test('retiring an account aborts resources and suppresses late replies even when request IDs are reused', async () => {
   const globals = ['window', 'localStorage', 'fetch'] as const;
@@ -36,8 +113,13 @@ test('retiring an account aborts resources and suppresses late replies even when
     listener({ data, source, origin: 'null' } as unknown as MessageEvent);
   try {
     host.updateIdentity('b'.repeat(64));
-    expect(sent).toEqual([]); // No notifications before the mandatory handshake.
-    deliver({ type: 'shell.ready' });
+    expect(sent).toEqual([{ type: 'identity.changed', pubkey: 'b'.repeat(64) }]);
+    deliver({ type: 'identity.getPublicKey', id: 'before-ready' });
+    expect(sent.at(-1)).toEqual({
+      type: 'identity.getPublicKey.result',
+      id: 'before-ready',
+      pubkey: 'b'.repeat(64),
+    });
     deliver({ type: 'resource.bytes', id: 'reused', url: 'https://assets.example/file' });
     await Bun.sleep(0);
     expect(requests).toHaveLength(1);
@@ -49,7 +131,8 @@ test('retiring an account aborts resources and suppresses late replies even when
     ]);
     host.updateIdentity('c'.repeat(64));
     deliver({ type: 'shell.ready' });
-    expect(sent.filter((m) => m.type === 'identity.changed')).toHaveLength(1);
+    deliver({ type: 'shell.ready' });
+    expect(sent.filter((m) => m.type === 'identity.changed')).toHaveLength(2);
     expect(sent.filter((m) => m.type === 'shell.init')).toHaveLength(1);
     deliver({ type: 'resource.bytes', id: 'reused', url: 'https://assets.example/new' });
     await Bun.sleep(0);
@@ -78,7 +161,7 @@ test('retiring an account aborts resources and suppresses late replies even when
   }
 });
 
-test('theme notifications belong to the frame lifetime, wait for handshake, and stop on close', async () => {
+test('theme requests and notifications work without SHELL and stop on close', async () => {
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
   const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
   const sent: Record<string, unknown>[] = [];
@@ -120,7 +203,7 @@ test('theme notifications belong to the frame lifetime, wait for handshake, and 
   });
   try {
     changed();
-    expect(sent).toEqual([]);
+    expect(sent).toEqual([{ type: 'theme.changed', theme }]);
     listener({ source, origin: 'null', data: { type: 'shell.ready' } } as unknown as MessageEvent);
     changed();
     expect(sent.at(-1)).toEqual({ type: 'theme.changed', theme });
@@ -133,7 +216,7 @@ test('theme notifications belong to the frame lifetime, wait for handshake, and 
     expect(sent.at(-1)).toEqual({ type: 'theme.get.result', id: 'theme', theme });
     host.updateIdentity('b'.repeat(64));
     changed();
-    expect(sent.filter((m) => m.type === 'theme.changed')).toHaveLength(2);
+    expect(sent.filter((m) => m.type === 'theme.changed')).toHaveLength(3);
     expect(sent.filter((m) => m.type === 'shell.init')).toHaveLength(1);
     host.close();
     expect(unsubscribed).toBe(1);
@@ -151,7 +234,7 @@ test('theme notifications belong to the frame lifetime, wait for handshake, and 
   }
 });
 
-test('keyboard actions are handshake/source bound, survive account switches, and stop with the frame', () => {
+test('keyboard actions are source bound without SHELL, survive account switches, and stop with the frame', () => {
   const globals = ['window', 'localStorage'] as const;
   const descriptors = globals.map((key) => Object.getOwnPropertyDescriptor(globalThis, key));
   const sent: Record<string, unknown>[] = [];
@@ -185,9 +268,10 @@ test('keyboard actions are handshake/source bound, survive account switches, and
     listener({ data, source: from, origin } as MessageEvent);
   try {
     deliver(data);
-    expect(sent).toEqual([]);
+    expect(sent.at(-1)).toMatchObject({ type: 'keys.registerAction.result', binding: 'ArrowUp' });
+    deliver({ type: 'keys.unregisterAction', actionId: 'hop' });
     deliver({ type: 'shell.ready' });
-    expect(sent[0]).toMatchObject({
+    expect(sent.find((m) => m.type === 'shell.init')).toMatchObject({
       type: 'shell.init',
       capabilities: { domains: expect.arrayContaining(['keys']) },
     });

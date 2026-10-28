@@ -1,0 +1,250 @@
+--- /dev/null
++++ b/docs/examples/coordinated-audio.ts
+@@ -0,0 +1,164 @@
++/** Optional Web Audio coordinated through the pinned NAP-MEDIA contract.
++ * Pass the SDK's `media` wrapper only when window.napplet?.media exists.
++ * All audible branches MUST connect to output, never directly to destination. */
++export interface AudioMediaClient {
++  createSession(options: {
++    owner: 'napplet';
++    metadata: { title: string; mediaType: 'audio' };
++    capabilities: ('play' | 'pause' | 'stop' | 'volume')[];
++  }): Promise<{ owner?: string; sessionId?: string; error?: string }>;
++  onCommand(
++    id: string,
++    handler: (action: string, value?: number | boolean) => void,
++  ): { close(): void };
++  reportState(
++    id: string,
++    state: { status: 'playing' | 'paused' | 'stopped'; volume: number },
++  ): void;
++  destroySession(id: string): void;
++}
++
++export class CoordinatedAudio {
++  context?: AudioContext;
++  output?: GainNode;
++  private session = '';
++  private pending = false;
++  private blocked = false;
++  private disposed = false;
++  private muted = false;
++  private volume = 1;
++  private stopped = false;
++  private listener?: { close(): void };
++  constructor(
++    private media: AudioMediaClient | undefined,
++    private title: string,
++    private options: { createContext?: () => AudioContext; onChange?: () => void } = {},
++  ) {}
++
++  /** Call from a user gesture. Ordinary game ticks cannot reverse a host pause. */
++  activate(): boolean {
++    if (!this.media || this.disposed || this.blocked) return false;
++    try {
++      if (!this.context) {
++        this.context = this.options.createContext?.() ?? new AudioContext();
++        this.output = this.context.createGain();
++        this.output.gain.value = 0; // No output before the shell grants a session.
++        this.output.connect(this.context.destination);
++        this.context.onstatechange = () => this.report();
++      }
++      if (!this.session && !this.pending) {
++        this.pending = true;
++        void this.register();
++      }
++      if (this.context.state === 'suspended') void this.resume();
++      return this.audible;
++    } catch {
++      this.dispose();
++      return false;
++    }
++  }
++
++  get audible(): boolean {
++    return (
++      !!this.session &&
++      !this.disposed &&
++      !this.blocked &&
++      !this.muted &&
++      this.context?.state === 'running'
++    );
++  }
++  setMuted(value: boolean): void {
++    this.muted = value;
++    this.applyGain();
++    this.report();
++  }
++  private applyGain(): void {
++    if (this.output) this.output.gain.value = this.audible ? this.volume : 0;
++  }
++  private report(): void {
++    this.applyGain();
++    this.options.onChange?.();
++    if (!this.session || this.disposed) return;
++    try {
++      this.media!.reportState(this.session, {
++        status: this.audible ? 'playing' : this.stopped ? 'stopped' : 'paused',
++        volume: this.muted ? 0 : this.volume,
++      });
++    } catch {
++      this.dispose();
++    }
++  }
++  private async resume(): Promise<void> {
++    try {
++      await this.context?.resume();
++      this.report();
++    } catch {
++      this.applyGain();
++    }
++  }
++  private async register(): Promise<void> {
++    try {
++      const result = await this.media!.createSession({
++        owner: 'napplet',
++        metadata: { title: this.title, mediaType: 'audio' },
++        capabilities: ['play', 'pause', 'stop', 'volume'],
++      });
++      if (this.disposed) {
++        if (result.sessionId) this.media!.destroySession(result.sessionId);
++        return;
++      }
++      if (result.error || !result.sessionId || result.owner !== 'napplet') {
++        if (result.sessionId) this.media!.destroySession(result.sessionId);
++        this.dispose();
++        return;
++      }
++      this.session = result.sessionId;
++      this.listener = this.media!.onCommand(this.session, (action, value) => {
++        if (this.disposed) return;
++        if (action === 'pause' || action === 'stop') {
++          this.blocked = true;
++          this.stopped = action === 'stop';
++          this.applyGain(); // Silence immediately, even while resume/suspend settles.
++          void this.context
++            ?.suspend()
++            .then(() => this.report())
++            .catch(() => {});
++        } else if (action === 'play') {
++          this.blocked = false;
++          this.stopped = false;
++          void this.resume();
++        } else if (action === 'volume' && typeof value === 'number' && Number.isFinite(value)) {
++          this.volume = Math.max(0, Math.min(1, value));
++        }
++        this.report();
++      });
++      this.report();
++    } catch {
++      this.dispose();
++    } finally {
++      this.pending = false;
++    }
++  }
++  dispose(): void {
++    if (this.disposed) return;
++    this.disposed = true;
++    this.applyGain();
++    try {
++      this.listener?.close();
++    } catch {
++      /* Host already gone. */
++    }
++    if (this.context) {
++      this.context.onstatechange = null;
++      void this.context.close().catch(() => {});
++    }
++    if (this.session) {
++      try {
++        this.media!.destroySession(this.session);
++      } catch {
++        /* Host already gone. */
++      }
++    }
++    this.session = '';
++  }
++}
+--- a/docs/napplet-space.md
++++ b/docs/napplet-space.md
+@@ -431,13 +431,19 @@
+ then sendCommand for play/pause/stop/volume. Destroy sessions when leaving the view.
+ MP3, Ogg audio and WAV are supported subject to browser codecs. The host handles
+ streaming, source checks and gesture prompts. Only use advertised controls; no seek,
+-playlists/HLS/DASH, video, napplet-owned sessions or hash/Nostr-only source resolution
+-is implemented. Nostr hints and session context are metadata, not network authority.
++playlists/HLS/DASH, video or hash/Nostr-only source resolution
++is implemented by that historical streaming implementation. Napplet-owned session
++support must be checked in the running host. Nostr hints and session context are metadata, not network authority.
+ Artwork is not loaded by this audio host. Four sessions per frame are allowed; one
+ plays at a time. Streams stop at 128 MiB or two hours and close with the napplet.
+-Small embedded data/blob audio and Web Audio are separate browser features, subject
+-to user activation and codec support. Do not work around missing media support by
+-adding direct remote URLs, fetch, an unbounded resource download or a looser CSP.
++Embedded samples and Web Audio also need a napplet-owned NAP-MEDIA session.
++Route every audible branch through CoordinatedAudio's output gain, wait for the
++session grant, respect host pause/stop/volume, and dispose it on pagehide. Check
++runtimeHasDomain('media') before using the SDK wrapper. Ordinary game input must
++not reverse a host pause. Missing or denied optional MEDIA means silent gameplay,
++not direct audio output. Shell-owned streams and napplet-owned effects are
++separate owner modes; a host may support one without the other. Never work around
++missing support with direct remote URLs, fetch or a looser CSP.
+ For clients without media, keep a clear unavailable state or user-confirmed link
+ fallback; if playback is the core purpose, declare media required and report the
+ host gap. Test the actual play/pause/volume flow, not only build/startup or relay lookup.
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -1,5 +1,7 @@
+-import { storage } from '@napplet/sdk';
++import { media, storage } from '@napplet/sdk';
+ import { runtimeHasDomain } from './domain-availability.js';
++import { CoordinatedAudio } from '../docs/examples/coordinated-audio.js';
++const coordinatedAudio = new CoordinatedAudio(runtimeHasDomain('media') ? media : undefined, 'GRAV / RIFT');
+ import { Game, MODE_NAMES, type Mode } from './game/game.js';
+ import { Renderer } from './game/render.js';
+ import { createAtlas, createSprites } from './game/sprites.js';
+@@ -55,14 +57,15 @@
+ }
+ function audioStart(): void {
+   if(!sound) return;
+-  audioContext ??= new AudioContext(); void audioContext.resume().catch(()=>undefined);
++  coordinatedAudio.activate(); audioContext = coordinatedAudio.context;
++  if (!audioContext) return;
+   if(!blastNoise) {
+     blastNoise=audioContext.createBuffer(1,Math.floor(audioContext.sampleRate*.7),audioContext.sampleRate);
+     const channel=blastNoise.getChannelData(0);for(let i=0;i<channel.length;i++)channel[i]=Math.random()*2-1;
+   }
+ }
+ game.onSound = name => {
+-  if(!sound || !audioContext || audioContext.state!=='running') return;
++  if(!sound || !audioContext || !coordinatedAudio.audible) return;
+   const now=audioContext.currentTime;
+   if(now-soundTimes[name]<(name==='grab'?.13:name==='hit'?.08:.05) || now-soundAt<.015) return;
+   soundTimes[name]=now; soundAt=now;
+@@ -70,16 +73,16 @@
+     const noise=audioContext.createBufferSource(),filter=audioContext.createBiquadFilter(),impact=audioContext.createGain();
+     noise.buffer=blastNoise;filter.type='lowpass';filter.frequency.setValueAtTime(2200,now);filter.frequency.exponentialRampToValueAtTime(130,now+.65);
+     impact.gain.setValueAtTime(.3,now);impact.gain.exponentialRampToValueAtTime(.001,now+.7);
+-    noise.connect(filter);filter.connect(impact);impact.connect(audioContext.destination);noise.start(now);noise.stop(now+.7);
++    noise.connect(filter);filter.connect(impact);impact.connect(coordinatedAudio.output!);noise.start(now);noise.stop(now+.7);
+   }
+   const oscillator=audioContext.createOscillator(), gain=audioContext.createGain();
+   const notes={grab:[270,410,.06],throw:[220,45,.25],hit:[120,35,.13],boom:[70,22,.55],upgrade:[440,880,.25]}[name];
+   oscillator.type=name==='upgrade'||name==='grab'?'sine':'triangle';
+   oscillator.frequency.setValueAtTime(notes[0],now); oscillator.frequency.exponentialRampToValueAtTime(notes[1],now+notes[2]);
+   gain.gain.setValueAtTime(name==='boom'?.16:.07,now); gain.gain.exponentialRampToValueAtTime(.001,now+notes[2]);
+-  oscillator.connect(gain);gain.connect(audioContext.destination);oscillator.start(now);oscillator.stop(now+notes[2]+.01);
++  oscillator.connect(gain);gain.connect(coordinatedAudio.output!);oscillator.start(now);oscillator.stop(now+notes[2]+.01);
+ };
+-function updateSound(): void { el('sound').setAttribute('aria-label',sound?'Mute sound':'Enable sound'); el('sound').title=sound?'Mute sound':'Enable sound'; el('sound').querySelector<HTMLElement>('span')!.style.display=sound?'none':''; el<HTMLInputElement>('soundSetting').checked=sound; }
++function updateSound(): void { coordinatedAudio.setMuted(!sound); el('sound').setAttribute('aria-label',sound?'Mute sound':'Enable sound'); el('sound').title=sound?'Mute sound':'Enable sound'; el('sound').querySelector<HTMLElement>('span')!.style.display=sound?'none':''; el<HTMLInputElement>('soundSetting').checked=sound; }
+ function clearControls(): void {
+   radial.close(false);keyState.clear();pointerFire=false; touchMove={x:0,y:0}; touchField=false; pointerField=false; joystickId=null;pointerAim=null;
+   el('stick').style.transform=''; el('fieldButton').classList.remove('held'); game.clearInput();
+@@ -225,5 +228,5 @@
+   renderer.draw();if(game.phase!==previousPhase){clearControls();refreshPhase();}
+   if(now-lastHud>100){updateHud();lastHud=now;}frameId=requestAnimationFrame(frame);
+ }
+-on(window,'pagehide',()=>{radial.destroy();abort.abort();resizeObserver.disconnect();cancelAnimationFrame(frameId);void audioContext?.close();});
++on(window,'pagehide',()=>{radial.destroy();abort.abort();resizeObserver.disconnect();cancelAnimationFrame(frameId);coordinatedAudio.dispose();});
+ renderer.resize();refreshPhase();void loadRecord();frameId=requestAnimationFrame(frame);

@@ -1,0 +1,90 @@
+{
+  "host": {
+    "beforeHandshakeReplies": [],
+    "afterHandshakeReplies": [
+      {
+        "type": "identity.getPublicKey.result",
+        "id": "after",
+        "pubkey": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    ],
+    "identityNamespacePresent": true,
+    "supportsBeforeInit": false
+  },
+  "cliChecks": [
+    {
+      "name": "startup-direct-fetch",
+      "code": 1,
+      "out": {
+        "error": {
+          "code": "BROWSER_CHECK",
+          "message": "The frozen creation failed the shared sandbox startup check. Run the local preview and fix script or handshake errors before publishing.",
+          "operation": "soyli check",
+          "recovery": "Address the reported cause. If it persists, run soyli doctor and include this error and the soyli version in your bug report.",
+          "details": [
+            "Cause: A content security policy violation occurred in the sandbox."
+          ],
+          "stage": "check",
+          "retryable": false
+        },
+        "version": "0.31.3-dev",
+        "platform": "darwin-arm64"
+      },
+      "err": ""
+    },
+    {
+      "name": "click-direct-fetch",
+      "code": 0,
+      "out": {
+        "status": "checked",
+        "profile": "space-playback-6",
+        "browser": "153.0.8010.12",
+        "previewBytes": 32777,
+        "artifactHash": "b28e15a2f38d9be2549b14f06c35d1f20c0562fe30da0220984d1c253ca8ae49",
+        "sourceBytes": 725
+      },
+      "err": ""
+    },
+    {
+      "name": "uncoordinated-audio",
+      "code": 0,
+      "out": {
+        "status": "checked",
+        "profile": "space-playback-6",
+        "browser": "153.0.8010.12",
+        "previewBytes": 32777,
+        "artifactHash": "fd832ddb07fbddb442811941627f0f8900c93b32f62e321b98b3d0442400a6fb",
+        "sourceBytes": 661
+      },
+      "err": ""
+    }
+  ],
+  "funclet": {
+    "eventId": "0b497cfc2f66c55144f6420c1363b63316e02981c828ffe75473d43e66675778",
+    "request": {
+      "type": "media.session.create",
+      "owner": "shell",
+      "source": {
+        "url": "https://radio.cliamp.stream/omarchy/stream"
+      },
+      "metadata": {
+        "title": "Omarchy Radio",
+        "mediaType": "audio"
+      },
+      "live": true,
+      "autoplay": false
+    },
+    "reply": {
+      "type": "media.session.create.result",
+      "owner": "shell",
+      "error": "unsupported owner mode"
+    },
+    "scope": "Live public Paja, anonymous, 2026-10-27. Live deployment version not independently pinned."
+  },
+  "snowboarding": {
+    "artifactHash": "943b6776139c775e41e117eedac62910f5089dfbfcd707e2425e044a207112be",
+    "mode": "Paja local HTML input",
+    "interaction": "Ride",
+    "observed": "Run HUD and timer appeared; no CSP violation observed during this action. Gamepad policy warning present. Not a full gameplay qualification."
+  }
+}

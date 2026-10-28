@@ -82,6 +82,7 @@ export async function createDeploymentArchive(archive: string) {
     'docs/DYNAMIC-BACKENDS-CREATOR.md',
     'docs/SHARED-DATA.md',
     'docs/OUTBOX.md',
+    'docs/examples/coordinated-audio.ts',
     'docs/RUNTIME-ACTIONS.md',
     'docs/CONTROLLERS.md',
     'docs/MOBILE.md',

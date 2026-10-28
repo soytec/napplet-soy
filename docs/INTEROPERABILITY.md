@@ -1,5 +1,38 @@
 # Cross-client and standalone release checks
 
+The [2026-10-27 compliance audit](NIP5D-COMPLIANCE-AUDIT-2026-10-27.md) adds live
+Paja evidence and an inventory of retained public releases. Funclet's reproduced
+radio failure is an unsupported MEDIA owner mode; Naped Snowboarding's Ride
+interaction starts in Paja. Neither observation qualifies all features. The
+existing legacy-wrapper acceptance below does not establish portability of every
+current standalone publication. The bounded current-manifest checks below now
+cover the independent host and eight owner-scoped repair candidates; broader inventory
+qualification remains open.
+
+## Current-manifest acceptance and repair candidates — 2026-10-28
+
+`bun scripts/current-shell.ts` runs unchanged **Paja 0.24.4** with dependencies
+locked in `tests/fixtures/current-shell/bun.lock`. Its four Chromium cases use
+current kind-35129 manifests, not the legacy wrapper below: input, storage reload,
+MEDIA, denied/absent optional domains, blocked direct fetch and tampered-byte
+rejection. Disposable loopback relay/Blossom fixtures supply transport; Paja owns
+resolution, verification, bridge injection, CSP and dispatch. The CI service
+workflow now includes this gate. No public fixture events are published.
+
+[Owner-scoped repairs](audits/2026-10-28/repairs/README.md) coordinate Web Audio in
+Funclet, Napplet Machines V8, GRAV / RIFT, Rail Game, Soybert 3D, Outbreak and the
+owner's earlier Studio-built Obsidian Breaker and Truffle Rush. Six projects are repaired in local
+Git checkouts; the two Studio releases have exact-source archive patches. Third-party projects
+are outside the repair scope. The optional `SOY_REPAIRS_ROOT` runner checks their
+built artifacts with MEDIA allowed, absent and denied. Application checks and
+source/patch provenance are recorded with the repair bundle.
+
+These are local corrections awaiting author-reviewed publication. Funclet's
+shell-owned radio stream remains unsupported by Paja; explicit feedback and safe
+degradation are tested. These checks qualify the exercised interactions, not all
+gameplay, all NAP operations or real radio availability. Existing intentional
+source/app-data extensions are retained.
+
 ## Forkless proposals and acceptance
 
 2026-10-12 local source qualification uses native GRASP 3.0.2 at

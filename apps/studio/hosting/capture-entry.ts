@@ -23,7 +23,12 @@ try {
   if (result.video) await writeFile('/workspace/.studio-result/clip.webm', result.video);
   await writeFile(
     '/workspace/.studio-result/result.json',
-    JSON.stringify({ profile: result.profile, browser: result.browser }),
+    JSON.stringify({
+      profile: result.profile,
+      browser: result.browser,
+      coverage: result.coverage,
+      warnings: result.warnings,
+    }),
   );
 } catch (error) {
   console.error(formatDiagnostic(diagnose(error, 'capture isolated studio preview')));

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from '@playwright/test';
-import { compilePreviewAssets } from '../../apps/cli/src/preview/bundle';
+import { previewAssets } from '../../apps/cli/src/preview/assets';
 import { startPreviewServer } from '../../apps/cli/src/preview/server';
 
 function wav() {
@@ -38,7 +38,7 @@ test('the real shim plays audio in CLI preview, retries a denied gesture and cle
       JSON.stringify({ previewId: crypto.randomUUID(), entry: 'index.html', requires: ['media'] }),
     );
     await Bun.write(join(root, 'index.html'), '<!doctype html><p>Media fixture</p>');
-    server = startPreviewServer(pathToFileURL(root + '/'), 0, false, await compilePreviewAssets());
+    server = startPreviewServer(pathToFileURL(root + '/'), 0, false, await previewAssets());
     const page = await browser.newPage({
       viewport: { width: 390, height: 844 },
       hasTouch: true,
@@ -121,9 +121,84 @@ test('the real shim plays audio in CLI preview, retries a denied gesture and cle
       true,
     );
     const rejected = await frame.evaluate(() =>
-      (window as any).napplet.media.createSession({ owner: 'napplet' }),
+      (window as any).napplet.media.createSession({ owner: 'invalid' }),
     );
-    expect(rejected.error).toBe('unsupported owner mode');
+    expect(rejected.error).toBe('invalid media request');
+  } finally {
+    await browser.close();
+    server?.stop(true);
+    await rm(root, { recursive: true, force: true });
+  }
+}, 60000);
+
+test('napplet-owned Web Audio uses the real shim and honors host controls and account retirement', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'napplet-owned-media-'));
+  let server: ReturnType<typeof startPreviewServer> | undefined;
+  const browser = await chromium.launch({ headless: true });
+  try {
+    await Bun.write(
+      join(root, 'napplet.json'),
+      JSON.stringify({
+        previewId: crypto.randomUUID(),
+        entry: 'index.html',
+        requires: ['media'],
+      }),
+    );
+    await Bun.write(
+      join(root, 'index.html'),
+      `<!doctype html><button id="sound">Enable sound</button>
+      <script>
+      sound.onclick = async () => {
+        const ctx = new AudioContext();
+        const gain = ctx.createGain(); gain.gain.value = 0.25; gain.connect(ctx.destination);
+        window.audioContext = ctx; window.master = gain;
+        await ctx.resume();
+        try {
+          const media = window.napplet.media;
+          const {sessionId, error} = await media.createSession({owner:'napplet',
+            capabilities:['play','pause','stop','volume'], metadata:{title:'Game sound'}});
+          if (error || !sessionId) throw new Error(error || 'No session');
+          window.audioSession = sessionId;
+          const tone = ctx.createOscillator(); tone.connect(gain); tone.start();
+          const report = () => media.reportState(sessionId, {
+            status:ctx.state === 'running' ? 'playing' : 'paused', volume:gain.gain.value});
+          media.onCommand(sessionId, async (action,value) => {
+            if (action === 'play') await ctx.resume();
+            if (action === 'pause' || action === 'stop') await ctx.suspend();
+            if (action === 'volume') gain.gain.value = value;
+            report();
+          });
+          report(); sound.disabled = true;
+        } catch (error) { await ctx.close(); document.body.append(String(error)); }
+      };
+      </script>`,
+    );
+    server = startPreviewServer(pathToFileURL(root + '/'), 0, false, await previewAssets());
+    const page = await browser.newPage();
+    await page.addInitScript(() => {
+      (window as any).nostr = { getPublicKey: async () => 'b'.repeat(64) };
+    });
+    await page.goto(String(server.url));
+    await page.frameLocator('iframe').getByRole('button', { name: 'Enable sound' }).click();
+    const frame = page.frames().find((f) => f.parentFrame())!;
+    await page.getByRole('button', { name: 'Pause audio: Game sound', exact: true }).click();
+    await frame.waitForFunction(() => (window as any).audioContext.state === 'suspended');
+    await page.getByRole('slider', { name: 'Audio volume: Game sound' }).fill('0.35');
+    await frame.waitForFunction(() => Math.abs((window as any).master.gain.value - 0.35) < 0.001);
+    await page.getByRole('button', { name: 'Play audio: Game sound', exact: true }).click();
+    await frame.waitForFunction(() => (window as any).audioContext.state === 'running');
+    await page.getByRole('button', { name: 'Connect browser extension' }).click();
+    await frame.waitForFunction(() => (window as any).audioContext.state === 'suspended');
+    await page.locator('.nap-media-session').waitFor({ state: 'detached' });
+    await frame.evaluate(() =>
+      (window as any).napplet.media.reportState((window as any).audioSession, {
+        status: 'playing',
+        volume: 1,
+      }),
+    );
+    expect(await page.locator('.nap-media-session').count()).toBe(0);
+    expect(await page.locator('iframe').getAttribute('sandbox')).toBe('allow-scripts');
+    expect(await frame.evaluate(() => location.origin)).toBe('null');
   } finally {
     await browser.close();
     server?.stop(true);

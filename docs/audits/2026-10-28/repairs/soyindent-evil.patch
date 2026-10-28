@@ -1,0 +1,375 @@
+--- /dev/null
++++ b/docs/examples/coordinated-audio.ts
+@@ -0,0 +1,164 @@
++/** Optional Web Audio coordinated through the pinned NAP-MEDIA contract.
++ * Pass the SDK's `media` wrapper only when window.napplet?.media exists.
++ * All audible branches MUST connect to output, never directly to destination. */
++export interface AudioMediaClient {
++  createSession(options: {
++    owner: 'napplet';
++    metadata: { title: string; mediaType: 'audio' };
++    capabilities: ('play' | 'pause' | 'stop' | 'volume')[];
++  }): Promise<{ owner?: string; sessionId?: string; error?: string }>;
++  onCommand(
++    id: string,
++    handler: (action: string, value?: number | boolean) => void,
++  ): { close(): void };
++  reportState(
++    id: string,
++    state: { status: 'playing' | 'paused' | 'stopped'; volume: number },
++  ): void;
++  destroySession(id: string): void;
++}
++
++export class CoordinatedAudio {
++  context?: AudioContext;
++  output?: GainNode;
++  private session = '';
++  private pending = false;
++  private blocked = false;
++  private disposed = false;
++  private muted = false;
++  private volume = 1;
++  private stopped = false;
++  private listener?: { close(): void };
++  constructor(
++    private media: AudioMediaClient | undefined,
++    private title: string,
++    private options: { createContext?: () => AudioContext; onChange?: () => void } = {},
++  ) {}
++
++  /** Call from a user gesture. Ordinary game ticks cannot reverse a host pause. */
++  activate(): boolean {
++    if (!this.media || this.disposed || this.blocked) return false;
++    try {
++      if (!this.context) {
++        this.context = this.options.createContext?.() ?? new AudioContext();
++        this.output = this.context.createGain();
++        this.output.gain.value = 0; // No output before the shell grants a session.
++        this.output.connect(this.context.destination);
++        this.context.onstatechange = () => this.report();
++      }
++      if (!this.session && !this.pending) {
++        this.pending = true;
++        void this.register();
++      }
++      if (this.context.state === 'suspended') void this.resume();
++      return this.audible;
++    } catch {
++      this.dispose();
++      return false;
++    }
++  }
++
++  get audible(): boolean {
++    return (
++      !!this.session &&
++      !this.disposed &&
++      !this.blocked &&
++      !this.muted &&
++      this.context?.state === 'running'
++    );
++  }
++  setMuted(value: boolean): void {
++    this.muted = value;
++    this.applyGain();
++    this.report();
++  }
++  private applyGain(): void {
++    if (this.output) this.output.gain.value = this.audible ? this.volume : 0;
++  }
++  private report(): void {
++    this.applyGain();
++    this.options.onChange?.();
++    if (!this.session || this.disposed) return;
++    try {
++      this.media!.reportState(this.session, {
++        status: this.audible ? 'playing' : this.stopped ? 'stopped' : 'paused',
++        volume: this.muted ? 0 : this.volume,
++      });
++    } catch {
++      this.dispose();
++    }
++  }
++  private async resume(): Promise<void> {
++    try {
++      await this.context?.resume();
++      this.report();
++    } catch {
++      this.applyGain();
++    }
++  }
++  private async register(): Promise<void> {
++    try {
++      const result = await this.media!.createSession({
++        owner: 'napplet',
++        metadata: { title: this.title, mediaType: 'audio' },
++        capabilities: ['play', 'pause', 'stop', 'volume'],
++      });
++      if (this.disposed) {
++        if (result.sessionId) this.media!.destroySession(result.sessionId);
++        return;
++      }
++      if (result.error || !result.sessionId || result.owner !== 'napplet') {
++        if (result.sessionId) this.media!.destroySession(result.sessionId);
++        this.dispose();
++        return;
++      }
++      this.session = result.sessionId;
++      this.listener = this.media!.onCommand(this.session, (action, value) => {
++        if (this.disposed) return;
++        if (action === 'pause' || action === 'stop') {
++          this.blocked = true;
++          this.stopped = action === 'stop';
++          this.applyGain(); // Silence immediately, even while resume/suspend settles.
++          void this.context
++            ?.suspend()
++            .then(() => this.report())
++            .catch(() => {});
++        } else if (action === 'play') {
++          this.blocked = false;
++          this.stopped = false;
++          void this.resume();
++        } else if (action === 'volume' && typeof value === 'number' && Number.isFinite(value)) {
++          this.volume = Math.max(0, Math.min(1, value));
++        }
++        this.report();
++      });
++      this.report();
++    } catch {
++      this.dispose();
++    } finally {
++      this.pending = false;
++    }
++  }
++  dispose(): void {
++    if (this.disposed) return;
++    this.disposed = true;
++    this.applyGain();
++    try {
++      this.listener?.close();
++    } catch {
++      /* Host already gone. */
++    }
++    if (this.context) {
++      this.context.onstatechange = null;
++      void this.context.close().catch(() => {});
++    }
++    if (this.session) {
++      try {
++        this.media!.destroySession(this.session);
++      } catch {
++        /* Host already gone. */
++      }
++    }
++    this.session = '';
++  }
++}
+--- a/docs/napplet-space.md
++++ b/docs/napplet-space.md
+@@ -416,13 +416,19 @@
+ then sendCommand for play/pause/stop/volume. Destroy sessions when leaving the view.
+ MP3, Ogg audio and WAV are supported subject to browser codecs. The host handles
+ streaming, source checks and gesture prompts. Only use advertised controls; no seek,
+-playlists/HLS/DASH, video, napplet-owned sessions or hash/Nostr-only source resolution
+-is implemented. Nostr hints and session context are metadata, not network authority.
++playlists/HLS/DASH, video or hash/Nostr-only source resolution
++is implemented by that historical streaming implementation. Napplet-owned session
++support must be checked in the running host. Nostr hints and session context are metadata, not network authority.
+ Artwork is not loaded by this audio host. Four sessions per frame are allowed; one
+ plays at a time. Streams stop at 128 MiB or two hours and close with the napplet.
+-Small embedded data/blob audio and Web Audio are separate browser features, subject
+-to user activation and codec support. Do not work around missing media support by
+-adding direct remote URLs, fetch, an unbounded resource download or a looser CSP.
++Embedded samples and Web Audio also need a napplet-owned NAP-MEDIA session.
++Route every audible branch through CoordinatedAudio's output gain, wait for the
++session grant, respect host pause/stop/volume, and dispose it on pagehide. Check
++runtimeHasDomain('media') before using the SDK wrapper. Ordinary game input must
++not reverse a host pause. Missing or denied optional MEDIA means silent gameplay,
++not direct audio output. Shell-owned streams and napplet-owned effects are
++separate owner modes; a host may support one without the other. Never work around
++missing support with direct remote URLs, fetch or a looser CSP.
+ For clients without media, keep a clear unavailable state or user-confirmed link
+ fallback; if playback is the core purpose, declare media required and report the
+ host gap. Test the actual play/pause/volume flow, not only build/startup or relay lookup.
+--- a/src/audio.ts
++++ b/src/audio.ts
+@@ -1,3 +1,6 @@
++import { media } from '@napplet/sdk';
++import { runtimeHasDomain } from './domain-availability.js';
++import { CoordinatedAudio, type AudioMediaClient } from '../docs/examples/coordinated-audio.js';
+ import type { GameSound } from './sound-cues.js';
+ import type { Point } from './world.js';
+ export type AudioClip = { id: string; url: string; loop: boolean; gainDb: number; maxVoices: number; fadeMs: number };
+@@ -5,9 +8,10 @@
+ type Voice = { id: string; source: AudioBufferSourceNode; gain: GainNode; pan?: StereoPannerNode; loop: boolean };
+ type Listener = Point & { yaw: number; room: string };
+ 
+-/** Inlined bytes + native Web Audio. No network, media session or shell grant. */
++/** Inlined audio bytes, with optional napplet-owned NAP-MEDIA coordination. */
+ export class GameAudio {
+   private context?: AudioContext;
++  private coordinator: CoordinatedAudio;
+   private master?: GainNode;
+   private compressor?: DynamicsCompressorNode;
+   private buffers = new Map<string, Decoded[]>();
+@@ -22,34 +26,39 @@
+   private closed = false;
+   private error = '';
+   private lastStatus = '';
+-  constructor(private clips: AudioClip[], private changed: () => void = () => {}, private makeContext: () => AudioContext = () => new AudioContext()) {}
++  constructor(private clips: AudioClip[], private changed: () => void = () => {}, makeContext: () => AudioContext = () => new AudioContext(), mediaClient: AudioMediaClient | undefined = typeof window !== 'undefined' && runtimeHasDomain('media') ? media : undefined) {
++    this.coordinator = new CoordinatedAudio(mediaClient, 'Outbreak: Soycoon City', {
++      createContext: makeContext,
++      onChange: () => { if (!this.coordinator.audible) this.stopVoices(); else this.ensureLoops(); this.report(); },
++    });
++  }
+   get label(): string {
+     if (this.muted) return 'Sound off';
+     if (this.error) return 'Retry sound';
+-    if (!this.context || this.context.state !== 'running') return 'Enable sound';
++    if (!this.coordinator.audible) return 'Enable sound';
+     return this.loading ? 'Loading sound' : 'Sound on';
+   }
+-  get enabled(): boolean { return !this.muted && this.context?.state === 'running' && !this.error; }
++  get enabled(): boolean { return !this.muted && this.coordinator.audible && !this.error; }
+   get detail(): string {
+     if (this.muted) return 'Sound muted. Click Sound off to unmute.';
+-    return this.error || (this.enabled ? 'Sound enabled. Pause and editor mode stop playback.' : 'Click Begin patrol or Enable sound to allow browser audio.');
++    return this.error || (this.enabled ? 'Sound enabled. Pause and editor mode stop playback.' : 'Sound needs this shell’s NAP-MEDIA permission. You can keep playing silently.');
+   }
+   private report(): void { const status = `${this.label}|${this.detail}`; if (status !== this.lastStatus) { this.lastStatus = status; this.changed(); } }
+   /** Call inside the user's click/key/touch handler, before any awaited work. */
+   activate(): void {
+     if (this.closed || this.muted) return;
+     try {
++      this.coordinator.setMuted(false);
++      this.coordinator.activate();
++      if (!this.coordinator.context) { this.report(); return; }
+       if (!this.context) {
+-        this.context = this.makeContext();
++        this.context = this.coordinator.context;
+         this.master = this.context.createGain(); this.master.gain.value = .85;
+         this.compressor = this.context.createDynamicsCompressor();
+         this.compressor.threshold.value = -6; this.compressor.ratio.value = 4;
+-        this.master.connect(this.compressor); this.compressor.connect(this.context.destination);
+-        this.context.onstatechange = () => { if (this.context?.state !== 'running') this.stopVoices(); this.report(); };
++        this.master.connect(this.compressor); this.compressor.connect(this.coordinator.output!);
+       }
+       this.error = '';
+-      // Resume immediately in the gesture; decoding need not wait for permission.
+-      void this.context.resume().then(() => this.report()).catch(error => this.fail(error));
+       if (!this.loading && this.buffers.size === 0) {
+         const context = this.context;
+         this.loading = (async () => {
+@@ -72,27 +81,28 @@
+   toggle(): void {
+     if (this.error || !this.context || this.context.state !== 'running') { this.muted = false; this.activate(); return; }
+     this.muted = !this.muted;
++    this.coordinator.setMuted(this.muted);
+     if (this.muted) { this.pending = []; this.stopVoices(); } else { this.activate(); this.ensureLoops(); }
+     this.report();
+   }
+   sync(playing: boolean, room: string, finished = false): void {
+     this.playing = playing; this.finished = finished;
+     if (this.room !== room) { for (const voice of [...this.voices]) if (voice.id.startsWith('ambient_')) this.stopVoice(voice); this.room = room; }
+-    if (!playing || this.muted || this.context?.state !== 'running') { this.pending = []; this.stopVoices(); }
++    if (!playing || this.muted || !this.coordinator.audible) { this.pending = []; this.stopVoices(); }
+     else if (finished) { for (const voice of [...this.voices]) if (voice.loop) this.stopVoice(voice); }
+     else this.ensureLoops();
+     this.report();
+   }
+   stop(): void { this.playing = false; this.pending = []; this.stopVoices(); }
+   private ensureLoops(): void {
+-    if (!this.playing || this.finished || this.muted || this.error || this.context?.state !== 'running') return;
++    if (!this.playing || this.finished || this.muted || this.error || !this.coordinator.audible) return;
+     const wanted = ['music_patrol', ...(this.room === 'corridor' ? ['ambient_corridor'] : [])];
+     for (const id of wanted) if (![...this.voices].some(v => v.id === id)) { const clip = this.buffers.get(id)?.[0]; if (clip) this.startVoice(clip, 1, 0); }
+   }
+   play(cue: GameSound, listener: Listener): void {
+     if (!this.playing || this.muted || this.error || this.closed || (cue.room && cue.room !== listener.room)) return;
+     if (!this.buffers.size && this.loading) { this.pending.push({ cue, listener: { ...listener }, at: Date.now() }); if (this.pending.length > 16) this.pending.shift(); return; }
+-    if (this.context?.state !== 'running') return;
++    if (!this.coordinator.audible) return;
+     const variants = this.buffers.get(cue.id); if (!variants?.length) return;
+     const next = this.nextVariant.get(cue.id) ?? 0, clip = variants[next % variants.length]; this.nextVariant.set(cue.id, next + 1);
+     let gain = 1, pan = 0;
+@@ -120,5 +130,5 @@
+   private release(voice: Voice): void { this.voices.delete(voice); voice.source.onended = null; voice.source.disconnect(); voice.gain.disconnect(); voice.pan?.disconnect(); }
+   private stopVoice(voice: Voice): void { try { voice.source.stop(); } catch { /* Already ended. */ } this.release(voice); }
+   private stopVoices(): void { for (const voice of [...this.voices]) this.stopVoice(voice); }
+-  dispose(): void { this.closed = true; this.stop(); this.buffers.clear(); if (this.context) { this.context.onstatechange = null; void this.context.close().catch(() => {}); } this.master?.disconnect(); this.compressor?.disconnect(); }
++  dispose(): void { this.closed = true; this.stop(); this.buffers.clear(); this.coordinator.dispose(); this.master?.disconnect(); this.compressor?.disconnect(); }
+ }
+--- a/tests/audio.test.mjs
++++ b/tests/audio.test.mjs
+@@ -42,12 +42,14 @@
+   createBufferSource(){const s=this.node({buffer:null,loop:false,onended:null,playing:false,start(when){this.startTime=when;this.playing=true;},stop(){this.playing=false;}});this.sources.push(s);return s;}
+   resume(){this.events.push('resume');this.state='running';return Promise.resolve();}
+   decodeAudioData(){this.events.push('decode');return this.failDecode?Promise.reject(new Error('bad codec')):Promise.resolve({duration:1});}
++  suspend(){this.state='suspended';this.onstatechange?.();return Promise.resolve();}
+   close(){this.state='closed';return Promise.resolve();}
+ }
++const media = () => ({createSession:async()=>({owner:'napplet',sessionId:'audio'}),onCommand:()=>({close(){}}),reportState(){},destroySession(){}});
+ const clip=(id,loop=false)=>({id,loop,url:'data:audio/mpeg;base64,AA==',gainDb:0,maxVoices:loop?1:2,fadeMs:10});
+ const active=context=>context.sources.filter(s=>s.playing);
+ test('activation resumes within the gesture, queues loading shots and bounds overlapping voices',async()=>{
+-  const ctx=new Context(),a=new GameAudio([clip('music_patrol',true),clip('shotgun_fire')],()=>{},()=>ctx);
++  const ctx=new Context(),a=new GameAudio([clip('music_patrol',true),clip('shotgun_fire')],()=>{},()=>ctx,media());
+   assert.equal(a.label,'Enable sound');assert.equal(ctx.events.length,0);
+   a.activate();a.sync(true,'evidence');a.play({id:'shotgun_fire'},listener);await tick();
+   assert.equal(ctx.events[0],'resume');assert.equal(a.label,'Sound on');assert.equal(active(ctx).length,2);
+@@ -56,7 +58,7 @@
+   a.play({id:'shotgun_fire'},listener);a.toggle();assert.equal(active(ctx).length,1);a.dispose();assert.equal(ctx.state,'closed');
+ });
+ test('camera cuts keep music running; room ambience, pause, win and disposal stop the right sources',async()=>{
+-  const ctx=new Context(),a=new GameAudio([clip('music_patrol',true),clip('ambient_corridor',true),clip('zombie_attack')],()=>{},()=>ctx);
++  const ctx=new Context(),a=new GameAudio([clip('music_patrol',true),clip('ambient_corridor',true),clip('zombie_attack')],()=>{},()=>ctx,media());
+   a.activate();a.sync(true,'evidence');await tick();const music=active(ctx)[0];
+   a.sync(true,'evidence');a.sync(true,'corridor');assert.equal(active(ctx)[0],music);assert.equal(active(ctx).length,2);
+   a.sync(true,'evidence');assert.equal(active(ctx).length,1);assert.equal(active(ctx)[0],music);
+@@ -67,7 +69,7 @@
+   a.dispose();assert.equal(ctx.state,'closed');assert.equal(active(ctx).length,0);
+ });
+ test('the audio clock delays the pump after the blast and pause/mute cancel scheduled pumps',async()=>{
+-  const ctx=new Context(),a=new GameAudio([clip('shotgun_fire'),clip('shotgun_pump')],()=>{},()=>ctx);
++  const ctx=new Context(),a=new GameAudio([clip('shotgun_fire'),clip('shotgun_pump')],()=>{},()=>ctx,media());
+   a.activate();a.sync(true,'evidence');await tick();ctx.currentTime=10;
+   a.play({id:'shotgun_fire'},listener);a.play({id:'shotgun_pump',delaySeconds:.25},listener);
+   assert.equal(ctx.sources[0].startTime,10);assert.equal(ctx.sources[1].startTime,10.25);
+@@ -78,9 +80,33 @@
+   assert.equal(active(ctx).length,1);a.dispose();assert.equal(active(ctx).length,0);
+ });
+ test('decode errors preserve gameplay with a retry, and late decoding cannot revive disposed audio',async()=>{
+-  const ctx=new Context();ctx.failDecode=true;const a=new GameAudio([clip('shotgun_fire')],()=>{},()=>ctx);
++  const ctx=new Context();ctx.failDecode=true;const a=new GameAudio([clip('shotgun_fire')],()=>{},()=>ctx,media());
+   a.activate();a.sync(true,'evidence');await tick();assert.equal(a.label,'Retry sound');assert.match(a.detail,/bad codec/);
+   ctx.failDecode=false;a.toggle();await tick();a.play({id:'shotgun_fire'},listener);assert.equal(active(ctx).length,1);a.dispose();
+   const slow=new Context();let finish;slow.decodeAudioData=()=>new Promise(resolve=>finish=resolve);
+-  const b=new GameAudio([clip('music_patrol',true)],()=>{},()=>slow);b.activate();b.sync(true,'evidence');b.dispose();finish({duration:1});await tick();assert.equal(active(slow).length,0);
++  const b=new GameAudio([clip('music_patrol',true)],()=>{},()=>slow,media());b.activate();b.sync(true,'evidence');b.dispose();finish({duration:1});await tick();assert.equal(active(slow).length,0);
+ });
++
++test('optional MEDIA gates every voice and host pause survives another game gesture', async () => {
++  const ctx = new Context(); let grant, command; const destroyed = [];
++  const host = {createSession:()=>new Promise(resolve=>grant=resolve),onCommand:(_id,handler)=>{command=handler;return {close(){}}},reportState(){},destroySession:id=>destroyed.push(id)};
++  const a = new GameAudio([clip('music_patrol',true),clip('shotgun_fire')],()=>{},()=>ctx,host);
++  a.activate(); a.sync(true,'evidence'); await tick();
++  assert.equal(a.enabled,false); assert.equal(active(ctx).length,0);
++  grant({owner:'napplet',sessionId:'canonical'}); await tick();
++  assert.equal(a.enabled,true); assert.equal(active(ctx).length,1);
++  command('pause'); await tick(); a.activate(); a.sync(true,'evidence'); a.play({id:'shotgun_fire'},listener);
++  assert.equal(ctx.state,'suspended'); assert.equal(active(ctx).length,0);
++  command('play'); await tick(); assert.equal(a.enabled,true); assert.equal(active(ctx).length,1);
++  command('stop'); await tick(); a.activate(); assert.equal(ctx.state,'suspended');
++  a.dispose(); assert.deepEqual(destroyed,['canonical']); assert.equal(ctx.state,'closed');
++});
++test('missing or denied MEDIA keeps the game silent without creating a bypass', async () => {
++  const absent = new Context(), a = new GameAudio([clip('shotgun_fire')],()=>{},()=>absent,undefined);
++  a.activate(); a.sync(true,'evidence'); a.play({id:'shotgun_fire'},listener);
++  assert.equal(a.enabled,false); assert.deepEqual(absent.events,[]); a.dispose();
++  const denied = new Context(), host = {...media(),createSession:async()=>({error:'denied'})};
++  const b = new GameAudio([clip('shotgun_fire')],()=>{},()=>denied,host);
++  b.activate(); b.sync(true,'evidence'); await tick(); b.play({id:'shotgun_fire'},listener);
++  assert.equal(b.enabled,false); assert.equal(active(denied).length,0); assert.equal(denied.state,'closed'); b.dispose();
++});

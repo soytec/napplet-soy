@@ -1,0 +1,253 @@
+{
+  "date": "2026-10-28",
+  "scope": "Only operator-owned published napplets. Six local projects plus the owner\u2019s earlier Studio-built Obsidian Breaker and Truffle Rush. Original signed events and historical audit results are unchanged. Disposable current manifests used for acceptance, never published.",
+  "repairs": [
+    {
+      "title": "Funclet",
+      "eventId": "0b497cfc2f66c55144f6420c1363b63316e02981c828ffe75473d43e66675778",
+      "pubkey": "3aa5817273c3b2f94f491840e0472f049d0f10009e23de63006166bca9b36ea3",
+      "identifier": "n-6b7a37cac1d",
+      "artifactHash": "66f0973c4361d99d7cef612c4a0f7c0501c02b414d975e4607feaef0a575b8f7",
+      "source": "nostr://npub182jczunncwe0jn6frpqwq3e0qjws7yqqnc3auccqv9nte2dnd63scjm4rf/wss%3A%2F%2Fgit.napplet.soy%2F/n-6b7a37cac1d",
+      "sourceCommit": "1e531b24f4905e2df9a788a3b0b53129322abf9c",
+      "sourceArchive": "https://blossom.napplet.soy/71d97a89ed8c40c288ef1ac91efa4185175e1abbc848668496b4ee7165e0d6c7",
+      "repair": "funclet",
+      "status": "prepared-and-verified-locally",
+      "published": false,
+      "sourceArchiveSha256": "71d97a89ed8c40c288ef1ac91efa4185175e1abbc848668496b4ee7165e0d6c7",
+      "patch": "funclet.patch",
+      "patchSha256": "6075eed6d1f88e15bc5db7d8dc6c1baa9edc89ab664a20b7eae9cbb1e4c99706",
+      "rebuiltHtmlSha256": "c143b6780c3e7e5a2628a2cb7ae7837362473d2e29f2e4de0619b4f1f5788ffb",
+      "patchAppliedToCleanVerifiedArchive": true,
+      "changedFiles": [
+        "docs/napplet-space.md",
+        "src/control-sounds.ts",
+        "src/coordinated-audio.ts",
+        "src/main.ts",
+        "src/player.ts",
+        "tests/funclet.test.mjs",
+        "tests/ui-smoke.mjs"
+      ],
+      "independentHost": "@kehto/paja@0.24.4",
+      "independentCases": ["allowed-media", "absent-media", "denied-media"],
+      "upstreamConformance": {
+        "passed": 5,
+        "failed": 0,
+        "skipped": 5
+      },
+      "localRepairCommit": "7406198d672cced92259c4df859d223340d46764"
+    },
+    {
+      "title": "Napplet Machines V8",
+      "eventId": "a48ffab2ae1e79bfcb87a68cee792d346c954196a9987f32f4da7b164b7ebf61",
+      "pubkey": "3aa5817273c3b2f94f491840e0472f049d0f10009e23de63006166bca9b36ea3",
+      "identifier": "n-b5572362d4a",
+      "artifactHash": "ff21fc99eb4404c70f202250ed1999bca6f52b9b4c8cdfbc78b1187bf52fb7ad",
+      "source": "nostr://npub182jczunncwe0jn6frpqwq3e0qjws7yqqnc3auccqv9nte2dnd63scjm4rf/wss%3A%2F%2Fgit.napplet.soy%2F/n-b5572362d4a",
+      "sourceCommit": "2a817e4d389e85fbf630112fd32177bd895ce60d",
+      "sourceArchive": "https://blossom.napplet.soy/ecd5161370161eeb478054063c48c9679aef1ba5c4b67d06ea58e0b9d959f106",
+      "repair": "napplet-machines-v8",
+      "status": "prepared-and-verified-locally",
+      "published": false,
+      "sourceArchiveSha256": "ecd5161370161eeb478054063c48c9679aef1ba5c4b67d06ea58e0b9d959f106",
+      "patch": "napplet-machines-v8.patch",
+      "patchSha256": "4491a9fe6d472ba51fce158c5f21dcc4c2207cfa6874296fcbb4de08c106f9f4",
+      "rebuiltHtmlSha256": "434eecd409c2b38f5ecb4266db50ced44c1b42c493117ce043e98ac09e2ba722",
+      "patchAppliedToCleanVerifiedArchive": true,
+      "changedFiles": [
+        "docs/examples/coordinated-audio.ts",
+        "docs/napplet-space.md",
+        "src/main.ts"
+      ],
+      "independentHost": "@kehto/paja@0.24.4",
+      "independentCases": ["allowed-media", "absent-media", "denied-media"],
+      "upstreamConformance": {
+        "passed": 5,
+        "failed": 0,
+        "skipped": 5
+      },
+      "localRepairCommit": "1d539a5462645fd933884e97e21fc4cd475e7a92"
+    },
+    {
+      "title": "GRAV / RIFT",
+      "eventId": "2d708dc1528144b490b5530b4e27a238ced1cd1cf95ee89f483ff51e955f7c07",
+      "pubkey": "3aa5817273c3b2f94f491840e0472f049d0f10009e23de63006166bca9b36ea3",
+      "identifier": "n-8a7361981e8",
+      "artifactHash": "898a9ffefcf9c818c12911cff83dd057a5c501839f3ce06c3ab7bccafa7bde2b",
+      "source": "nostr://npub182jczunncwe0jn6frpqwq3e0qjws7yqqnc3auccqv9nte2dnd63scjm4rf/wss%3A%2F%2Fgit.napplet.soy%2F/n-8a7361981e8",
+      "sourceCommit": "e050bd098fefc66986002e9803a49a70582d09c9",
+      "sourceArchive": "https://blossom.napplet.soy/8271236c6885eb097609e15fd112da2d23454b58c5690bcaf2d64092ab696e27",
+      "repair": "physics-type",
+      "status": "prepared-and-verified-locally",
+      "published": false,
+      "sourceArchiveSha256": "8271236c6885eb097609e15fd112da2d23454b58c5690bcaf2d64092ab696e27",
+      "patch": "physics-type.patch",
+      "patchSha256": "b964219dafd233c37dd206993466c0ba5ef5315f23a82446560f3397cc469e3b",
+      "rebuiltHtmlSha256": "79e587a10fa1dd1f6fe409d2c860d0b2eb083b748b4bec49e65c975a1da81f0d",
+      "patchAppliedToCleanVerifiedArchive": true,
+      "changedFiles": [
+        "docs/examples/coordinated-audio.ts",
+        "docs/napplet-space.md",
+        "src/main.ts"
+      ],
+      "independentHost": "@kehto/paja@0.24.4",
+      "independentCases": ["allowed-media", "absent-media", "denied-media"],
+      "upstreamConformance": {
+        "passed": 5,
+        "failed": 0,
+        "skipped": 5
+      },
+      "localRepairCommit": "8017419ecaaa3372ec8dbb19e0e1e0745ef7eb63"
+    },
+    {
+      "title": "Rail Game",
+      "eventId": "ccdd5b913413a364713e5d0e2293857edc8ea630ecd5b11ac0bb92b890fade8e",
+      "pubkey": "99d1d395c7be96c77766e4124164ce3a2443d486e146644f762d29832f7faf25",
+      "identifier": "n-91ec90c6fdf",
+      "artifactHash": "f3038a8471c0744355f8748b332639be6c317dc45856739675b878987a3ba565",
+      "source": "nostr://npub1n8ga89w8h6tvwamxusfyzexw8gjy84yxu9rxgnmk955cxtml4ujswzxydd/wss%3A%2F%2Fgit.napplet.soy%2F/n-91ec90c6fdf",
+      "sourceCommit": "ddf0122b6acc85bff9ea2a6a7e446f06744e5438",
+      "sourceArchive": "https://blossom.napplet.soy/dad7b678e25f96a35fc8f55d14500aaca8e9fc90ca0284a8c38f975c48d9709a",
+      "repair": "rail-game",
+      "status": "prepared-and-verified-locally",
+      "published": false,
+      "sourceArchiveSha256": "dad7b678e25f96a35fc8f55d14500aaca8e9fc90ca0284a8c38f975c48d9709a",
+      "patch": "rail-game.patch",
+      "patchSha256": "44796aa11e62d25e1417621bbd3828e30e9afa56559fadecc0e91ea26d045d66",
+      "rebuiltHtmlSha256": "9453132ff164db54cc73c3341731fc681ad32e9ca6a0768a1ceb49313c969bc9",
+      "patchAppliedToCleanVerifiedArchive": true,
+      "changedFiles": [
+        "docs/examples/coordinated-audio.ts",
+        "docs/napplet-space.md",
+        "src/main.ts"
+      ],
+      "independentHost": "@kehto/paja@0.24.4",
+      "independentCases": ["allowed-media", "absent-media", "denied-media"],
+      "upstreamConformance": {
+        "passed": 5,
+        "failed": 0,
+        "skipped": 5
+      },
+      "localRepairCommit": "6b1c2e61cfb9fc496c9aa0535f0ac9ac6021f5f2"
+    },
+    {
+      "title": "Soybert 3D",
+      "eventId": "4bf80e758af17a4100681b92acabb81d6ed7c564ccec3952749280bdb51f5815",
+      "pubkey": "99d1d395c7be96c77766e4124164ce3a2443d486e146644f762d29832f7faf25",
+      "identifier": "n-9021e1b6a96",
+      "artifactHash": "ee1660d966256e736b962658060ade68df02c39740f0f78a060df04c401ace73",
+      "source": "nostr://npub1n8ga89w8h6tvwamxusfyzexw8gjy84yxu9rxgnmk955cxtml4ujswzxydd/wss%3A%2F%2Fgit.napplet.soy%2F/n-9021e1b6a96",
+      "sourceCommit": "298fa2d0e8b1c3e7b9788dc25ab64b3408e0f69f",
+      "sourceArchive": "https://blossom.napplet.soy/7083223a53bbd32026f3f4be929ae9e1a0047000db9c992a35441cc620308f71",
+      "repair": "soybert-3d",
+      "status": "prepared-and-verified-locally",
+      "published": false,
+      "sourceArchiveSha256": "7083223a53bbd32026f3f4be929ae9e1a0047000db9c992a35441cc620308f71",
+      "patch": "soybert-3d.patch",
+      "patchSha256": "352936f348e8f4b721f894921bf4a044a7ecd3260db49c12edc940ccdc549a23",
+      "rebuiltHtmlSha256": "3f7817dd73df63d4f88855a60cbecebef24b6b0b697d3b4ee35c4dd6c65fd8b8",
+      "patchAppliedToCleanVerifiedArchive": true,
+      "changedFiles": [
+        "docs/examples/coordinated-audio.ts",
+        "docs/napplet-space.md",
+        "src/audio.ts"
+      ],
+      "independentHost": "@kehto/paja@0.24.4",
+      "independentCases": ["allowed-media", "absent-media", "denied-media"],
+      "upstreamConformance": {
+        "passed": 5,
+        "failed": 0,
+        "skipped": 5
+      },
+      "localRepairCommit": "eb8d2cb821e1aadcae3edb2aa0fc226ce6301129"
+    },
+    {
+      "title": "Outbreak: Soycoon City",
+      "eventId": "db7750b1d009b54ee7fb54a453bb80c7f49fa6f4a8f1bb66a557a9463df12ea7",
+      "pubkey": "3aa5817273c3b2f94f491840e0472f049d0f10009e23de63006166bca9b36ea3",
+      "identifier": "n-b87c04571a9",
+      "artifactHash": "3bd2cd66d1641d20028a55785c92bba7b05ce44aa2bc1c89f4830eb6927e8028",
+      "source": "nostr://npub182jczunncwe0jn6frpqwq3e0qjws7yqqnc3auccqv9nte2dnd63scjm4rf/wss%3A%2F%2Fgit.napplet.soy%2F/n-b87c04571a9",
+      "sourceCommit": "3ee3f5fd27a64be365ce8704030fb7c4cf63ab1b",
+      "sourceArchive": "https://blossom.napplet.soy/dbebdc772b142a1c89f73aa67adaf9a569a761cfa769c5d3eb0fc5df9472da50",
+      "repair": "soyindent-evil",
+      "status": "prepared-and-verified-locally",
+      "published": false,
+      "sourceArchiveSha256": "dbebdc772b142a1c89f73aa67adaf9a569a761cfa769c5d3eb0fc5df9472da50",
+      "patch": "soyindent-evil.patch",
+      "patchSha256": "50aab1512ff33f41924a63fe9c6d634bc9770cc1445a653e4ba75736fa2b8251",
+      "rebuiltHtmlSha256": "9d98f9a6771cf6f172909253cd19a4f71977e16062f7925645c4185521723016",
+      "patchAppliedToCleanVerifiedArchive": true,
+      "changedFiles": [
+        "docs/examples/coordinated-audio.ts",
+        "docs/napplet-space.md",
+        "src/audio.ts",
+        "tests/audio.test.mjs"
+      ],
+      "independentHost": "@kehto/paja@0.24.4",
+      "independentCases": ["allowed-media", "absent-media", "denied-media"],
+      "upstreamConformance": {
+        "passed": 5,
+        "failed": 0,
+        "skipped": 5
+      },
+      "localRepairCommit": "4d997ea79539709b47c64c65c47edcccdd4f5b7f",
+      "additionalLocalMainRepair": {
+        "base": "786c9de7a798ce4e188c1d98774f062b52bdda66",
+        "commit": "74fb119a5675ccc35d1095cecc782f4ad3beb3e2"
+      }
+    },
+    {
+      "title": "Obsidian Breaker",
+      "eventId": "44c589c52043219bcfafc975ec255f4544fd7fc5115c5ba0a69bbb3010ca5301",
+      "pubkey": "6ef777a78b2405fad6b4db2a619116441123b03cf148688084280db15439dac4",
+      "identifier": "n-de5dc6a02e7",
+      "artifactHash": "593a728ccdbd18ab3a4b74799d6a73e7fc5b54c80ae7c9ba5e0c80d2c97f7377",
+      "source": "nostr://npub1dmmh0futyszl4445mv4xrygkgsgj8vpu79yx3qyy9qxmz4pemtzqlqmc87/wss%3A%2F%2Fgit.napplet.soy%2F/n-de5dc6a02e7",
+      "sourceCommit": "9ee5b61ce1c9c75d8976b661da97452332379eb4",
+      "sourceArchive": "https://blossom.napplet.soy/240ec416a9cbfd9cb738b938100811fb241360d30ee290cb7b19ac89bcc8d35e",
+      "repair": "obsidian-breaker",
+      "status": "prepared-and-verified-locally",
+      "published": false,
+      "sourceArchiveSha256": "240ec416a9cbfd9cb738b938100811fb241360d30ee290cb7b19ac89bcc8d35e",
+      "patch": "obsidian-breaker.patch",
+      "patchSha256": "6ac1463f9c715aa2b5ecb0d08e659a58290689237f605540c8d5bbd2ccf478ef",
+      "rebuiltHtmlSha256": "d5a0431688c0dfd0c2b8d45b4eb2fd508e90344bdfca4a5fa856d07e7d7ed371",
+      "patchAppliedToCleanVerifiedArchive": true,
+      "changedFiles": ["src/audio.ts", "src/coordinated-audio.ts"],
+      "independentHost": "@kehto/paja@0.24.4",
+      "independentCases": ["allowed-media", "absent-media", "denied-media"],
+      "upstreamConformance": {
+        "passed": 5,
+        "failed": 0,
+        "skipped": 5
+      }
+    },
+    {
+      "title": "Truffle Rush",
+      "eventId": "bf9d57a12f8286f58c6647b80044bff6f367214e329902d2fa0b47fb98bbd077",
+      "pubkey": "6ef777a78b2405fad6b4db2a619116441123b03cf148688084280db15439dac4",
+      "identifier": "n-dad0644224b",
+      "artifactHash": "3ab46c3abb9dc746edcf87c65d019af64156cb7843bd6be8e34614d31091252d",
+      "source": "nostr://npub1dmmh0futyszl4445mv4xrygkgsgj8vpu79yx3qyy9qxmz4pemtzqlqmc87/wss%3A%2F%2Fgit.napplet.soy%2F/n-dad0644224b",
+      "sourceCommit": "bf11c370d93c861d7a55e74b56ef00b8a59960c2",
+      "sourceArchive": "https://blossom.napplet.soy/261cbd0dce1d32f53854f44cde194a6f057fb9de0e00c9540d8b5811e280c267",
+      "repair": "truffle-rush",
+      "status": "prepared-and-verified-locally",
+      "published": false,
+      "sourceArchiveSha256": "261cbd0dce1d32f53854f44cde194a6f057fb9de0e00c9540d8b5811e280c267",
+      "patch": "truffle-rush.patch",
+      "patchSha256": "0479359dab0c704f1e9f237a0b073b39d0c2005df38c219a96a40f72c73c6655",
+      "rebuiltHtmlSha256": "52a64d1c4f1bd6aefd9b6f4638ce7e0e62d10ebdfd0bf0de575239eafae5762c",
+      "patchAppliedToCleanVerifiedArchive": true,
+      "changedFiles": ["src/main.ts", "src/coordinated-audio.ts", "docs/napplet-space.md"],
+      "independentHost": "@kehto/paja@0.24.4",
+      "independentCases": ["allowed-media", "absent-media", "denied-media"],
+      "upstreamConformance": {
+        "passed": 5,
+        "failed": 0,
+        "skipped": 5
+      }
+    }
+  ]
+}

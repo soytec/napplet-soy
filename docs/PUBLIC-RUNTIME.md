@@ -1,5 +1,13 @@
 # Napplet playback profile
 
+The 2026-10-27 source uses profile `space-playback-7` (not yet deployed/released).
+Operations no longer wait for optional SHELL initialization; `shell.supports`
+checks installed namespaces immediately. Account and frame authority are unchanged.
+NAP-MEDIA now coordinates napplet-owned audio alongside shell-owned streams;
+see [MEDIA.md](MEDIA.md). Historical checkpoints below describe their dated scope.
+The [compliance audit](NIP5D-COMPLIANCE-AUDIT-2026-10-27.md) distinguishes remaining
+interoperability work from implemented corrections.
+
 2026-10-13 OUTBOX source update: web and preview share an account-scoped Applesauce
 store/loaders, verified NIP-65 planner, live route refresh and consented general
 event publication. Own write relays, required recipient read relays and explicit

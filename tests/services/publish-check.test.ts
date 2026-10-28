@@ -167,10 +167,68 @@ test.each([
     } else {
       expect(outcome.code, outcome.out + outcome.err).toBe(0);
       expect(outcome.data).toMatchObject({ profile: RUNTIME_PROFILE });
+      expect(outcome.data.coverage).toMatchObject({
+        startup: 'passed',
+        interaction: { status: 'not-run', actions: 0 },
+        mediaCoordination: 'not-verified',
+        independentHost: 'not-run',
+      });
+      expect(outcome.data.warnings.join(' ')).toContain('Gameplay correctness');
     }
   },
   15000,
 );
+
+test('CLI exercises configured inputs and catches networking that only starts after play', async () => {
+  const config = {
+    schema: 'space-local-project/v1',
+    name: 'Interaction check',
+    license: 'MIT',
+    previewId: crypto.randomUUID(),
+    entry: 'index.html',
+    requires: [],
+    relays: [],
+    servers: [],
+    preview: {
+      delayMs: 250,
+      recording: {
+        durationMs: 2000,
+        actions: [
+          { type: 'keyDown', atMs: 0, key: 'Space' },
+          { type: 'keyUp', atMs: 100, key: 'Space' },
+        ],
+      },
+    },
+  };
+  const contents = new Map([
+    ['napplet.json', new TextEncoder().encode(JSON.stringify(config))],
+    [
+      'index.html',
+      new TextEncoder().encode(`<!doctype html><p>Press Space</p><script>
+      onkeydown=()=>fetch('https://must-not-contact.invalid/play').catch(()=>{});
+    </script>`),
+    ],
+  ]);
+  const bad = await checkCli(contents);
+  expect(bad.code, bad.out + bad.err).toBe(1);
+  expect(bad.data.error.code).toBe('BROWSER_CHECK');
+  expect(bad.out).toContain('content security policy violation');
+  contents.set(
+    'index.html',
+    new TextEncoder().encode(`<!doctype html><p>Press Space</p><script>
+    onkeydown=()=>{document.querySelector('p').textContent='Playing'};
+  </script>`),
+  );
+  const good = await checkCli(contents);
+  expect(good.code, good.out + good.err).toBe(0);
+  expect(good.data.coverage).toMatchObject({
+    startup: 'passed',
+    interaction: { status: 'exercised', actions: 2, source: 'preview.recording' },
+    independentHost: 'not-run',
+    mediaCoordination: 'not-verified',
+  });
+  expect(good.data.warnings.join(' ')).toContain('Gameplay correctness');
+}, 30000);
 
 test('capture contains the app pixels, saves a selected image, and validates chosen images', async () => {
   const root = await mkdtemp(join(tmpdir(), 'napplet-capture-'));

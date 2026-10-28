@@ -28,6 +28,7 @@ import { uploadBlob } from '../../blossom/src/client';
 import type { EventTemplate } from 'nostr-tools';
 import { PublishError, projectSchema, resolveTargets, type Targets } from './config';
 import { Journal, type PublishJob } from './journal';
+import type { CheckReport } from './check-report';
 import {
   durableFile,
   freezeSource,
@@ -86,7 +87,7 @@ export type PublishOptions = {
   accounts?: Pick<Accounts, 'current' | 'signer'>;
   check: (
     contents: Map<string, Uint8Array>,
-  ) => Promise<{ profile: string; browser: string; preview?: Uint8Array; video?: Uint8Array }>;
+  ) => Promise<CheckReport & { preview?: Uint8Array; video?: Uint8Array }>;
   requirePreview?: boolean;
   signal?: AbortSignal;
   onAuth?: (url: string) => Promise<void>;

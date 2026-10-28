@@ -250,6 +250,7 @@ if(command === 'new') {
   await mkdir('dist',{recursive:true});
   await writeFile('dist/index.html','<!doctype html><html><body>'+source+'</body></html>');
   if(command === 'run' && arg === 'test:conformance') console.error('5 passed; 5 skipped (manifest not supplied)');
+  else if(command === 'check') console.log(JSON.stringify({status:'checked',warnings:['Interaction not measured.', 'Media coordination is not verified.', 'Independent-host compatibility not measured.']}, null, 2));
   else console.log('passed');
 }
 `,
@@ -327,6 +328,14 @@ test('real process failure is repaired, skipped checks stay visible, and reload 
   expect(result.phase).toBe('ready');
   expect(calls).toBe(2);
   expect(result.checks[2].detail).toContain('5 skipped');
+  expect(result.checks[1].detail).toContain('Interaction not measured');
+  expect(result.checks[1].detail).toContain('Media coordination is not verified');
+  expect(result.checks[1].detail).toContain('Independent-host compatibility not measured');
+  expect(
+    result.messages.some((m) =>
+      m.text.includes('compatibility with other shells still needs review'),
+    ),
+  ).toBe(true);
   expect(sessions).toEqual([undefined, 'ses_fixture']);
   expect(result.messages.some((m) => m.text.includes('one repair pass'))).toBe(true);
   const saved = await readFile(
