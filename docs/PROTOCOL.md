@@ -10,8 +10,8 @@ source references are covered by our proposed source/media amendment; neither
 they nor `soy.app-data/1` usage alone are defect marks. The first remediation batch is implemented locally: domains no longer depend on
 SHELL readiness, the shared host supports napplet-owned NAP-MEDIA sessions, and
 soyLI reports startup, configured interactions and unmeasured coverage separately.
-See the audit’s remediation record and [media contract](MEDIA.md). Deployment,
-independent-client acceptance and repairs to existing releases remain outstanding.
+See the audit’s remediation record and [media contract](MEDIA.md). Independent Paja acceptance and eight owner-scoped source repairs are verified
+locally; deployment and author-signed replacement releases remain outstanding.
 The historical rollout records below are not a claim of complete conformance. The selected NIP-5D pin is unchanged.
 
 ## Shell wallet — local implementation, not deployed
