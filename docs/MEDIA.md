@@ -155,3 +155,20 @@ five seconds and paused with Bun/Node absent from PATH; the original project was
 See `packages/runtime/src/media.test.ts`, `packages/backend/src/audio.test.ts` and
 `tests/services/media.test.ts`. Existing runtime browser tests continue to cover
 sandboxing, file prompts, configuration and account transitions.
+
+## Creator example
+
+New soyLI projects include `docs/examples/coordinated-audio.ts`; the
+[repository copy](examples/coordinated-audio.ts) shows optional Web Audio gated on
+an actual napplet-owned MEDIA grant. Pass the SDK `media` wrapper only when the
+injected namespace exists, connect every audible bus through `output`, call
+`activate()` from a user gesture, and dispose on teardown. It handles host
+pause/stop/play/volume, local mute, late grants and denied/absent MEDIA. A failed
+registration closes the controller; retry requires a fresh controller or reload.
+Do not construct a fresh controller just to override a host pause.
+
+This is a sustained game/effects session, not a universal audio mixer or a proof
+that every sample is playing. Decorative effects must yield to a primary media
+session when the shell cannot mix them; the Funclet repair demonstrates this.
+See the [repair acceptance report](audits/2026-10-28/repairs/README.md) for tested
+behavior and limits. No additional network or sandbox permission is required.

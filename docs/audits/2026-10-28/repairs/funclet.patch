@@ -1,0 +1,337 @@
+--- a/docs/napplet-space.md
++++ b/docs/napplet-space.md
+@@ -436,13 +436,19 @@
+ then sendCommand for play/pause/stop/volume. Destroy sessions when leaving the view.
+ MP3, Ogg audio and WAV are supported subject to browser codecs. The host handles
+ streaming, source checks and gesture prompts. Only use advertised controls; no seek,
+-playlists/HLS/DASH, video, napplet-owned sessions or hash/Nostr-only source resolution
+-is implemented. Nostr hints and session context are metadata, not network authority.
++playlists/HLS/DASH, video or hash/Nostr-only source resolution
++is implemented by that historical streaming implementation. Napplet-owned session
++support must be checked in the running host. Nostr hints and session context are metadata, not network authority.
+ Artwork is not loaded by this audio host. Four sessions per frame are allowed; one
+ plays at a time. Streams stop at 128 MiB or two hours and close with the napplet.
+-Small embedded data/blob audio and Web Audio are separate browser features, subject
+-to user activation and codec support. Do not work around missing media support by
+-adding direct remote URLs, fetch, an unbounded resource download or a looser CSP.
++Embedded samples and Web Audio also need a napplet-owned NAP-MEDIA session.
++Route every audible branch through CoordinatedAudio's output gain, wait for the
++session grant, respect host pause/stop/volume, and dispose it on pagehide. Check
++runtimeHasDomain('media') before using the SDK wrapper. Ordinary game input must
++not reverse a host pause. Missing or denied optional MEDIA means silent gameplay,
++not direct audio output. Shell-owned streams and napplet-owned effects are
++separate owner modes; a host may support one without the other. Never work around
++missing support with direct remote URLs, fetch or a looser CSP.
+ For clients without media, keep a clear unavailable state or user-confirmed link
+ fallback; if playback is the core purpose, declare media required and report the
+ host gap. Test the actual play/pause/volume flow, not only build/startup or relay lookup.
+--- a/src/control-sounds.ts
++++ b/src/control-sounds.ts
+@@ -1,15 +1,19 @@
++import { runtimeHasDomain } from './domain-availability.js';
++import { media } from '@napplet/sdk';
++import { CoordinatedAudio } from './coordinated-audio.js';
++
+ /** Short, local mechanical feedback; radio playback remains shell-owned. */
+ export class ControlSounds {
+-  private context: AudioContext | undefined;
++  private audio = new CoordinatedAudio(runtimeHasDomain('media') ? media : undefined, 'Funclet control feedback');
++  private radioActive = false;
+   private noise: AudioBuffer | undefined;
+   private lastTick = -1;
+   private disposed = false;
+ 
+   play(kind: 'tick' | 'chunk'): void {
+-    if (this.disposed) return;
++    if (this.disposed || this.radioActive || !this.audio.activate()) return;
+     try {
+-      const context = this.context ??= new AudioContext();
+-      if (context.state === 'suspended') void context.resume().catch(() => {});
++      const context = this.audio.context!;
+       // Never queue delayed clicks if the browser has not granted audio activation.
+       if (context.state !== 'running') return;
+       const now = context.currentTime;
+@@ -32,7 +36,7 @@
+       gain.gain.setValueAtTime(.0001, now);
+       gain.gain.exponentialRampToValueAtTime(chunk ? .3 : .17, now + .001);
+       gain.gain.exponentialRampToValueAtTime(.0001, now + duration);
+-      source.connect(filter).connect(gain).connect(context.destination);
++      source.connect(filter).connect(gain).connect(this.audio.output!);
+       source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); };
+       source.start(now); source.stop(now + duration);
+       if (chunk) {
+@@ -42,16 +46,25 @@
+         body.frequency.exponentialRampToValueAtTime(65, now + duration);
+         envelope.gain.setValueAtTime(.18, now);
+         envelope.gain.exponentialRampToValueAtTime(.0001, now + duration);
+-        body.connect(envelope).connect(context.destination);
++        body.connect(envelope).connect(this.audio.output!);
+         body.onended = () => { body.disconnect(); envelope.disconnect(); };
+         body.start(now); body.stop(now + duration);
+       }
+     } catch { /* Feedback must never block playback controls. */ }
+   }
+ 
++  /** Decorative effects must not take focus from the main radio session. */
++  setRadioActive(active: boolean): void {
++    if (active === this.radioActive || this.disposed) return;
++    this.radioActive = active;
++    this.audio.dispose();
++    this.noise = undefined;
++    if (!active) this.audio = new CoordinatedAudio(runtimeHasDomain('media') ? media : undefined, 'Funclet control feedback');
++  }
++
+   dispose(): void {
+     this.disposed = true;
+-    if (this.context) void this.context.close().catch(() => {});
++    this.audio.dispose();
+     this.noise = undefined;
+   }
+ }
+--- /dev/null
++++ b/src/coordinated-audio.ts
+@@ -0,0 +1,164 @@
++/** Optional Web Audio coordinated through the pinned NAP-MEDIA contract.
++ * Pass the SDK's `media` wrapper only when window.napplet?.media exists.
++ * All audible branches MUST connect to output, never directly to destination. */
++export interface AudioMediaClient {
++  createSession(options: {
++    owner: 'napplet';
++    metadata: { title: string; mediaType: 'audio' };
++    capabilities: ('play' | 'pause' | 'stop' | 'volume')[];
++  }): Promise<{ owner?: string; sessionId?: string; error?: string }>;
++  onCommand(
++    id: string,
++    handler: (action: string, value?: number | boolean) => void,
++  ): { close(): void };
++  reportState(
++    id: string,
++    state: { status: 'playing' | 'paused' | 'stopped'; volume: number },
++  ): void;
++  destroySession(id: string): void;
++}
++
++export class CoordinatedAudio {
++  context?: AudioContext;
++  output?: GainNode;
++  private session = '';
++  private pending = false;
++  private blocked = false;
++  private disposed = false;
++  private muted = false;
++  private volume = 1;
++  private stopped = false;
++  private listener?: { close(): void };
++  constructor(
++    private media: AudioMediaClient | undefined,
++    private title: string,
++    private options: { createContext?: () => AudioContext; onChange?: () => void } = {},
++  ) {}
++
++  /** Call from a user gesture. Ordinary game ticks cannot reverse a host pause. */
++  activate(): boolean {
++    if (!this.media || this.disposed || this.blocked) return false;
++    try {
++      if (!this.context) {
++        this.context = this.options.createContext?.() ?? new AudioContext();
++        this.output = this.context.createGain();
++        this.output.gain.value = 0; // No output before the shell grants a session.
++        this.output.connect(this.context.destination);
++        this.context.onstatechange = () => this.report();
++      }
++      if (!this.session && !this.pending) {
++        this.pending = true;
++        void this.register();
++      }
++      if (this.context.state === 'suspended') void this.resume();
++      return this.audible;
++    } catch {
++      this.dispose();
++      return false;
++    }
++  }
++
++  get audible(): boolean {
++    return (
++      !!this.session &&
++      !this.disposed &&
++      !this.blocked &&
++      !this.muted &&
++      this.context?.state === 'running'
++    );
++  }
++  setMuted(value: boolean): void {
++    this.muted = value;
++    this.applyGain();
++    this.report();
++  }
++  private applyGain(): void {
++    if (this.output) this.output.gain.value = this.audible ? this.volume : 0;
++  }
++  private report(): void {
++    this.applyGain();
++    this.options.onChange?.();
++    if (!this.session || this.disposed) return;
++    try {
++      this.media!.reportState(this.session, {
++        status: this.audible ? 'playing' : this.stopped ? 'stopped' : 'paused',
++        volume: this.muted ? 0 : this.volume,
++      });
++    } catch {
++      this.dispose();
++    }
++  }
++  private async resume(): Promise<void> {
++    try {
++      await this.context?.resume();
++      this.report();
++    } catch {
++      this.applyGain();
++    }
++  }
++  private async register(): Promise<void> {
++    try {
++      const result = await this.media!.createSession({
++        owner: 'napplet',
++        metadata: { title: this.title, mediaType: 'audio' },
++        capabilities: ['play', 'pause', 'stop', 'volume'],
++      });
++      if (this.disposed) {
++        if (result.sessionId) this.media!.destroySession(result.sessionId);
++        return;
++      }
++      if (result.error || !result.sessionId || result.owner !== 'napplet') {
++        if (result.sessionId) this.media!.destroySession(result.sessionId);
++        this.dispose();
++        return;
++      }
++      this.session = result.sessionId;
++      this.listener = this.media!.onCommand(this.session, (action, value) => {
++        if (this.disposed) return;
++        if (action === 'pause' || action === 'stop') {
++          this.blocked = true;
++          this.stopped = action === 'stop';
++          this.applyGain(); // Silence immediately, even while resume/suspend settles.
++          void this.context
++            ?.suspend()
++            .then(() => this.report())
++            .catch(() => {});
++        } else if (action === 'play') {
++          this.blocked = false;
++          this.stopped = false;
++          void this.resume();
++        } else if (action === 'volume' && typeof value === 'number' && Number.isFinite(value)) {
++          this.volume = Math.max(0, Math.min(1, value));
++        }
++        this.report();
++      });
++      this.report();
++    } catch {
++      this.dispose();
++    } finally {
++      this.pending = false;
++    }
++  }
++  dispose(): void {
++    if (this.disposed) return;
++    this.disposed = true;
++    this.applyGain();
++    try {
++      this.listener?.close();
++    } catch {
++      /* Host already gone. */
++    }
++    if (this.context) {
++      this.context.onstatechange = null;
++      void this.context.close().catch(() => {});
++    }
++    if (this.session) {
++      try {
++        this.media!.destroySession(this.session);
++      } catch {
++        /* Host already gone. */
++      }
++    }
++    this.session = '';
++  }
++}
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -319,6 +319,7 @@
+ }
+ function onPlayerChanged() {
+   if (destroyed) return;
++  controlSounds.setRadioActive(player.status === 'connecting' || !!player.sessionId);
+   if (player.status === 'playing' && ['paused', 'stopped'].includes(previousPlaybackStatus)) metadataSuppressed = false;
+   previousPlaybackStatus = player.status;
+   if (metadataKey !== player.stream?.url) {
+--- a/src/player.ts
++++ b/src/player.ts
+@@ -55,7 +55,10 @@
+     } catch (error) {
+       if (epoch !== this.epoch) return;
+       this.destroy();
+-      this.error = error instanceof Error ? error.message : 'Playback is unavailable.';
++      const reason = error instanceof Error ? error.message : 'Playback is unavailable.';
++      this.error = /unsupported owner mode/i.test(reason)
++        ? 'This shell cannot play radio streams through NAP-MEDIA. Try a shell with shell-owned stream playback. Browsing and favourites still work.'
++        : reason;
+       this.status = 'error';
+       this.changed();
+     }
+--- a/tests/funclet.test.mjs
++++ b/tests/funclet.test.mjs
+@@ -218,3 +218,33 @@
+   }
+   assert.equal(await new StationPreference({getItem:async()=>address}).load(),address);
+ });
++
++
++test('decorative sound sessions yield before radio connection and resume only without a radio session', async () => {
++  const instances = [];
++  class Audio {
++    disposed = false;
++    activations = 0;
++    constructor() { instances.push(this); }
++    activate() { this.activations++; return false; }
++    dispose() { this.disposed = true; }
++  }
++  const { ControlSounds } = await loadModule('control-sounds', {
++    './domain-availability.js': { runtimeHasDomain: () => true },
++    '@napplet/sdk': { media: {} },
++    './coordinated-audio.js': { CoordinatedAudio: Audio },
++  });
++  const sounds = new ControlSounds();
++  sounds.play('tick');
++  assert.equal(instances[0].activations, 1);
++  sounds.setRadioActive(true); // RadioPlayer reports connecting synchronously, before its grant.
++  assert.equal(instances[0].disposed, true);
++  sounds.play('chunk');
++  assert.equal(instances[0].activations, 1);
++  sounds.setRadioActive(false); // Failed/destroyed stream; no competing radio owner.
++  sounds.play('tick');
++  assert.equal(instances[1].activations, 1);
++  sounds.dispose(); sounds.setRadioActive(false); sounds.play('tick');
++  assert.equal(instances[1].disposed, true);
++  assert.equal(instances[1].activations, 1);
++});
+--- a/tests/ui-smoke.mjs
++++ b/tests/ui-smoke.mjs
+@@ -46,7 +46,7 @@
+  assert.ok(!pausedImage.equals(await canvas.screenshot()),'cube and camera must keep moving gently while paused');
+  await canvas.tap({position:keyPoint});
+  await frame.locator('#playback-label').filter({hasText:'ON AIR'}).waitFor();
+- assert.ok(await frame.locator('body').evaluate(()=>window.__sounds.length)>soundsBefore,'play/pause must synthesize key feedback');
++ assert.equal(await frame.locator('body').evaluate(()=>window.__sounds.length),soundsBefore,'decorative sounds must yield to the radio session');
+  const beforeDial=Number(await frame.locator('#volume').inputValue());
+  await page.mouse.move(stageBox.x+stageBox.width*.625,stageBox.y+stageBox.height*.8);
+  await page.mouse.down();await page.mouse.move(stageBox.x+stageBox.width*.625-35,stageBox.y+stageBox.height*.8,{steps:8});await page.mouse.up();
+@@ -69,7 +69,7 @@
+  const beforeWheelSound=await frame.locator('body').evaluate(()=>window.__sounds.length);
+  await page.waitForTimeout(30);
+  assert.equal(await wheel(stage,-100,knob),false);assert.equal(await slider.inputValue(),'80');
+- assert.ok(await frame.locator('body').evaluate(()=>window.__sounds.length)>beforeWheelSound,'knob wheel must synthesize a detent');
++ assert.equal(await frame.locator('body').evaluate(()=>window.__sounds.length),beforeWheelSound,'volume feedback must not steal radio focus');
+  assert.equal(await wheel(stage,100,knob),false);assert.equal(await slider.inputValue(),'75');
+  assert.equal(await wheel(stage,100,{clientX:0,clientY:0}),true);assert.equal(await slider.inputValue(),'75');
+  await page.emulateMedia({reducedMotion:'reduce'});await page.waitForTimeout(100);

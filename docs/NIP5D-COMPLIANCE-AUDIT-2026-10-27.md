@@ -40,15 +40,15 @@ Read-only discovery completed against `wss://relay.napplet.soy`, for kinds 35129
 15129 and 5129. This is an inventory of events retained by that relay, **not all
 soyLI publications on Nostr**, nor a complete history of replaced named events.
 
-| Evidence | Result |
-| --- | --- |
-| Signed events returned | 89: 39 named listings, 50 snapshots, no root listings |
-| Current named formats | 26 standalone; 13 legacy |
-| All event formats | 37 standalone; 52 legacy |
-| Distinct executable HTML files | 72 downloaded and SHA-256 verified, 78,785,984 bytes total |
-| Current source archives | 39 downloaded and SHA-256 verified; inspected without executing project code |
-| soyLI provenance evidence | All 39 current archives contain soyLI project structure/guidance; this does not attest which publisher binary ran |
-| Our existing manifest validator | Accepts all 89, including the intentional Nostr source extension below |
+| Evidence                        | Result                                                                                                            |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Signed events returned          | 89: 39 named listings, 50 snapshots, no root listings                                                             |
+| Current named formats           | 26 standalone; 13 legacy                                                                                          |
+| All event formats               | 37 standalone; 52 legacy                                                                                          |
+| Distinct executable HTML files  | 72 downloaded and SHA-256 verified, 78,785,984 bytes total                                                        |
+| Current source archives         | 39 downloaded and SHA-256 verified; inspected without executing project code                                      |
+| soyLI provenance evidence       | All 39 current archives contain soyLI project structure/guidance; this does not attest which publisher binary ran |
+| Our existing manifest validator | Accepts all 89, including the intentional Nostr source extension below                                            |
 
 The [JSON ledger](audits/2026-10-27/release-inventory.json) and
 [CSV ledger](audits/2026-10-27/release-inventory.csv) mark each event separately,
@@ -58,13 +58,13 @@ observations are in [verification evidence](audits/2026-10-27/verification.json)
 
 ## Classification criteria
 
-| Classification | Meaning | Response |
-| --- | --- | --- |
-| Implementation defect | An established contract is violated without a necessary new capability, or an isolation boundary is broken | Fix the implementation and reproduce the failure in a regression test |
-| Intentional proposed extension | A documented use case exceeds the selected draft and has a concrete interoperable design | Retain its rationale, proposal and compatibility limits; test the extension separately |
-| Application convention / host policy | App data or a scoped service is carried over existing protocol operations | Document the contract, discover support and handle denial; a new NAP is not automatically needed |
-| Host capability mismatch | A valid operation or mode is unsupported by another implementation | Explain the limitation, test degradation and align capability discovery |
-| Unverified lead | Static code or metadata suggests a possible issue | Exercise the behavior before assigning a failure verdict |
+| Classification                       | Meaning                                                                                                    | Response                                                                                         |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Implementation defect                | An established contract is violated without a necessary new capability, or an isolation boundary is broken | Fix the implementation and reproduce the failure in a regression test                            |
+| Intentional proposed extension       | A documented use case exceeds the selected draft and has a concrete interoperable design                   | Retain its rationale, proposal and compatibility limits; test the extension separately           |
+| Application convention / host policy | App data or a scoped service is carried over existing protocol operations                                  | Document the contract, discover support and handle denial; a new NAP is not automatically needed |
+| Host capability mismatch             | A valid operation or mode is unsupported by another implementation                                         | Explain the limitation, test degradation and align capability discovery                          |
+| Unverified lead                      | Static code or metadata suggests a possible issue                                                          | Exercise the behavior before assigning a failure verdict                                         |
 
 For each extension, ask what user requirement it enables, whether an existing
 standard already covers it, whether it preserves isolation and scoped authority,
@@ -116,10 +116,10 @@ namespace presence.
 
 A direct execution of the actual host and prelude reproduced both:
 
-| Probe | Actual result |
-| --- | --- |
-| `identity.getPublicKey` before `shell.ready` | No response |
-| Same request after `shell.ready` | Correct public-key response |
+| Probe                                           | Actual result                              |
+| ----------------------------------------------- | ------------------------------------------ |
+| `identity.getPublicKey` before `shell.ready`    | No response                                |
+| Same request after `shell.ready`                | Correct public-key response                |
 | Identity namespace present, before `shell.init` | `shell.supports('identity')` returns false |
 
 The current NAP-SHELL contract explicitly makes readiness optional and independent
@@ -140,11 +140,11 @@ locally. Comprehensive interaction and independent-host qualification remain ope
 The actual `soyli check --project ... --json` process was run on three disposable
 fixtures with the shared Chromium preview. No fixture was published.
 
-| Fixture | Exit/result |
-| --- | --- |
-| Direct `fetch` during startup | Exit 1, `BROWSER_CHECK`, CSP violation |
-| Identical direct `fetch` behind a Start button | Exit 0, `status: checked` |
-| Web Audio output behind Start, without a MEDIA session | Exit 0, `status: checked` |
+| Fixture                                                | Exit/result                            |
+| ------------------------------------------------------ | -------------------------------------- |
+| Direct `fetch` during startup                          | Exit 1, `BROWSER_CHECK`, CSP violation |
+| Identical direct `fetch` behind a Start button         | Exit 0, `status: checked`              |
+| Web Audio output behind Start, without a MEDIA session | Exit 0, `status: checked`              |
 
 [checkPublication](../apps/cli/src/publish-check.ts) does real sandbox, error and
 CSP checks, but ordinarily waits for initialization and captures a frame. It does
@@ -269,15 +269,15 @@ dependency code and real network requirements must be distinguished.
 
 ## Existing standards versus possible upstream work
 
-| Requirement / technique | Assessment | Action |
-| --- | --- | --- |
-| Live radio through shell-owned MEDIA | Existing standard path; host subset mismatch | Align support and failure UX; no new NAP required |
-| Game sounds and synthesized audio | MEDIA already models napplet-owned output | Implement coordination and guidance; clarify focus policy for short effects if needed |
-| RESOURCE bytes to image/blob, embedded Wasm compiled from bytes | Legitimate existing mechanisms | Keep hash verification, strict CSP and standard domain calls |
-| Nostr source URLs, archives, screenshots, preview clips | Intentional optional metadata extension; source/media amendment PR 12 is open | Retain the design, track baseline differences and test source/media interoperability separately from playback |
-| Shared NIP-78 data | Legitimate documented application convention plus an optional host-policy extension | Test explicit support/denial and public-read behavior; propose common discovery if needed, not a new NAP merely for an app schema |
-| MEDIA owner/source support discovery | Real usability gap: namespace presence is too coarse | Candidate MEDIA amendment with two independent hosts and explicit denial semantics |
-| Blanket networking or NAP-CLASS escape hatch | No demonstrated necessity from these reproductions | Do not introduce it to make the existing checks pass |
+| Requirement / technique                                         | Assessment                                                                          | Action                                                                                                                            |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Live radio through shell-owned MEDIA                            | Existing standard path; host subset mismatch                                        | Align support and failure UX; no new NAP required                                                                                 |
+| Game sounds and synthesized audio                               | MEDIA already models napplet-owned output                                           | Implement coordination and guidance; clarify focus policy for short effects if needed                                             |
+| RESOURCE bytes to image/blob, embedded Wasm compiled from bytes | Legitimate existing mechanisms                                                      | Keep hash verification, strict CSP and standard domain calls                                                                      |
+| Nostr source URLs, archives, screenshots, preview clips         | Intentional optional metadata extension; source/media amendment PR 12 is open       | Retain the design, track baseline differences and test source/media interoperability separately from playback                     |
+| Shared NIP-78 data                                              | Legitimate documented application convention plus an optional host-policy extension | Test explicit support/denial and public-read behavior; propose common discovery if needed, not a new NAP merely for an app schema |
+| MEDIA owner/source support discovery                            | Real usability gap: namespace presence is too coarse                                | Candidate MEDIA amendment with two independent hosts and explicit denial semantics                                                |
+| Blanket networking or NAP-CLASS escape hatch                    | No demonstrated necessity from these reproductions                                  | Do not introduce it to make the existing checks pass                                                                              |
 
 ## Remediation order and acceptance
 
@@ -345,3 +345,32 @@ remain visible. Production web build and diff/format checks passed. `check:nix`
 was attempted but could not run because Nix is not installed locally; the Linux
 Nix package/rebuild/VM gate is still required before shipping. No deployment,
 binary release or creator publication was performed.
+
+## Independent-shell acceptance and repair candidates — 2026-10-28
+
+The next local batch adds current-manifest acceptance in unchanged Paja 0.24.4,
+with no Soy bridge injection or legacy wrapper. It checks real input, persisted
+storage, MEDIA, optional-domain denial/absence, CSP enforcement and raw-hash
+rejection. [Reproduction and limitations](INTEROPERABILITY.md#current-manifest-acceptance-and-repair-candidates--2026-10-28).
+
+C04 now has owner-scoped repairs for **Funclet, Napplet Machines V8, GRAV / RIFT,
+Rail Game, Soybert 3D, Outbreak, Obsidian Breaker and Truffle Rush**. Six local projects are
+repaired on separate Git branches; the earlier Studio releases have exact-source
+archive patches. Funclet starts at its published revision, preserving
+the older local main. Outbreak has repairs for both its current local branch and
+its exact published source. Third-party authors' projects are not modified.
+
+The repairs gate sound output on a MEDIA grant, obey host controls and release
+sessions on teardown. Funclet's decorative feedback yields to its main radio
+session and its unsupported-owner error is explicit. No direct-stream fallback,
+iframe permission change or source/app-data conversion is introduced. The
+reusable helper is included in new creator projects and deployment/Nix source
+packaging, with lifecycle and packaging regressions. Local projects' stale audio
+guidance is corrected as part of each repair.
+
+[Repair bundle and per-candidate hashes](audits/2026-10-28/repairs/README.md).
+These are **prepared local corrections**, not replacement publications. Historical
+inventory marks remain immutable. Author review/publication, remaining inventory
+interaction qualification, MEDIA capability/focus discovery and host media egress
+policy remain separate work. Nix is unavailable on this machine; its package/VM
+gate remains required before push/release. Nothing was pushed or deployed.

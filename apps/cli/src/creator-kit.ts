@@ -26,6 +26,7 @@ import minicraftManifest from '../../../packages/dynamic-backends/fixtures/minic
 import minicraftSchemas from '../../../packages/dynamic-backends/fixtures/minicraft/schemas.json';
 import sharedDataGuide from '../../../docs/SHARED-DATA.md' with { type: 'text' };
 import outboxGuide from '../../../docs/OUTBOX.md' with { type: 'text' };
+import coordinatedAudio from '../../../docs/examples/coordinated-audio.ts?raw' with { type: 'text' };
 import appDataHelper from '../../../packages/app-data/src/app-data.ts?raw' with { type: 'text' };
 import appDataContract from '../../../packages/app-data/src/app-data-contract.ts?raw' with { type: 'text' };
 import multiplayerSync from '../templates/multiplayer-sync.ts.txt' with { type: 'text' };
@@ -513,6 +514,9 @@ fallback. A source field on a napplet-owned session is advisory, not permission 
 remote URLs. Test two napplets playing in turn and host pause/stop/volume controls.
 Do not work around missing media support by
 adding direct remote URLs, fetch, an unbounded resource download or a looser CSP.
+Use docs/examples/coordinated-audio.ts for optional Web Audio: pass the SDK media
+wrapper after checking the injected domain, route every output through its gain,
+and dispose it on teardown. Ordinary input must not override a host pause.
 For clients without media, keep a clear unavailable state or user-confirmed link
 fallback; if playback is the core purpose, declare media required and report the
 host gap. Test the actual play/pause/volume flow, not only build/startup or relay lookup.
@@ -588,6 +592,7 @@ export function creatorSkills() {
     'docs/examples/minicraft/schemas.json': JSON.stringify(minicraftSchemas, null, 2) + '\n',
     'docs/napplet-data.md': sharedDataGuide,
     'docs/examples/app-data.ts': appDataHelper,
+    'docs/examples/coordinated-audio.ts': coordinatedAudio,
     'docs/examples/app-data-contract.ts': appDataContract,
     'docs/napplet-outbox.md': outboxGuide,
     'docs/napplet-actions.md': actionsGuide,

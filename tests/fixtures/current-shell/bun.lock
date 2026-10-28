@@ -1,0 +1,52 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "independent-current-shell-acceptance",
+      "dependencies": {
+        "@kehto/paja": "0.24.4",
+        "@napplet/core": "0.33.0",
+        "@napplet/nap": "0.33.0",
+        "nostr-tools": "2.25.2",
+      },
+    },
+  },
+  "packages": {
+    "@kehto/acl": ["@kehto/acl@0.19.1", "", { "peerDependencies": { "@napplet/core": ">=0.32.0 <0.35.0", "@napplet/nap": ">=0.32.0 <0.35.0" } }, "sha512-4Ib3Gql2AtR1mmjyaLm0VATLIQkbZvCXV31NcaD6jAWZoeQy0dHg+6iSDu8XPGroIJdBMbPUDfGFGwVMi17Gmw=="],
+
+    "@kehto/firewall": ["@kehto/firewall@0.6.1", "", { "peerDependencies": { "@napplet/core": ">=0.32.0 <0.35.0" } }, "sha512-TlrwRjVlmEWdx8CpUeaMjlVoVQ7N2cGLxYKyK/b03eoUNzUjK8xvwMuWrbRH2gJJLP0c8k51YipWF1tedpsNfA=="],
+
+    "@kehto/nip": ["@kehto/nip@0.7.0", "", { "dependencies": { "@noble/hashes": "^2.0.0" }, "peerDependencies": { "nostr-tools": ">=2.23.3 <=2.x" } }, "sha512-uDi2fvs8gr2jhhNKU8JbrDaq1cqRpAHdxDWBpoLv59tVTTFcTul/bWpT0aAHcq/SzHgT+3IHT0oIuqJXpqCwhw=="],
+
+    "@kehto/paja": ["@kehto/paja@0.24.4", "", { "dependencies": { "@kehto/acl": "^0.19.1", "@kehto/firewall": "^0.6.1", "@kehto/nip": "^0.7.0", "@kehto/runtime": "^0.26.0", "@kehto/services": "^0.25.1", "@kehto/shell": "^0.24.4", "@kehto/wm": "^0.0.2" }, "peerDependencies": { "@napplet/core": ">=0.32.0 <0.35.0", "@napplet/nap": ">=0.32.0 <0.35.0", "nostr-tools": ">=2.23.3 <=2.x" } }, "sha512-nTrI3NU/Tbg5+LgdtxHt3I5pPVjcdnKtBHZasTpa0RfJu1wwBKoB8e1lAQLxfxBCmB1M2hBnhk4tZUMnTR8TAg=="],
+
+    "@kehto/runtime": ["@kehto/runtime@0.26.0", "", { "dependencies": { "@kehto/acl": "^0.19.1", "@kehto/firewall": "^0.6.1", "@noble/curves": "^2.0.0", "@noble/hashes": "^2.0.0" }, "peerDependencies": { "@napplet/core": ">=0.32.0 <0.35.0", "@napplet/nap": ">=0.32.0 <0.35.0" } }, "sha512-sxXK7CsEp9cStnU13HGEAQimKF1H+NBuNzfH97DCwrlIWM0JVUxQh2KueC6RCRNSOrzXcHAOw64IiDAsX/lmpg=="],
+
+    "@kehto/services": ["@kehto/services@0.25.1", "", { "dependencies": { "@kehto/runtime": "^0.26.0" }, "peerDependencies": { "@napplet/core": ">=0.32.0 <0.35.0", "@napplet/nap": ">=0.32.0 <0.35.0", "nostr-tools": ">=2.23.3 <=2.x" }, "optionalPeers": ["nostr-tools"] }, "sha512-33XNXATOEkFXi32qK4Y7O0rMnYLxVts8uEGj8SGoaqIbyBx9nKWEjD77ejuIQV6kTZn+4dCiDCyFlbuIcrW36g=="],
+
+    "@kehto/shell": ["@kehto/shell@0.24.5", "", { "dependencies": { "@kehto/acl": "^0.19.1", "@kehto/runtime": "^0.26.0" }, "peerDependencies": { "@napplet/core": ">=0.32.0 <0.35.0", "@napplet/nap": ">=0.32.0 <0.35.0", "nostr-tools": ">=2.23.3 <=2.x" } }, "sha512-DhD01MIqsYCqSF5MugWNDlcaNzhpgC29eUHbZWeMJIyZywASJQp9t8deh9q48g7hefuViNvWK1pLCZJ6U1LjHQ=="],
+
+    "@kehto/wm": ["@kehto/wm@0.0.2", "", {}, "sha512-8cjneY8paT9jcBRE/XX1oEA0pWtojkO9BESQ7UMTL9gIc+2zClXGLmY0HwdHMHMeZ3+c1sIcxsF08IHVwI3pDQ=="],
+
+    "@napplet/core": ["@napplet/core@0.33.0", "", {}, "sha512-hiodOl6MeWgFNFQLRryv8MdMRekcrgTX5SK/eb9KEhKh4dghf9QlS/eXGiSTvWSMNabwUCArtS7zTe9y6dPsdg=="],
+
+    "@napplet/nap": ["@napplet/nap@0.33.0", "", { "dependencies": { "@napplet/core": "^0.33.0", "nostr-tools": "^2.23.3" }, "peerDependencies": { "json-schema-to-ts": "^3.1.1" }, "optionalPeers": ["json-schema-to-ts"] }, "sha512-i3KR+9K50MicpfX00Em/NhQaDiF4IAtcXBGQJO90xbLUsKMXz0FUTmvRvTBnobg3QzCEbQ03SLuzctkfPiSD4g=="],
+
+    "@noble/ciphers": ["@noble/ciphers@2.1.1", "", {}, "sha512-bysYuiVfhxNJuldNXlFEitTVdNnYUc+XNJZd7Qm2a5j1vZHgY+fazadNFWFaMK/2vye0JVlxV3gHmC0WDfAOQw=="],
+
+    "@noble/curves": ["@noble/curves@2.0.1", "", { "dependencies": { "@noble/hashes": "2.0.1" } }, "sha512-vs1Az2OOTBiP4q0pwjW5aF0xp9n4MxVrmkFBxc6EKZc6ddYx5gaZiAsZoq0uRRXWbi3AT/sBqn05eRPtn1JCPw=="],
+
+    "@noble/hashes": ["@noble/hashes@2.0.1", "", {}, "sha512-XlOlEbQcE9fmuXxrVTXCTlG2nlRXa9Rj3rr5Ue/+tX+nmkgbX720YHh0VR3hBF9xDvwnb8D2shVGOwNx+ulArw=="],
+
+    "@scure/base": ["@scure/base@2.0.0", "", {}, "sha512-3E1kpuZginKkek01ovG8krQ0Z44E3DHPjc5S2rjJw9lZn3KSQOs8S7wqikF/AH7iRanHypj85uGyxk0XAyC37w=="],
+
+    "@scure/bip32": ["@scure/bip32@2.0.1", "", { "dependencies": { "@noble/curves": "2.0.1", "@noble/hashes": "2.0.1", "@scure/base": "2.0.0" } }, "sha512-4Md1NI5BzoVP+bhyJaY3K6yMesEFzNS1sE/cP+9nuvE7p/b0kx9XbpDHHFl8dHtufcbdHRUUQdRqLIPHN/s7yA=="],
+
+    "@scure/bip39": ["@scure/bip39@2.0.1", "", { "dependencies": { "@noble/hashes": "2.0.1", "@scure/base": "2.0.0" } }, "sha512-PsxdFj/d2AcJcZDX1FXN3dDgitDDTmwf78rKZq1a6c1P1Nan1X/Sxc7667zU3U+AN60g7SxxP0YCVw2H/hBycg=="],
+
+    "nostr-tools": ["nostr-tools@2.25.2", "", { "dependencies": { "@noble/ciphers": "2.1.1", "@noble/curves": "2.0.1", "@noble/hashes": "2.0.1", "@scure/base": "2.0.0", "@scure/bip32": "2.0.1", "@scure/bip39": "2.0.1", "nostr-wasm": "0.1.0" }, "peerDependencies": { "typescript": ">=5.0.0" }, "optionalPeers": ["typescript"] }, "sha512-7JAx+brEPmqGz1yzaK9MOxvis/Nl1B38j9hVsBSRDMRmxk5XSc0+5LlPEYbzeiUyk41RURBDcfuMzmaT754HAg=="],
+
+    "nostr-wasm": ["nostr-wasm@0.1.0", "", {}, "sha512-78BTryCLcLYv96ONU8Ws3Q1JzjlAt+43pWQhIl86xZmWeegYCNLPml7yQ+gG3vR6V5h4XGj+TxO+SS5dsThQIA=="],
+  }
+}

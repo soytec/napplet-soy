@@ -75,6 +75,9 @@ test('uploaded source starts the CLI and scaffolds its bundled creator guides', 
     expect(await Bun.file(join(directory, 'example/docs/napplet-outbox.md')).text()).toBe(
       await Bun.file(join(root, 'docs/OUTBOX.md')).text(),
     );
+    expect(
+      await Bun.file(join(directory, 'example/docs/examples/coordinated-audio.ts')).text(),
+    ).toBe(await Bun.file(join(root, 'docs/examples/coordinated-audio.ts')).text());
     expect(await Bun.file(join(directory, 'example/docs/napplet-controllers.md')).text()).toBe(
       await Bun.file(join(root, 'docs/CONTROLLERS.md')).text(),
     );

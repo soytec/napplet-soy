@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+  <body>
+    <h1>Portable interaction</h1>
+    <button id="play">Play</button><output id="score">0</output> <button id="save">Save</button
+    ><output id="saved">Not saved</output> <button id="restore">Restore</button
+    ><button id="sound">Sound</button><output id="audio">Silent</output>
+    <button id="network">Network probe</button><output id="network-result"></output>
+    <script>
+      document.addEventListener(
+        'securitypolicyviolation',
+        (e) => (document.body.dataset.csp = e.violatedDirective),
+      );
+      let score = 0;
+      play.onclick = () => {
+        document.querySelector('#score').textContent = String(++score);
+      };
+      save.onclick = async () => {
+        const result = document.querySelector('#saved');
+        if (!window.napplet?.storage) {
+          result.textContent = 'Storage unavailable';
+          return;
+        }
+        try {
+          await napplet.storage.setItem('score', String(score));
+          result.textContent = 'Saved ' + (await napplet.storage.getItem('score'));
+        } catch {
+          result.textContent = 'Storage denied';
+        }
+      };
+      restore.onclick = async () => {
+        document.querySelector('#saved').textContent =
+          'Saved ' + (await napplet.storage.getItem('score'));
+      };
+      sound.onclick = async () => {
+        if (!window.napplet?.media) {
+          audio.textContent = 'Media unavailable';
+          return;
+        }
+        try {
+          const session = await napplet.media.createSession({
+            owner: 'napplet',
+            metadata: { title: 'Portable sound' },
+            capabilities: ['play', 'pause', 'stop', 'volume'],
+          });
+          if (session.error || !session.sessionId) throw Error('denied');
+          audio.textContent = 'Session granted';
+          napplet.media.onCommand(session.sessionId, (action, value) => {
+            audio.textContent = 'Command ' + action;
+            napplet.media.reportState(session.sessionId, {
+              status: action === 'play' ? 'playing' : 'paused',
+              volume: typeof value === 'number' ? value : 1,
+            });
+          });
+          napplet.media.reportState(session.sessionId, { status: 'paused', volume: 1 });
+        } catch {
+          audio.textContent = 'Media denied';
+        }
+      };
+      network.onclick = async () => {
+        try {
+          await fetch('https://example.invalid/forbidden');
+          document.querySelector('#network-result').textContent = 'UNSAFE';
+        } catch {
+          document.querySelector('#network-result').textContent = 'Blocked';
+        }
+      };
+    </script>
+  </body>
+</html>
