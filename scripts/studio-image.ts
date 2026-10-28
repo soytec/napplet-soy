@@ -28,6 +28,7 @@ const listed = Bun.spawn(
     'packages',
     'scripts/cli-compile.ts',
     'docs/*.md',
+    'docs/examples/coordinated-audio.ts',
     'apps/web/public/install.sh',
   ],
   { stdout: 'pipe', stderr: 'pipe' },
