@@ -1,6 +1,6 @@
 # NAP-LLM reference implementation
 
-This branch implements the [NAP-LLM draft](proposals/NAP-LLM.md) for review in the
+This branch implements the [NAP-LLM draft (upstream #134)](https://github.com/napplet/naps/pull/134) for review in the
 shared napplet.soy / soyLI runtime. It is experimental, not deployed, and is not
 part of the pinned upstream SDK. The selected NIP-5D pin and strict sandbox stay
 unchanged. Optional inference does not become a playback requirement.
@@ -98,3 +98,12 @@ completion. No live-provider request or paid test is required by this suite.
   inference-job checks, not wallet polling. No wallet calls occur on this path.
 - VALUE amendments, paid CVM checkout/rollout, invoice handling and the private
   AI Doc service are separate work and are absent from this reference change.
+
+## Verification record
+
+Reference code commit: `0200e7c82675a781ea11292a57801f16a93d3101`.
+On 2026-10-30, typecheck and all 940 tests passed; the focused inference/host/HTTP
+suite passed all 20 tests. The production web build passed. On x86_64 Linux with
+KVM, `bash scripts/nix-check.sh` passed the dependency and soyLI realization,
+forced rebuild, flake checks and NixOS VM regression check. aarch64 Linux was not
+validated in this run. No live inference or payment operations were performed.
