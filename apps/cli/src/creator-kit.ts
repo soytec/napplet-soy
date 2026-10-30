@@ -435,6 +435,17 @@ keep the app usable and explain that progress was not saved. Do not silently tre
 failed required capabilities as success. Include your game/interaction regression
 tests in your normal verification command, not only in a one-off test run.
 
+## Experimental shell inference
+
+An experimental reference host may offer the optional llm domain. This is a draft,
+not an accepted NAP or published SDK API. Use it only when the project owner opts
+into the draft. Check for the injected domain, select a model in the shell, keep
+provider credentials outside the napplet and never add direct network access.
+Send only the intended conversation and inline images; validate the result and
+require finish === 'stop' before treating it as complete. A timeout/cancellation
+may still incur provider charges; do not retry automatically. Missing llm must
+leave the rest of the app usable. See docs/LLM.md in the soyLI source repository.
+
 ## Runtime capabilities
 
 For Vite projects, keep hard domain requirements in vite.config.ts; the publisher reads the build's

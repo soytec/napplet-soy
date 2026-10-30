@@ -1,3 +1,4 @@
+import { EXPERIMENTAL_PRELUDE } from './experimental-prelude';
 import { RUNTIME_DOMAINS } from './capabilities';
 import { validateConfigSchema } from './config-schema';
 
@@ -55,5 +56,5 @@ export function nappletPrelude(shim: string, declaration?: { schema?: unknown })
       },
     });
   })();`;
-  return `${shim}\nglobalThis.NappletShimPrelude.install(${JSON.stringify({ domains: RUNTIME_DOMAINS.filter((d) => d !== 'shell') })});\n${config}\n${SHELL_PRELUDE}`;
+  return `${shim}\nglobalThis.NappletShimPrelude.install(${JSON.stringify({ domains: RUNTIME_DOMAINS.filter((d) => !['shell', 'llm'].includes(d)) })});\n${config}\n${EXPERIMENTAL_PRELUDE}\n${SHELL_PRELUDE}`;
 }

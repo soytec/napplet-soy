@@ -87,7 +87,7 @@ export class OwnerStudios {
           throw new DiagnosticError('STUDIO_AUTH', 'Reconnect Studio.');
         if (
           (request.body !== undefined || request.upload) &&
-          !/^(?:signers(?:\/|$)|browser-builds\/|connections\/(?:remove|test|models)|projects\/[^/]+\/(?:stop|refresh-publication))/.test(
+          !/^(?:signers(?:\/|$)|browser-builds\/|connections\/(?:remove|test|models|llm-start|llm-read|llm-cancel)|projects\/[^/]+\/(?:stop|refresh-publication))/.test(
             request.path,
           )
         )
@@ -108,7 +108,9 @@ export class OwnerStudios {
                   ? 9 * 1024 * 1024
                   : /^signers\/[a-f0-9-]{36}$/.test(request.path)
                     ? 128 * 1024
-                    : 16384)
+                    : request.path === 'connections/llm-start'
+                      ? 8 * 1024 * 1024
+                      : 16384)
             )
               throw new DiagnosticError('STUDIO_REQUEST', 'Unsupported uploaded operation.');
             body = JSON.parse(new TextDecoder().decode(transfer.bytes));

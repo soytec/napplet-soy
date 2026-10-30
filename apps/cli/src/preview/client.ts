@@ -1,3 +1,6 @@
+import { inferenceService } from '../../../../packages/runtime/src/llm-service';
+import { ConnectionsDialog } from '../../../studio/connections-ui';
+import type { ConnectionState } from '../../../studio/connections-model';
 import { previewIntents } from './intent-client';
 import { AppearanceControl } from '../../../../packages/runtime/src/appearance-control';
 import { shellTheme } from '../../../../packages/runtime/src/appearance';
@@ -22,6 +25,51 @@ import { MultiplayerSettings } from '../../../../packages/runtime/src/multiplaye
 
 createRoot(document.querySelector('#appearance')!).render(createElement(AppearanceControl));
 
+const inferenceApi = async <T>(path: string, body?: unknown): Promise<T> => {
+  const response = await fetch('/inference/' + path, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: {
+      'X-Soyli-Token': document.querySelector<HTMLMetaElement>('meta[name="soyli-token"]')!.content,
+      'Content-Type': 'application/json',
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error ?? 'Inference settings unavailable.');
+  return result;
+};
+const inferenceRootNode = document.createElement('div');
+document.body.append(inferenceRootNode);
+const inferenceRoot = createRoot(inferenceRootNode);
+const openInference = async () => {
+  try {
+    const state = await inferenceApi<{ connections: ConnectionState }>('state');
+    inferenceRoot.render(
+      createElement(ConnectionsDialog, {
+        state: state.connections,
+        busy: false,
+        api: inferenceApi,
+        refresh: openInference,
+        close: () => inferenceRoot.render(null),
+      }),
+    );
+  } catch (error) {
+    window.alert(error instanceof Error ? error.message : 'Could not open AI connections.');
+  }
+};
+const inferenceButton = document.createElement('button');
+inferenceButton.textContent = 'AI connections';
+inferenceButton.onclick = () => {
+  void openInference();
+};
+document.querySelector('header')?.append(inferenceButton);
+const llm = inferenceService(
+  inferenceApi,
+  () => {
+    void openInference();
+  },
+  'Local soyLI service',
+);
 const stage = document.querySelector<HTMLElement>('#stage')!;
 const status = document.querySelector<HTMLElement>('#status')!;
 const dialog = document.querySelector<HTMLDialogElement>('#prompt')!;
@@ -53,6 +101,7 @@ const intents = previewIntents({
   signal: lifetime.signal,
   sourceFrame: () => frame,
   hostOptions: () => ({
+    llm,
     theme: shellTheme,
     relays: previewInfo?.relays ?? [],
     servers: previewInfo?.servers ?? [],
@@ -219,6 +268,7 @@ async function refresh() {
     // Attach before the child's bootstrap can post shell.ready.
     stage.replaceChildren(frame);
     host = attachNappletHost({
+      llm,
       intent: { workspace: intents.workspace, catalogId: info.intentCatalogId },
       theme: shellTheme,
       backend: info.backend,

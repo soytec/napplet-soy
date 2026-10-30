@@ -1,3 +1,7 @@
+import { Connections, connectionInput } from '../../../studio/connections';
+import { InferenceJobs } from '../../../studio/inference-jobs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { relatedAssetHtml } from '../../../../packages/assets/src/related';
 import { diagnose, formatDiagnostic } from '../../../../packages/diagnostics/src';
 import { manageProject, editProject } from '../manager';
@@ -82,6 +86,15 @@ export function startPreviewServer(
     workshop?: Workshop;
   } = { network: 'public' },
 ) {
+  let inference: Promise<{ connections: Connections; jobs: InferenceJobs }> | undefined;
+  const inferenceContext = () =>
+    (inference ??= (async () => {
+      const connections = new Connections(
+        process.env.SOYLI_INFERENCE_DIRECTORY || join(homedir(), '.config', 'soyli', 'inference'),
+      );
+      await connections.initialize();
+      return { connections, jobs: new InferenceJobs(connections) };
+    })());
   let capturing = false;
   const managerToken = crypto.randomUUID();
   async function revision() {
@@ -150,6 +163,35 @@ export function startPreviewServer(
       if (listing.readOnly && request.method !== 'GET')
         return new Response('This frozen preview is read-only.', { status: 405, headers: noStore });
       try {
+        if (url.pathname.startsWith('/inference/')) {
+          if (
+            request.headers.get('X-Soyli-Token') !== managerToken ||
+            (request.method !== 'GET' && request.headers.get('Origin') !== url.origin)
+          )
+            return new Response('Forbidden', { status: 403, headers: noStore });
+          const { connections, jobs } = await inferenceContext();
+          const path = url.pathname.slice('/inference/'.length);
+          if (path === 'state' && request.method === 'GET')
+            return Response.json({ connections: connections.state() }, { headers: noStore });
+          if (request.method !== 'POST') return new Response('Not found', { status: 404 });
+          const input = JSON.parse(
+            new TextDecoder().decode(await readBytes(new Response(request.body), 8 * 1024 * 1024)),
+          );
+          const action = path.replace(/^connections\//, '');
+          let result: unknown;
+          if (action.startsWith('llm-')) result = await jobs.action(action, input);
+          else if (action === 'save') result = await connections.save(connectionInput.parse(input));
+          else if (action === 'models') result = await connections.models(input);
+          else if (action === 'model') result = await connections.setModel(input);
+          else if (action === 'select')
+            result = await connections.select(z.string().uuid().parse(input.id));
+          else if (action === 'remove')
+            result = await connections.remove(z.string().uuid().parse(input.id));
+          else if (action === 'test')
+            result = await connections.test(z.string().uuid().parse(input.id));
+          else return new Response('Not found', { status: 404 });
+          return Response.json(result, { headers: noStore });
+        }
         if (url.pathname.startsWith('/workshop')) {
           if (!listing.workshop) return new Response('Not found', { status: 404 });
           if (request.headers.get('X-Soyli-Token') !== managerToken)
@@ -386,5 +428,10 @@ export function startPreviewServer(
     },
   });
   if (announce) console.log(`Local napplet preview: ${server.url}`);
+  const stop = server.stop.bind(server);
+  server.stop = ((...args: Parameters<typeof stop>) => {
+    void inference?.then((c) => c.jobs.close());
+    return stop(...args);
+  }) as typeof server.stop;
   return server;
 }

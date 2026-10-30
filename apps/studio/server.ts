@@ -115,7 +115,9 @@ export async function serveStudio(
                     ? browserBuildLimits.outputBytes + 1024 * 1024
                     : /^\/api\/signers\/[a-f0-9-]{36}$/.test(url.pathname)
                       ? 128 * 1024
-                      : 16384,
+                      : url.pathname === '/api/connections/llm-start'
+                        ? 8 * 1024 * 1024
+                        : 16384,
                 ),
               ),
             );

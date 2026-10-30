@@ -42,6 +42,8 @@ export type ConnectionInput = {
   endpoint: string;
   model: string;
   steps: number;
+  images?: boolean;
+  json?: boolean;
   key?: string;
 };
 export type Connection = Omit<ConnectionInput, 'id' | 'key'> & {

@@ -1,6 +1,7 @@
 /** Implemented NAP surfaces. Individual operations remain subject to host policy. */
 export const RUNTIME_DOMAINS = [
   'shell',
+  'llm',
   'identity',
   'intent',
   'storage',
@@ -19,12 +20,13 @@ export const RUNTIME_DOMAINS = [
   'cvm',
   'webrtc',
 ] as const;
-export const RUNTIME_PROFILE = 'space-playback-7';
+export const RUNTIME_PROFILE = 'space-playback-8-draft-llm';
 
 // Only request types understood by this host. Notifications, responses and future
 // operations must be ignored, including unknown operations in supported domains.
 export const HOST_REQUESTS = new Set(
   Object.entries({
+    llm: ['select', 'describe', 'generate', 'cancel'],
     intent: ['invoke', 'available', 'handlers'],
     upload: ['info', 'upload', 'status'],
     lists: ['supported', 'add', 'remove'],

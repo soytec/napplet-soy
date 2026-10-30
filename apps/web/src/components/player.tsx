@@ -1,3 +1,5 @@
+import { useStudio } from './studio-provider';
+import { inferenceService } from '../../../../packages/runtime/src/llm-service';
 import {
   installPlayerIntent,
   playerIntentCatalogId,
@@ -83,6 +85,9 @@ export function Player({
   returnLabel?: string;
   onLoadError?: (error: Error) => void;
 }) {
+  const studio = useStudio();
+  const studioRef = useRef(studio);
+  studioRef.current = studio;
   const external = 'provenance' in napplet;
   const manifest = external ? napplet.manifest : pinned ? napplet.snapshot : napplet.current;
   const releaseId = manifest.id;
@@ -161,6 +166,23 @@ export function Player({
       host.current = undefined;
       if (!node || !release) return;
       host.current = attachNappletHost({
+        llm: reviewScope
+          ? undefined
+          : inferenceService(
+              (path, body) => {
+                const client = studioRef.current.client;
+                if (!client)
+                  throw new Error('Connect your shell account and configure AI connections first.');
+                return client.api(path, body);
+              },
+              () => studioRef.current.openConnections(),
+              'Your shell inference service',
+              () => {
+                const client = studioRef.current.client;
+                if (!client) throw new Error('Shell account disconnected');
+                return (path, body) => client.api(path, body);
+              },
+            ),
         intent: reviewScope
           ? undefined
           : { workspace: webIntentWorkspace(), catalogId: playerIntentCatalogId(release.manifest) },

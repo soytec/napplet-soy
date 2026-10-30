@@ -1,3 +1,4 @@
+import { LlmSession, type LlmService } from './llm-contract';
 import type { ThemeSource } from './appearance';
 import { blossomBytes, downloadBytes, readBytes } from '../../client/src/bytes';
 import { resourceMime } from '../../client/src/resource-mime';
@@ -42,6 +43,7 @@ export type HostPrompt = {
 export type HostOptions = {
   /** Trusted shell catalog/lifecycle broker; the frame cannot supply these values. */
   intent?: { workspace: IntentWorkspace; catalogId: string };
+  llm?: LlmService;
   frame: HTMLIFrameElement;
   identity: string;
   manifestId: string;
@@ -312,6 +314,12 @@ export function attachNappletHost(options: HostOptions) {
         return { blob, mime: blob.type };
       });
     };
+    const llm = new LlmSession(
+      options.llm,
+      lifetime.signal,
+      (text, signal) => choose('network', text, { signal }),
+      sendScoped,
+    );
     const handle = async (message: Record<string, unknown>) => {
       const type = String(message.type),
         [domain, action] = type.split('.');
@@ -364,6 +372,7 @@ export function attachNappletHost(options: HostOptions) {
         );
         return webrtc.handle(message);
       }
+      if (domain === 'llm') return llm.handle(message);
       if (domain === 'storage') return store(message);
       if (domain === 'fs')
         return files.handle(message, (name) => choose('save', name), chooseFiles, lifetime.signal);
@@ -634,6 +643,44 @@ export function attachNappletHost(options: HostOptions) {
           });
         return;
       }
+      if (message.type.startsWith('llm.')) {
+        const codes = [
+          'unsupported',
+          'invalid-request',
+          'selection-expired',
+          'user-cancelled',
+          'provider-error',
+          'cancelled',
+          'quota-exceeded',
+          'timeout',
+        ];
+        const prefix = detail.split(':')[0];
+        const code =
+          error instanceof z.ZodError
+            ? error.issues.some((issue) => issue.code === 'too_big')
+              ? 'quota-exceeded'
+              : 'invalid-request'
+            : error instanceof Error &&
+                (error.name === 'AbortError' ||
+                  ['Identity changed', 'Player closed'].includes(error.message))
+              ? 'cancelled'
+              : codes.includes(prefix)
+                ? prefix
+                : 'provider-error';
+        scope.send({
+          type: `${message.type}.result`,
+          id: message.id,
+          error: {
+            code,
+            message: codes.includes(prefix)
+              ? detail
+              : code === 'cancelled'
+                ? 'Inference cancelled.'
+                : 'The inference request failed.',
+          },
+        });
+        return;
+      }
       if (message.type.startsWith('intent.')) {
         scope.send({
           type: `${message.type}.result`,
@@ -686,7 +733,11 @@ export function attachNappletHost(options: HostOptions) {
       if (intent) failure(error);
       return;
     }
-    if (!intent && size > 360000) return;
+    if (!intent && size > (message.type === 'llm.generate' ? 8000000 : 360000)) {
+      if (message.type === 'llm.generate')
+        failure(new Error('quota-exceeded: Request exceeds the host input size limit.'));
+      return;
+    }
     const realtime = message.type === 'webrtc.send';
     if (Date.now() - rtcWindow >= 1000) {
       rtcWindow = Date.now();
@@ -697,7 +748,13 @@ export function attachNappletHost(options: HostOptions) {
       (realtime ? ++rtcCalls > 120 || (rtcBytes += size) > 524288 : ++calls > 600) ||
       scope.requests.size >= 32
     ) {
-      failure(new Error('Request quota exceeded'));
+      failure(
+        new Error(
+          message.type.startsWith('llm.')
+            ? 'quota-exceeded: Too many requests.'
+            : 'Request quota exceeded',
+        ),
+      );
       return;
     }
     scope.requests.add(failure);
