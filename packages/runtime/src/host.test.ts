@@ -302,3 +302,75 @@ test('keyboard actions are source bound without SHELL, survive account switches,
     });
   }
 });
+
+test('draft inference wire rejects foreign frames, revokes handles on account switch and returns typed errors', async () => {
+  const keys = ['window', 'localStorage'] as const,
+    old = keys.map((k) => Object.getOwnPropertyDescriptor(globalThis, k));
+  const sent: any[] = [];
+  let listener: (event: MessageEvent) => void = () => {};
+  const source = {
+    postMessage: (m: unknown) => {
+      sent.push(m);
+    },
+  };
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      addEventListener: (_: string, fn: typeof listener) => {
+        listener = fn;
+      },
+      removeEventListener() {},
+    },
+  });
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {} });
+  const model = {
+    handle: 'private',
+    name: 'Fixture',
+    model: 'fixture',
+    route: 'Test',
+    images: false,
+    json: false,
+  };
+  const host = attachNappletHost({
+    frame: { contentWindow: source } as unknown as HTMLIFrameElement,
+    identity: 'verified-app',
+    manifestId: 'a'.repeat(64),
+    relays: [],
+    pubkey: null,
+    prompt() {},
+    files() {},
+    llm: {
+      select: async () => model,
+      describe: async () => model,
+      generate: async () => ({ text: 'hello', finish: 'stop' }),
+    },
+  });
+  const send = (data: object, from = source) =>
+    listener({ data, source: from, origin: 'null' } as unknown as MessageEvent);
+  try {
+    send({ type: 'llm.select', id: 'foreign' }, { postMessage() {} });
+    await Bun.sleep(0);
+    expect(sent).toEqual([]);
+    send({ type: 'llm.select', id: 'select' });
+    await Bun.sleep(0);
+    const h = sent.find((r) => r.id === 'select').model.handle;
+    host.updateIdentity('b'.repeat(64));
+    send({ type: 'llm.describe', id: 'old', handle: h });
+    await Bun.sleep(0);
+    expect(sent.find((r) => r.id === 'old').error.code).toBe('selection-expired');
+    send({
+      type: 'llm.select',
+      id: 'malformed',
+      requirements: { providerUrl: 'https://evil.test' },
+    });
+    await Bun.sleep(0);
+    expect(sent.find((r) => r.id === 'malformed').error.code).toBe('invalid-request');
+  } finally {
+    host.close();
+    keys.forEach((k, i) =>
+      old[i]
+        ? Object.defineProperty(globalThis, k, old[i]!)
+        : Reflect.deleteProperty(globalThis, k),
+    );
+  }
+});

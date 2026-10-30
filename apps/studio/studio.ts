@@ -1,3 +1,4 @@
+import { InferenceJobs } from './inference-jobs';
 import { exportBrowserGit } from './browser-git-export';
 import { mkdir, readFile, writeFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -211,10 +212,13 @@ export class Studio {
       this.mutating = false;
     }
   }
+  private inference?: InferenceJobs;
   async connectionAction(action: string, input: unknown) {
     const connections = this.options.connections;
     if (!connections)
       throw new DiagnosticError('STUDIO_CONNECTION', 'Connection settings are not configured.');
+    if (action.startsWith('llm-'))
+      return (this.inference ??= new InferenceJobs(connections)).action(action, input);
     return this.exclusive(async () => {
       if (action === 'models') return connections.models(input);
       if (action === 'model') return connections.setModel(input);
@@ -522,6 +526,7 @@ export class Studio {
     await active.promise;
   }
   async close() {
+    this.inference?.close();
     if (this.active) await this.stop(this.active.id);
     this.signing.close();
     await Promise.allSettled(this.previewOpening.values());

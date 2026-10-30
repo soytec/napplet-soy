@@ -80,6 +80,54 @@
       gap: 16px;
       align-items: center;
     }
+    .connections-dialog {
+      width: min(700px, 94vw);
+      max-width: 94vw;
+      max-height: 90dvh;
+      overflow: auto;
+    }
+    .connections-dialog div {
+      display: block;
+    }
+    .connections-dialog .settings-heading,
+    .connections-dialog .connection-buttons {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .connections-dialog .connection-card {
+      border: 1px solid var(--border);
+      padding: 12px;
+      margin: 12px 0;
+      border-radius: 8px;
+    }
+    .connections-dialog small {
+      display: block;
+      margin: 6px 0;
+    }
+    .connections-dialog form,
+    .connections-dialog label {
+      display: grid;
+      gap: 8px;
+      margin: 12px 0;
+    }
+    .connections-dialog input:not([type='checkbox']),
+    .connections-dialog select {
+      width: 100%;
+      padding: 10px;
+      background: var(--background);
+      color: var(--foreground);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    .connections-dialog .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .connections-dialog .settings-error {
+      color: var(--destructive);
+    }
     [hidden] {
       display: none !important;
     }

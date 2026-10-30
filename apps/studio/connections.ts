@@ -24,6 +24,8 @@ export const connectionInput = z
       .refine(validEndpoint, 'Use HTTPS, or HTTP on this computer’s loopback address.'),
     model: z.string().trim().min(1).max(160).regex(modelIdPattern),
     steps: z.number().int().min(10).max(100),
+    images: z.boolean().optional(),
+    json: z.boolean().optional(),
     // Omission keeps the saved key. Empty explicitly clears it for a local server.
     key: z.string().max(4096).optional(),
   })
@@ -120,6 +122,10 @@ export class Connections {
     if (!connection)
       throw fail('Choose an inference connection in Connections before sending a message.');
     return { ...connection };
+  }
+  resolve(handle: string) {
+    const c = this.data.connections.find((c) => `${c.id}:${c.revision}` === handle);
+    return c ? { ...c } : undefined;
   }
   get model() {
     const c = this.data.connections.find((c) => c.id === this.data.selected);
@@ -222,7 +228,9 @@ export class Connections {
       await this.persist({
         ...this.data,
         connections: this.data.connections.map((v) =>
-          v.id === id ? { ...v, model, revision: crypto.randomUUID() } : v,
+          v.id === id
+            ? { ...v, model, images: false, json: false, revision: crypto.randomUUID() }
+            : v,
         ),
       });
     return this.state();

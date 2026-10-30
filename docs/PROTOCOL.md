@@ -1,5 +1,15 @@
 # Napplet interoperability and publishing contract
 
+## Experimental NAP-LLM reference — not deployed
+
+The optional [NAP-LLM draft](proposals/NAP-LLM.md) and [reference implementation](LLM.md)
+provide user-selected inference through the shell and soyLI preview. This is a
+proposal, not an accepted NAP or an addition to the pinned SDK. The selected
+NIP-5D authority remains `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d51`.
+Sandbox policy and equal publisher treatment remain unchanged. Provider keys stay
+outside frames; optional inference never becomes a playback requirement. This
+reference contains no VALUE amendment or paid CVM checkout changes.
+
 ## Compliance audit — 2026-10-27
 
 The [dated compliance audit](NIP5D-COMPLIANCE-AUDIT-2026-10-27.md) records verified
