@@ -58,7 +58,7 @@ const record = z
     checks: z.array(
       z.object({
         name: z.string(),
-        state: z.enum(['running', 'passed', 'failed']),
+        state: z.enum(['running', 'passed', 'failed', 'skipped']),
         detail: z.string().optional(),
       }),
     ),

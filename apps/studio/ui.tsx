@@ -117,8 +117,8 @@ export function StudioApp({
   const bottom = useRef<HTMLDivElement>(null);
   const p = state.projects.find((p) => p.id === id);
   // Keep the previous passing frame while the next preview URL is being resolved.
-  const preview = draftPreview?.project === p?.id && p?.preview ? draftPreview?.url ?? '' : '';
-  const original = p?.source && OriginalPreview ? p.sourceRevision ?? p.source : undefined;
+  const preview = draftPreview?.project === p?.id && p?.preview ? (draftPreview?.url ?? '') : '';
+  const original = p?.source && OriginalPreview ? (p.sourceRevision ?? p.source) : undefined;
   const showingOriginal = !!original && !preview;
   const busy = !!state.busy || sending;
   const active = p && working(p.phase);
@@ -669,7 +669,13 @@ export function StudioApp({
                       <details key={c.name}>
                         <summary>
                           <span className={c.state}>
-                            {c.state === 'passed' ? '✓' : c.state === 'failed' ? '×' : '◌'}
+                            {c.state === 'passed'
+                              ? '✓'
+                              : c.state === 'failed'
+                                ? '×'
+                                : c.state === 'skipped'
+                                  ? '–'
+                                  : '◌'}
                           </span>
                           {c.name}
                           <ChevronDown size={13} />

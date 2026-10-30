@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DiagnosticError } from '../../../packages/diagnostics/src';
+import { standaloneProject } from '../../cli/src/standalone-project';
 
 const groups = ['dependencies', 'devDependencies', 'optionalDependencies', 'overrides'] as const;
 type Manifest = Record<string, any>;
@@ -40,7 +41,20 @@ async function readProfile(root: string) {
 
 /** Only image-installed dependencies are eligible. Source cannot select a path or install packages. */
 export async function selectToolchainProfile(workspace: string, installed = '/opt') {
-  const project = await readProfile(workspace);
+  if (await standaloneProject(workspace)) return null;
+  const project = await readProfile(workspace).catch((cause) => {
+    if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause;
+    throw new DiagnosticError(
+      'STUDIO_PROFILE',
+      'This project needs package.json and pnpm-lock.yaml for its installed toolchain.',
+      {
+        operation: 'select installed project toolchain',
+        cause,
+        recovery:
+          'Restore the project’s dependency files or continue with soyLI locally. Standalone HTML remixes do not need a package toolchain; dependency-bearing projects need an exact operator-installed profile.',
+      },
+    );
+  });
   const base = await readProfile(join(installed, 'profile'));
   if (
     toolchainProfileId(base.manifest, base.lock) ===

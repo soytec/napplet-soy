@@ -308,6 +308,63 @@ async function settled(studio: Studio) {
   return (await studio.state()).projects[0];
 }
 
+test('an interrupted HTML remix recovers its unborn Git history and checks without starter scripts in either build mode', async () => {
+  let calls = 0;
+  const commands: string[][] = [];
+  const { studio, root } = await fixture(
+    {
+      model: 'fixture',
+      async run(directory, prompt, _session, _signal, _emit, execution) {
+        calls++;
+        expect(prompt).toContain('standalone HTML');
+        expect(execution?.browserBuild).toBe(false);
+        await writeFile(join(directory, 'index.html'), '<!doctype html><p>Edited remix</p>');
+      },
+    },
+    {
+      projectCommand: async (_root, args) => {
+        commands.push(args);
+        if (commands.length === 1) throw new Error('Fixture interrupted setup');
+        return 'Checked; independent-host compatibility not measured.';
+      },
+    },
+  );
+  const id = await studio.create('HTML remix', 'Edit it');
+  await settled(studio);
+  const p = studio.project(id);
+  const directory = join(root, 'projects', id, 'workspace');
+  const config = JSON.parse(await readFile(join(directory, 'napplet.json'), 'utf8'));
+  await writeFile(
+    join(directory, 'napplet.json'),
+    JSON.stringify({ ...config, entry: 'index.html' }),
+  );
+  await writeFile(join(directory, 'index.html'), '<!doctype html><p>Original remix</p>');
+  await rm(join(directory, '.git'), { recursive: true });
+  await run(['git', 'init'], {
+    cwd: directory,
+    env: cleanEnvironment(),
+    signal: AbortSignal.timeout(5000),
+    operation: 'fixture unborn repository',
+  });
+  p.source = 'https://napplet.soy/n/fixture';
+  p.initialized = true; // Old Studio saved this before rev-parse failed.
+  delete p.baseline;
+  for (const browser of [undefined, crypto.randomUUID()]) {
+    await studio.send(id, 'Make it better', browser);
+    const result = await settled(studio);
+    expect(result.error).toBeUndefined();
+    expect(result.phase).toBe('ready');
+    expect(result.baseline).toMatch(/^[a-f0-9]{40}$/);
+    expect(result.checks.map((check) => check.state)).toEqual(['passed', 'passed', 'skipped']);
+    expect(await readFile(join(directory, 'index.html'), 'utf8')).toContain('Edited remix');
+  }
+  expect(calls).toBe(2);
+  expect(commands).not.toContainEqual(['run', 'verify']);
+  expect(commands).not.toContainEqual(['run', 'test:conformance']);
+  expect(commands).toContainEqual(['build']);
+  expect(commands).toContainEqual(['check']);
+});
+
 test('real process failure is repaired, skipped checks stay visible, and reload resumes the same agent session', async () => {
   const sessions: Array<string | undefined> = [];
   let calls = 0;

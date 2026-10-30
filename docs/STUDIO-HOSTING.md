@@ -58,6 +58,16 @@ drafts. Viewing the original does not run tools, start inference or make the dra
 publishable. Exact imported revisions are retained; optional preview failure does
 not prevent source editing. No additional API or event kind is introduced.
 
+Standalone HTML publications are remixable even without a source archive or Git
+reference: the hash-verified published HTML becomes editable `index.html`. soyLI
+saves an initial local Git checkpoint after installing creator guidance. Studio
+also recovers older imported drafts whose Git repository has no first commit.
+Dependency-free HTML uses no pnpm lockfile or installed dependency profile and
+needs no browser compiler. Both build-mode choices use its HTML validation and the
+shared sandbox check. An absent upstream conformance suite is shown as skipped.
+Projects with dependencies or custom build commands still require an exact
+installed profile; a missing lockfile does not bypass that requirement.
+
 `bash scripts/test-studio-remix-network.sh` verifies the real CLI import under the
 generated Studio firewall in isolated Linux network/mount namespaces (sudo,
 nftables, iproute2, OpenSSL and Node required). Its local TLS fixtures require no

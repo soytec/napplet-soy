@@ -20,6 +20,7 @@ import { AccountError } from '../../../packages/identity/src/signer';
 import { backendProject } from './backend';
 import { selectNodeToolchain } from './toolchain-platform';
 import { packagedBy } from './distribution';
+import { standaloneProject } from './standalone-project';
 
 export const toolchainCache = () =>
   resolve(
@@ -266,6 +267,7 @@ export async function projectTool(directory: string, args: string[], signal?: Ab
 }
 
 export async function setupProject(directory: string, signal?: AbortSignal) {
+  if (await standaloneProject(directory)) return;
   await backendProject(directory);
   const recipe = await readBuildRecipe(directory);
   if (recipe?.kind === 'rust') return setupRust(directory, recipe, signal);
@@ -281,6 +283,10 @@ export async function setupProject(directory: string, signal?: AbortSignal) {
 
 export async function buildProject(directory: string, signal?: AbortSignal) {
   const managed = await validateAssets(directory);
+  if (await standaloneProject(directory)) {
+    await regularFile(directory, 'index.html', MAX_ARTIFACT_BYTES);
+    return;
+  }
   await backendProject(directory);
   const recipe = await readBuildRecipe(directory);
   if (recipe) await buildWithRecipe(directory, recipe, signal);
