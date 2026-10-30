@@ -23,7 +23,11 @@ export type Message = {
   at: string;
 };
 export type Checkpoint = { commit: string; at: string; label: string };
-export type Check = { name: string; state: 'running' | 'passed' | 'failed'; detail?: string };
+export type Check = {
+  name: string;
+  state: 'running' | 'passed' | 'failed' | 'skipped';
+  detail?: string;
+};
 export const reasoningLimits = { blocks: 16, characters: 12000 } as const;
 export type ReasoningBlock = { id: string; text: string; truncated?: boolean };
 export type WorkshopEntry =

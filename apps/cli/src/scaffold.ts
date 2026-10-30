@@ -45,7 +45,7 @@ async function createDestination(target: string) {
     throw error;
   }
 }
-async function initializeGit(target: string) {
+export async function initializeGit(target: string) {
   // Avoid --initial-branch: older Apple Git accepts init + symbolic-ref too.
   try {
     await sourceGit(target, ['init']);

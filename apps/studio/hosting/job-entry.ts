@@ -11,7 +11,7 @@ import { diagnose, formatDiagnostic } from '../../../packages/diagnostics/src';
 
 async function main(context: any, signal: AbortSignal) {
   const profile = await selectToolchainProfile('/workspace');
-  await cp(profile + '/node_modules', '/workspace/node_modules', { recursive: true });
+  if (profile) await cp(profile + '/node_modules', '/workspace/node_modules', { recursive: true });
   // A throwaway Git repository supports soyLI inspection. It never replaces the real history.
   const env = { ...process.env, PATH: '/usr/local/bin:/usr/bin:/bin' };
   await mkdir('/tmp/home', { recursive: true });
@@ -103,7 +103,11 @@ async function main(context: any, signal: AbortSignal) {
       await proxy.stop(true);
     }
   } else if (context.operation === 'setup') {
-    console.log('Pinned dependencies available in the isolated workspace.');
+    console.log(
+      profile
+        ? 'Pinned dependencies available in the isolated workspace.'
+        : 'Standalone HTML ready; no dependencies to install.',
+    );
   } else if (context.operation === 'command') {
     const allowed = [['run', 'verify'], ['check'], ['run', 'test:conformance'], ['build']];
     if (!allowed.some((args) => JSON.stringify(args) === JSON.stringify(context.args)))

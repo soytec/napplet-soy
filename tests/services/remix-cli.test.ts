@@ -101,6 +101,41 @@ test('compiled standalone CLI remixes a pinned manifest through its installed sy
     expect(await Bun.file(join(directory, 'remixed/index.html')).bytes()).toEqual(html);
     expect(await Bun.file(join(directory, 'remixed/AGENTS.md')).exists()).toBe(true);
     expect(JSON.parse(out).directory).toBe(await realpath(join(directory, 'remixed')));
+    const history = Bun.spawn(['git', 'log', '-1', '--format=%s'], {
+      cwd: join(directory, 'remixed'),
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const historyError = await new Response(history.stderr).text();
+    expect(await history.exited, historyError).toBe(0);
+    expect(await new Response(history.stdout).text()).toContain('Initialize');
+    const status = Bun.spawn(['git', 'status', '--porcelain'], {
+      cwd: join(directory, 'remixed'),
+      stdout: 'pipe',
+    });
+    expect(await new Response(status.stdout).text()).toBe('');
+    expect(await status.exited).toBe(0);
+    for (const command of ['setup', 'build']) {
+      const prepared = Bun.spawn([link, command, '--json'], {
+        cwd: join(directory, 'remixed'),
+        env: {
+          PATH: process.env.PATH,
+          SPACE_ACCOUNT_HOME: join(directory, 'accounts'),
+          SPACE_TOOLCHAIN_CACHE: join(directory, 'empty-cache'),
+        },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      const [exit, output, errors] = await Promise.all([
+        prepared.exited,
+        new Response(prepared.stdout).text(),
+        new Response(prepared.stderr).text(),
+      ]);
+      expect(exit, errors).toBe(0);
+      expect(JSON.parse(output).status).toBe(command === 'setup' ? 'ready' : 'built');
+    }
+    expect(await Bun.file(join(directory, 'remixed/index.html')).bytes()).toEqual(html);
+    expect(await Bun.file(join(directory, 'remixed/pnpm-lock.yaml')).exists()).toBe(false);
   } finally {
     server?.stop(true);
     await rm(directory, { recursive: true, force: true });
