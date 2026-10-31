@@ -1,3 +1,5 @@
+import type { InvoicePaymentBackend } from './invoice-payment-session';
+import { cvmCheckout } from './cvm-payment-dialog';
 import { LlmSession, type LlmService } from './llm-contract';
 import type { ThemeSource } from './appearance';
 import { blossomBytes, downloadBytes, readBytes } from '../../client/src/bytes';
@@ -44,6 +46,9 @@ export type HostOptions = {
   /** Trusted shell catalog/lifecycle broker; the frame cannot supply these values. */
   intent?: { workspace: IntentWorkspace; catalogId: string };
   llm?: LlmService;
+  cvmPayments?: InvoicePaymentBackend;
+  /** Disable even external-wallet checkout in untrusted review previews. */
+  disableCvmPayments?: boolean;
   frame: HTMLIFrameElement;
   identity: string;
   manifestId: string;
@@ -355,6 +360,9 @@ export function attachNappletHost(options: HostOptions) {
             signal: lifetime.signal,
             consent: (label) => choose('network', label),
           },
+          options.disableCvmPayments
+            ? undefined
+            : cvmCheckout(signerScope, options.title ?? 'This napplet', options.cvmPayments),
         );
         if (domain === 'cvm') return backend.handle(message);
         webrtc ??= new NappletWebrtc(

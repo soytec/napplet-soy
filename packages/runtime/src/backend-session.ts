@@ -12,6 +12,7 @@ import {
 import { readRelayUrl } from '../../nostr/src/relay-policy';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { BackendAccount, type BackendAccountOptions } from './backend-account';
+import { paidInvocation, paymentRequired, type CvmCheckout } from './cvm-payment';
 
 const families: Record<string, string[]> = {
   'soy.backends.v1': [
@@ -59,9 +60,8 @@ const rpc = z
   })
   .strict();
 const optionsSchema = z.object({
-  // The iframe deadline includes human consent/signing. Individual provider RPCs
-  // still have CvmConnection's independent 25-second ceiling.
-  timeoutMs: z.number().int().min(1).max(120000).optional(),
+  // One deadline includes connection, consent, payment and execution.
+  timeoutMs: z.number().int().min(1).max(300000).optional(),
   initialize: z.boolean().optional(),
   payment: z.enum(['deny', 'prompt', 'allow']).optional(),
   cache: z.enum(['default', 'reload', 'no-store']).optional(),
@@ -82,6 +82,8 @@ export function transportSigner(storage: Pick<Storage, 'getItem' | 'setItem'>, s
 
 export class NappletBackend {
   private account?: BackendAccount;
+  private lifetime = new AbortController();
+  private invocations = new Set<CvmConnection>();
   private connections = new Map<string, CvmConnection>();
   private approved = new Set<string>();
   private discovery = new Set<ApplesauceRelayPool>();
@@ -105,27 +107,84 @@ export class NappletBackend {
     private send: (message: Record<string, unknown>) => void,
     private consent: (label: string) => Promise<boolean>,
     private aliases: BackendProvider[] = [],
-    account?: BackendAccountOptions,
+    private accountOptions?: BackendAccountOptions,
+    private checkout?: CvmCheckout,
   ) {
-    if (account) this.account = new BackendAccount(account, () => signer.getPublicKey());
+    if (accountOptions)
+      this.account = new BackendAccount(accountOptions, () => signer.getPublicKey());
   }
   private async request(
-    connection: CvmConnection,
+    base: CvmConnection,
     method: string,
-    params?: Record<string, unknown>,
-    timeout?: number,
+    params: Record<string, unknown> | undefined,
+    opts: ReturnType<typeof optionsSchema.parse>,
+    deadline: number,
   ) {
-    if (method === 'tools/call' && this.account)
-      params = {
-        ...params,
-        arguments: await this.account.arguments(
-          connection,
-          connection.provider.pubkey,
-          params?.name,
-          z.record(z.string(), z.unknown()).parse(params?.arguments ?? {}),
-        ),
-      };
-    return connection.request(method, params, timeout);
+    const policy = opts.payment ?? 'prompt';
+    if (Date.now() >= deadline) throw new Error('CVM request deadline exceeded');
+    const signal = AbortSignal.any([
+      this.lifetime.signal,
+      AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+    ]);
+    const priced = await base.pricedTool(
+      method,
+      params,
+      Math.max(1, deadline - Date.now()),
+      signal,
+    );
+    signal.throwIfAborted();
+    if (priced && (policy !== 'prompt' || !this.checkout)) throw paymentRequired();
+    // Paid authorizations are never shared with later invocations or deny/allow calls.
+    // The same ephemeral identity stays alive for the approved retry only.
+    const signer = new PrivateKeySigner(
+      Array.from(generateSecretKey(), (b) => b.toString(16).padStart(2, '0')).join(''),
+    );
+    const connection = priced
+      ? new CvmConnection(
+          base.provider,
+          signer,
+          (message) => this.send({ type: 'cvm.event', server: base.provider, message }),
+          true,
+        )
+      : base;
+    const account =
+      connection === base
+        ? this.account
+        : this.accountOptions
+          ? new BackendAccount(this.accountOptions, () => signer.getPublicKey())
+          : undefined;
+    if (connection !== base) this.invocations.add(connection);
+    try {
+      if (method === 'tools/call' && account)
+        params = {
+          ...params,
+          arguments: await account.arguments(
+            connection,
+            connection.provider.pubkey,
+            params?.name,
+            z.record(z.string(), z.unknown()).parse(params?.arguments ?? {}),
+          ),
+        };
+      const frozen = params === undefined ? undefined : structuredClone(params);
+      return await paidInvocation({
+        server: connection.provider.pubkey,
+        method,
+        params: frozen,
+        policy,
+        checkout: priced ? this.checkout : undefined,
+        signal: AbortSignal.any([signal, connection.signal]),
+        interaction: () => connection.paymentInteraction,
+        request: () => {
+          signal.throwIfAborted();
+          return connection.request(method, frozen, Math.max(1, deadline - Date.now()), signal);
+        },
+      });
+    } finally {
+      if (connection !== base) {
+        this.invocations.delete(connection);
+        await connection.close();
+      }
+    }
   }
   private ref(value: unknown) {
     const raw = z
@@ -212,7 +271,7 @@ export class NappletBackend {
   }
   async handle(message: Record<string, unknown>): Promise<Record<string, unknown>> {
     const opts = optionsSchema.parse(message.options ?? {});
-    // No wallet or payment middleware exists here; payment-required responses remain errors.
+    const deadline = Date.now() + (opts.timeoutMs ?? 30000);
     if (message.type === 'cvm.request') {
       const request = rpc.parse(message.message),
         ref = this.ref(message.server);
@@ -222,7 +281,8 @@ export class NappletBackend {
           connection,
           request.method,
           request.params,
-          opts.timeoutMs,
+          opts,
+          deadline,
         );
         return { message: { jsonrpc: '2.0', id: request.id, result } };
       } catch (error) {
@@ -242,6 +302,8 @@ export class NappletBackend {
       const key = JSON.stringify(this.ref(message.server)),
         connection = this.connections.get(key);
       this.connections.delete(key);
+      for (const pending of this.invocations)
+        if (JSON.stringify(pending.provider) === key) await pending.close();
       await connection?.close();
       return {};
     }
@@ -360,7 +422,8 @@ export class NappletBackend {
           connection,
           'tools/call',
           { name: message.tool, arguments: message.args ?? {} },
-          opts.timeoutMs,
+          opts,
+          deadline,
         ),
       };
     }
@@ -368,6 +431,9 @@ export class NappletBackend {
   }
   close() {
     this.alive = false;
+    this.lifetime.abort();
+    for (const connection of this.invocations) void connection.close();
+    this.invocations.clear();
     for (const connection of this.connections.values()) void connection.close();
     for (const pool of this.discovery) void pool.disconnect();
     this.connections.clear();

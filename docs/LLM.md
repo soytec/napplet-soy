@@ -132,4 +132,4 @@ Chromium executes both identity and LLM operations in a real opaque-origin
 iframe while adversarial code replaces MessagePort and MessageEvent intrinsics.
 The port remains inaccessible. These tests use fixture providers and do not
 perform live inference or payments. The inference-job status API never contacts
-a wallet; paid CVM rollout and Minibits behavior are outside this change.
+a wallet; native CVM checkout is documented separately in [LLM-CVM.md](LLM-CVM.md). It adds no VALUE amendment or background receiving-wallet polling.

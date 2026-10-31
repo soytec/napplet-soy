@@ -17,6 +17,9 @@ on:
       - 'tests/services/studio-shell.test.ts'
       - 'tests/services/studio-preview.test.ts'
       - 'tests/services/studio-original-preview.test.ts'
+      - 'tests/services/cvm-payments.test.ts'
+      - 'tests/services/cvm-checkout-browser.test.ts'
+      - 'tests/fixtures/cvm-checkout.ts'
       - 'tests/services/studio-publication.test.ts'
       - 'tests/services/publish-check.test.ts'
       - 'tests/services/nip5d-port*.test.ts'
@@ -100,6 +103,11 @@ jobs:
         run: bun run build && bun test tests/services/studio-shell.test.ts && bun test tests/services/studio-preview.test.ts
       - name: Verify initial remix gameplay and preview transitions
         run: bun test tests/services/studio-original-preview.test.ts
+      - name: Verify native CVM payments and wallet checkout
+        # Isolate Bun's browser fixture bundles between suites.
+        run: |
+          bun test tests/services/cvm-payments.test.ts
+          bun test tests/services/cvm-checkout-browser.test.ts
       - name: Verify update publication and sandbox media capture
         run: bun test tests/services/studio-publication.test.ts && bun test tests/services/publish-check.test.ts
       - name: Verify private port identity and sandbox revocation
