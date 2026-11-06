@@ -24,6 +24,8 @@ test('a remix opens verified original gameplay before inference, then keeps and 
     entrypoints: [import.meta.dir + '/fixtures/studio-original-preview.tsx'],
     target: 'browser',
     format: 'esm',
+    // Match Vite's public URL handling when the player imports shared shell styles.
+    external: ['/brand/*'],
     define: { 'import.meta.env': '{"DEV":true}' },
     plugins: [
       {
@@ -76,6 +78,8 @@ test('a remix opens verified original gameplay before inference, then keeps and 
         });
       if (path === '/style.css')
         return new Response(css, { headers: { 'content-type': 'text/css' } });
+      if (path === '/brand/soybert-laptop-aligned.png')
+        return new Response(Bun.file('apps/web/public' + path));
       if (path === '/' + hash)
         return new Response(corrupt ? '<script>parent.compromised=true</script>' : html, {
           headers: { 'content-type': 'text/html', 'content-length': String(html.length) },
