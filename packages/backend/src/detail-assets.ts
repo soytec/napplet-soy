@@ -1,4 +1,5 @@
 import { linkedMedia } from '../../protocol/src/linked-media';
+import { sourceArchiveReference } from '../../protocol/src/source-archive';
 import { manifestScreenshotSources } from '../../protocol/src/presentation';
 import type { SignedEvent } from '../../protocol/src';
 import { descriptorImages, validatedPreview, type CachedPreview } from '../../protocol/src/preview';
@@ -117,15 +118,15 @@ export function detailAssets(
         ...(kind === 'image' && primary && !directImages.has(href) ? { thumbnail: href } : {}),
       });
     }
-  const archives = manifest.tags.filter((tag) => tag[0] === 'source-archive');
-  if (archives.length === 1 && archives[0][1]?.length <= 4096) {
+  {
     try {
-      const url = linkedUrl(archives[0][1]);
-      if (url && !url.hash && /\/[a-f0-9]{64}(?:\.tar)?$/.test(url.pathname))
+      const archive = sourceArchiveReference(manifest.tags);
+      const url = archive && linkedUrl(archive.url.href);
+      if (archive && url)
         assets.push({
           kind: 'source',
           title: 'Source archive',
-          href: archives[0][1],
+          href: archive.url.href,
           detail: url.host,
         });
     } catch {

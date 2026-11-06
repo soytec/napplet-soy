@@ -109,7 +109,9 @@ exact committed target bytes, so archive recovery and this source browser can
 read them without following links. Git history itself is unchanged. Each copy
 counts toward the expanded-source budget.
 
-The signed `source-archive` URL must end in its SHA-256 digest (optionally `.tar`).
+The four-element NIP-5D `source-archive` tag supplies the signed SHA-256 digest
+separately from its URL. Older two-element tags remain readable when the URL ends
+in that digest (optionally `.tar`).
 The browser verifies downloaded bytes and uses the same Git-tar parser as the CLI:
 50 MiB archive, 40 MiB expanded files, 1,024 files, no traversal, symlinks, special
 entries, conflicting paths or credential files. It never clones a repository, runs
@@ -144,7 +146,8 @@ Public retrieval uses bounded HTTPS requests, enforces public DNS/IP destination
 at connection time and refuses redirects. Development permits only the configured
 `SPACE_INDEX_LOCAL_BLOSSOM` loopback origin/path. There are at most two simultaneous
 archive fetches and twelve new fetches per minute per web process; requests for the
-same URL share a download. The cache retains at most eight entries / 96 MiB for ten
+same URL and signed digest share a download. Different digests never reuse cached
+bytes, pending requests or failed results, even when the URL stays the same. The cache retains at most eight entries / 96 MiB for ten
 minutes, with a 30-second failure cache. Event visibility and archive-hash moderation
 are checked again even on cache hits and after downloads.
 

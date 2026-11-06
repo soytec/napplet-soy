@@ -142,10 +142,12 @@ test('publisher runs its sandbox check, survives interruption, retains Git relea
       await fetch(`${services.targets.blossom}/${first.preview!.hash}`)
     ).bytes();
     expect(await sha256(previewBytes)).toBe(first.preview!.hash);
+    // NIP-5D presentation media (PR 2303 at c041f84).
     expect(events.find((e) => e.kind === 35129)!.tags).toContainEqual([
       'screenshot',
-      first.preview!.hash,
-      'image/png',
+      `x ${first.preview!.hash}`,
+      'm image/png',
+      `size ${previewBytes.length}`,
     ]);
     const release = await validateRelease(
       events.find((e) => e.kind === 35129),

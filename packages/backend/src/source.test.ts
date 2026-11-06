@@ -131,6 +131,54 @@ test('source browser lists and reads a pinned source archive beyond 128 files', 
   );
 });
 
+for (const mode of ['cached', 'pending', 'failed'] as const)
+  test(`a stable archive URL cannot reuse ${mode} results for a different signed hash`, async () => {
+    const folder = join(directory, `stable-url-${mode}`);
+    await freezeSource(
+      folder,
+      new Map([['README.md', new TextEncoder().encode('# The new revision')]]),
+      1800000001,
+    );
+    const next = await Bun.file(join(folder, 'source.tar')).bytes();
+    const nextHash = await sha256(next);
+    const events = await Promise.all(
+      [hash, nextHash].map((h) =>
+        manifest([['source-archive', 'https://assets.example/source.tar', h, 'application/x-tar']]),
+      ),
+    );
+    let calls = 0;
+    let release!: () => void, started!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const downloading = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const service = browser(events, async () => {
+      const first = calls++ === 0;
+      if (first) {
+        started();
+        if (mode === 'pending') await gate;
+      }
+      return first && mode !== 'failed' ? tar : next;
+    });
+    const input = (i: number) => ({ revision: events[i].id, view: 'project' as const });
+    const old = service.view(input(0));
+    await downloading;
+    if (mode !== 'pending') await old;
+    const fresh = service.view(input(1));
+    release();
+    const [before, after] = await Promise.all([old, fresh]);
+    if (mode === 'failed') expect(before?.message).toContain('could not');
+    else expect(before?.selected?.text).toContain('# A small world');
+    expect(after?.archiveHash).toBe(nextHash);
+    expect(after?.selected?.text).toBe('# The new revision');
+    expect((await service.readme(events[1].id))?.lines).toEqual(['# The new revision']);
+    const download = await service.download(input(1), true);
+    expect(await sha256(download!.bytes)).toBe(nextHash);
+    expect(calls).toBe(2);
+  });
+
 test('missing and invalid source remain explicit; verified HTML is an independent fallback', async () => {
   const event = await manifest([['source', 'nostr://repository-reference']]);
   let calls = 0;

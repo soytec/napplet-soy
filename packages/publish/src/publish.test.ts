@@ -10,6 +10,7 @@ import {
 import { migrationTemplate } from '../../migration/src';
 import {
   MANIFEST_PRESENTATION_PROFILE,
+  NIP5D_PRESENTATION_PROFILE,
   manifestScreenshotSources,
   manifestVideoSources,
 } from '../../protocol/src/presentation';
@@ -524,10 +525,15 @@ test('preview upload and direct manifest references survive interruption with id
     expect(appReferences(interrupted.current!)).toEqual([]);
     expect(interrupted.preview!.descriptor).toBeUndefined();
     expect(interrupted.receipts.descriptor).toBeUndefined();
+    // New releases use NIP-5D presentation media (PR 2303 at c041f84), no Soy profile tag.
+    expect(interrupted.presentationProfile).toBe(NIP5D_PRESENTATION_PROFILE);
     expect(interrupted.current!.tags).toContainEqual([
-      'presentation',
-      MANIFEST_PRESENTATION_PROFILE,
+      'screenshot',
+      `x ${await sha256(previewPng)}`,
+      'm image/png',
+      `size ${previewPng.length}`,
     ]);
+    expect(interrupted.current!.tags.some((t) => t[0] === 'presentation')).toBe(false);
     expect(manifestScreenshotSources(interrupted.current!).map((c) => c.url)).toEqual([
       `${interrupted.plan.targets.blossom}/${await sha256(previewPng)}`,
     ]);
@@ -652,6 +658,36 @@ test('older releases gain a preview without code edits; Blossom can change on a 
   }
 });
 
+test('a frozen soy.presentation/1 job resumes with its original tags and signatures', async () => {
+  const f = await fixture();
+  try {
+    f.options.requirePreview = true;
+    f.options.check = async () => ({ profile: 'test', browser: 'test', preview: previewPng });
+    let interrupted = false;
+    f.deps.checkpoint = async (job) => {
+      if (!job.source && !interrupted) {
+        interrupted = true;
+        // Simulate a job frozen by the previous CLI, before it signed anything.
+        job.presentationProfile = MANIFEST_PRESENTATION_PROFILE;
+        await f.journal.save(job);
+        throw new Error('Old process stopped before signing');
+      }
+    };
+    await expect(publishProject(f.options)).rejects.toMatchObject({ code: 'PUBLISH_FAILED' });
+    delete f.deps.checkpoint;
+    await publishProject({ ...f.options, resume: true });
+    const job = await f.load();
+    expect(job.presentationProfile).toBe(MANIFEST_PRESENTATION_PROFILE);
+    expect(job.status).toBe('announced_pending_index');
+    expect(job.current!.tags).toContainEqual(['presentation', MANIFEST_PRESENTATION_PROFILE]);
+    expect(job.current!.tags).toContainEqual(['screenshot', job.preview!.hash, 'image/png']);
+    expect(job.current!.tags.find((t) => t[0] === 'source-archive')).toHaveLength(2);
+    expect(manifestScreenshotSources(job.current!)).toHaveLength(1);
+  } finally {
+    await f.close();
+  }
+});
+
 for (const snapshot of [false, true]) {
   test(`${snapshot ? 'paired' : 'named-only'} frozen descriptor jobs resume unchanged, then migrate on an explicit fresh publication`, async () => {
     const f = await fixture();
@@ -681,7 +717,7 @@ for (const snapshot of [false, true]) {
       expect((await f.load()).current).toEqual(signed);
       await publishProject(f.options);
       const fresh = await f.load();
-      expect(fresh.presentationProfile).toBe(MANIFEST_PRESENTATION_PROFILE);
+      expect(fresh.presentationProfile).toBe(NIP5D_PRESENTATION_PROFILE);
       expect(fresh.plan.artifactHash).toBe(old.plan.artifactHash);
       expect(fresh.plan.identifier).toBe(old.plan.identifier);
       expect(fresh.plan.pubkey).toBe(old.plan.pubkey);

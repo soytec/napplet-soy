@@ -1,4 +1,5 @@
 import { linkedMedia } from '../../protocol/src/linked-media';
+import { manifestSourceLocation } from '../../protocol/src/source-archive';
 import { cachedVideoSchema } from '../../protocol/src/preview-video';
 import { z } from 'zod';
 import { nip19 } from 'nostr-tools';
@@ -71,7 +72,7 @@ export async function publicNapplet(
   const tag = (name: string) => event.tags.find((t) => t[0] === name)?.[1];
   let sourceUrl: string | null = null;
   try {
-    const url = new URL(tag('source') ?? '');
+    const url = new URL(manifestSourceLocation(event.tags) ?? '');
     if (url.protocol === 'https:' && !url.username && !url.password) sourceUrl = url.href;
   } catch {}
   const pub = nip19.npubEncode(event.pubkey);

@@ -1,4 +1,9 @@
 import { DiagnosticError } from '../../diagnostics/src';
+import {
+  manifestSourceCommit,
+  manifestSourceLocation,
+  sourceArchiveReference,
+} from '../../protocol/src/source-archive';
 import { validateAssets, parseAssets, ASSET_LOCK } from '../../assets/src';
 import { relatedAssetHtml } from '../../assets/src/related';
 import { ProtocolClient } from '../../client/src/nostr';
@@ -165,13 +170,11 @@ export async function loadRemix(reference: string, network: Network, signal: Abo
       },
     );
   let files: Map<string, Uint8Array> | undefined;
-  const archive = manifest.tags.find((t) => t[0] === 'source-archive')?.[1];
   let archiveError: unknown;
+  const archive = manifest.tags.find((t) => t[0] === 'source-archive')?.[1];
   if (archive) {
     try {
-      const url = new URL(archive),
-        hash = /\/([a-f0-9]{64})(?:\.tar)?$/.exec(url.pathname)?.[1];
-      if (!hash) throw new Error('The signed source archive needs a content hash');
+      const { url, hash } = sourceArchiveReference(manifest.tags)!;
       const bytes = await remixBytes(url, network === 'local', signal, 50 * 1024 * 1024);
       if ((await sha256(bytes)) !== hash) throw new Error('Source archive hash mismatch');
       files = sourceArchive(bytes);
@@ -180,8 +183,8 @@ export async function loadRemix(reference: string, network: Network, signal: Abo
     }
   }
   let repository: Awaited<ReturnType<typeof readRepository>> | undefined;
-  const source = manifest.tags.find((t) => t[0] === 'source')?.[1];
-  const commit = manifest.tags.find((t) => t[0] === 'source-commit')?.[1];
+  const source = manifestSourceLocation(manifest.tags);
+  const commit = manifestSourceCommit(manifest.tags);
   if (source?.startsWith('nostr://') && /^[a-f0-9]{40}$/.test(commit ?? '')) {
     const client = new ProtocolClient(() =>
       network === 'local'

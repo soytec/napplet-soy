@@ -1,11 +1,10 @@
 import { expect, test } from 'bun:test';
-import { capturePreview, checkPublication } from '../../apps/cli/src/publish-check';
+import { capturePreview } from '../../apps/cli/src/publish-check';
 import { browserEngine } from '../../apps/cli/src/browser';
 import sharp from 'sharp';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { screenshotProject } from '../../apps/cli/src/project-config';
 import { recordingSchema } from '../../packages/publish/src/config';
 import { RUNTIME_PROFILE } from '../../packages/runtime/src/capabilities';
 import { sha256 } from '../../packages/protocol/src';
@@ -17,7 +16,10 @@ test('capture uses the pinned viewport without waiting for element stability', a
     await page.setContent(
       '<style>@keyframes drift{to{transform:translateY(40px)}}iframe{position:fixed;left:0;top:0;width:1200px;height:750px;border:0;animation:drift .25s infinite alternate linear}</style><iframe srcdoc="<style>html,body{background:rgb(20,100,180)}</style>"></iframe>',
     );
-    await expect(page.locator('iframe').screenshot({ timeout: 150 })).rejects.toThrow('stable');
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+    });
+    await expect(page.locator('iframe').screenshot({ timeout: 1000 })).rejects.toThrow('stable');
     const screenshot = await capturePreview(page, { width: 1200, height: 750 });
     const pixel = await sharp(screenshot)
       .extract({ left: 600, top: 400, width: 1, height: 1 })
@@ -63,32 +65,51 @@ test('scripted captures focus keyboard controls, scale portrait clicks and take 
     window.addEventListener('keydown',e=>{if(e.code==='Space')play()});
     </script>`);
   for (const portrait of [false, true]) {
-    const result = await checkPublication(
-      new Map([
-        ['napplet.json', config],
-        ['index.html', html],
-      ]),
-      true,
-      recordingSchema.parse({
-        durationMs: 2000,
-        actions: portrait
-          ? [{ type: 'click', atMs: 0, x: 480, y: 300 }]
-          : [
-              { type: 'keyDown', atMs: 0, key: 'Space' },
-              { type: 'keyUp', atMs: 100, key: 'Space' },
-            ],
-      }),
-      false,
-      undefined,
-      portrait ? { width: 360, height: 640 } : undefined,
+    const child = Bun.spawn(
+      [process.execPath, new URL('./fixtures/capture-recording.ts', import.meta.url).pathname],
+      {
+        stdin: new Blob([
+          JSON.stringify({
+            config: new TextDecoder().decode(config),
+            html: new TextDecoder().decode(html),
+            recording: recordingSchema.parse({
+              durationMs: 2000,
+              actions: portrait
+                ? [{ type: 'click', atMs: 0, x: 480, y: 300 }]
+                : [
+                    { type: 'keyDown', atMs: 0, key: 'Space' },
+                    { type: 'keyUp', atMs: 100, key: 'Space' },
+                  ],
+            }),
+            viewport: portrait ? { width: 360, height: 640 } : undefined,
+          }),
+        ]),
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
     );
-    const pixel = await sharp(result.preview)
+    const timeout = setTimeout(() => child.kill('SIGKILL'), 12000);
+    let result: { preview: string; videoBytes: number };
+    try {
+      const [code, out, err] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      expect(code, out + err).toBe(0);
+      result = JSON.parse(out);
+    } finally {
+      clearTimeout(timeout);
+      if (child.exitCode === null) child.kill('SIGKILL');
+      await child.exited;
+    }
+    const pixel = await sharp(Buffer.from(result.preview, 'base64'))
       .extract({ left: 10, top: 10, width: 1, height: 1 })
       .removeAlpha()
       .raw()
       .toBuffer();
     expect([...pixel]).toEqual([20, 180, 20]);
-    expect(result.video?.length).toBeGreaterThan(1000);
+    expect(result.videoBytes).toBeGreaterThan(1000);
   }
 }, 45000);
 
@@ -232,6 +253,36 @@ test('CLI exercises configured inputs and catches networking that only starts af
 
 test('capture contains the app pixels, saves a selected image, and validates chosen images', async () => {
   const root = await mkdtemp(join(tmpdir(), 'napplet-capture-'));
+  // Match real CLI invocations: reusing Playwright's in-process driver for the
+  // repeated capture/check operations can hang Chromium in Bun on CI.
+  const run = async (command: 'screenshot' | 'check') => {
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        new URL('../../apps/cli/src/index.ts', import.meta.url).pathname,
+        command,
+        '--project',
+        root,
+        '--network',
+        'local',
+        '--json',
+      ],
+      { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+    );
+    const timeout = setTimeout(() => child.kill('SIGKILL'), 12000);
+    try {
+      const [code, out, err] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      return { code, out, err, data: JSON.parse(out) };
+    } finally {
+      clearTimeout(timeout);
+      if (child.exitCode === null) child.kill('SIGKILL');
+      await child.exited;
+    }
+  };
   try {
     const config = {
       schema: 'space-local-project/v1',
@@ -246,7 +297,9 @@ test('capture contains the app pixels, saves a selected image, and validates cho
     await Bun.write(join(root, 'napplet.json'), JSON.stringify(config));
     await Bun.write(join(root, 'index.html'), html);
     await Bun.write(join(root, 'LICENSE'), 'MIT license');
-    const result = await screenshotProject(root, 'local');
+    const captured = await run('screenshot');
+    expect(captured.code, captured.out + captured.err).toBe(0);
+    const result = captured.data;
     const bytes = await Bun.file(result.image).bytes();
     const metadata = await sharp(bytes).metadata();
     expect([metadata.width, metadata.height]).toEqual([1200, 750]);
@@ -257,18 +310,22 @@ test('capture contains the app pixels, saves a selected image, and validates cho
       .toBuffer();
     expect([...pixel]).toEqual([20, 100, 180]);
     expect((await Bun.file(join(root, 'napplet.json')).json()).preview.image).toBe('preview.png');
-    await expect(screenshotProject(root, 'local')).rejects.toMatchObject({
-      code: 'PREVIEW_EXISTS',
-    });
+    const duplicate = await run('screenshot');
+    expect(duplicate.code, duplicate.out + duplicate.err).toBe(1);
+    expect(duplicate.out + duplicate.err).toContain('PREVIEW_EXISTS');
     expect(await Bun.file(result.image).bytes()).toEqual(bytes);
-    const selected = new Map([
-      ['napplet.json', await Bun.file(join(root, 'napplet.json')).bytes()],
-      ['index.html', new TextEncoder().encode(html)],
-      ['preview.png', bytes],
-    ]);
-    expect((await checkPublication(selected)).preview).toEqual(bytes);
-    selected.set('preview.png', new TextEncoder().encode('<svg>not a PNG</svg>'));
-    await expect(checkPublication(selected)).rejects.toMatchObject({ code: 'PREVIEW_IMAGE' });
+    // A deliberately different valid PNG proves check reuses the chosen bytes.
+    const chosen = await sharp(bytes).resize(8, 8).png().toBuffer();
+    await Bun.write(result.image, chosen);
+    const selected = await run('check');
+    expect(selected.code, selected.out + selected.err).toBe(0);
+    expect(selected.data.status).toBe('checked');
+    expect(selected.data.previewBytes).toBe(chosen.length);
+    expect(await Bun.file(result.image).bytes()).toEqual(new Uint8Array(chosen));
+    await Bun.write(join(root, 'preview.png'), '<svg>not a PNG</svg>');
+    const invalid = await run('check');
+    expect(invalid.code, invalid.out + invalid.err).toBe(1);
+    expect(invalid.out + invalid.err).toContain('PREVIEW_IMAGE');
   } finally {
     await rm(root, { recursive: true, force: true });
   }

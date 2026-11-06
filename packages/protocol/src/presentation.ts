@@ -3,6 +3,16 @@ import type { ManifestIcon } from './manifest';
 
 /** Optional Soy convention, not part of the pinned NIP-5D specification. */
 export const MANIFEST_PRESENTATION_PROFILE = 'soy.presentation/1';
+/**
+ * Journal marker for releases written with standard NIP-5D presentation media and
+ * the four-element `source-archive` (PR 2303 at c041f84). It is never a manifest
+ * tag; frozen jobs keep the format they were created with.
+ */
+export const NIP5D_PRESENTATION_PROFILE = 'nip5d.presentation/c041f84';
+export const DIRECT_PRESENTATION_PROFILES = [
+  MANIFEST_PRESENTATION_PROFILE,
+  NIP5D_PRESENTATION_PROFILE,
+] as const;
 type TaggedEvent = Pick<SignedEvent, 'kind' | 'tags'>;
 export type PresentationClaim = { hash: string; mime: string };
 const hashPattern = /^[a-f0-9]{64}$/;
@@ -29,15 +39,56 @@ function claims(event: TaggedEvent, name: string, mimes: string[], limit: number
   return [...result.values()].filter((c) => !ambiguous.has(c.hash));
 }
 
+/**
+ * NIP-5D Presentation media (PR 2303 at c041f84): NIP-92 `key value` fields split
+ * at the first ASCII space, exactly one lowercase `x`, optional `m`/`dim`/`size`/
+ * `alt`/`duration`. Unknown, malformed or repeated optional fields are ignored.
+ * This client decodes only declared supported formats, so an entry without a
+ * supported `m` is unusable here; it never suppresses other entries.
+ */
+export function nip5dMediaFields(tag: string[]) {
+  const fields = new Map<string, string | null>();
+  for (const entry of tag.slice(1)) {
+    if (typeof entry !== 'string') return null;
+    const split = entry.indexOf(' ');
+    if (split < 1) continue;
+    const key = entry.slice(0, split);
+    // A repeated field is malformed; remember it as unusable.
+    fields.set(key, fields.has(key) ? null : entry.slice(split + 1));
+  }
+  const hash = fields.get('x');
+  if (!hash || !hashPattern.test(hash)) return null;
+  return { hash, mime: fields.get('m') ?? null, alt: fields.get('alt') ?? null };
+}
+function standardClaims(event: TaggedEvent, name: string, mimes: string[]) {
+  if (![35129, 15129, 5129].includes(event.kind)) return [];
+  const result: PresentationClaim[] = [];
+  for (const tag of event.tags) {
+    if (tag[0] !== name) continue;
+    const fields = nip5dMediaFields(tag);
+    if (!fields?.mime || !mimes.includes(fields.mime)) continue;
+    if (result.some((claim) => claim.hash === fields.hash)) continue;
+    result.push({ hash: fields.hash, mime: fields.mime });
+  }
+  return result;
+}
+
+const SCREENSHOT_MIMES = ['image/png', 'image/jpeg', 'image/webp'];
+/** Standard NIP-5D screenshots in tag order, then the older Soy convention. */
 export function manifestScreenshots(event: TaggedEvent): ManifestIcon[] {
-  return claims(
-    event,
-    'screenshot',
-    ['image/png', 'image/jpeg', 'image/webp'],
-    4,
-  ) as ManifestIcon[];
+  const standard = standardClaims(event, 'screenshot', SCREENSHOT_MIMES);
+  const legacy = claims(event, 'screenshot', SCREENSHOT_MIMES, 4).filter(
+    (claim) => !standard.some((other) => other.hash === claim.hash),
+  );
+  // Clients MAY display a subset; extra entries never suppress usable ones.
+  return [...standard, ...legacy].slice(0, 4) as ManifestIcon[];
 }
 export function manifestPreviewVideo(event: TaggedEvent): PresentationClaim | null {
+  // NIP-5D: if multiple preview tags are present, ignore the preview.
+  const previewTags = event.tags.filter((t) => t[0] === 'preview');
+  if (previewTags.length > 1) return null;
+  if (previewTags.length === 1 && nip5dMediaFields(previewTags[0]))
+    return standardClaims(event, 'preview', ['video/webm'])[0] ?? null;
   return claims(event, 'preview', ['video/webm'], 1)[0] ?? null;
 }
 
