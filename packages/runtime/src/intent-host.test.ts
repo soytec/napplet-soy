@@ -1,36 +1,24 @@
 import { expect, test } from 'bun:test';
 import { attachNappletHost } from './host';
 import { IntentWorkspace } from './intent-session';
+import { fakeNappletFrame, fakeShellWindow, withGlobals } from './host-test-support';
 
 test('bound host replies with official invoke result and cold delivery follows target shell init', async () => {
-  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window'),
-    originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
-  const listeners = new Set<(event: MessageEvent) => void>();
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      addEventListener(type: string, handler: (event: MessageEvent) => void) {
-        if (type === 'message') listeners.add(handler);
-      },
-      removeEventListener(type: string, handler: (event: MessageEvent) => void) {
-        if (type === 'message') listeners.delete(handler);
-      },
-    },
-  });
-  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {} });
+  const shell = fakeShellWindow();
+  const restore = withGlobals({ window: shell.window, localStorage: {} });
   const workspace = new IntentWorkspace({ choose: async () => null, launch: async () => {} });
   workspace.register({ id: 'attested-source', contracts: [] });
   workspace.register({
     id: 'editor',
     contracts: [{ convention: 'napplet:black-site/map-edit', params: ['address'] }],
   });
-  const sentSource: Record<string, unknown>[] = [],
-    sentTarget: Record<string, unknown>[] = [];
-  const source = { postMessage: (message: Record<string, unknown>) => sentSource.push(message) },
-    target = { postMessage: (message: Record<string, unknown>) => sentTarget.push(message) };
+  const source = fakeNappletFrame(shell),
+    target = fakeNappletFrame(shell);
+  const sentSource = source.sent,
+    sentTarget = target.sent;
   const make = (endpoint: typeof source, id: string) =>
     attachNappletHost({
-      frame: { contentWindow: endpoint } as unknown as HTMLIFrameElement,
+      frame: endpoint.frame,
       identity: id,
       manifestId: 'a'.repeat(64),
       relays: [],
@@ -39,14 +27,13 @@ test('bound host replies with official invoke result and cold delivery follows t
       files: () => {},
       intent: { workspace, catalogId: id },
     });
-  const deliver = (endpoint: typeof source, data: Record<string, unknown>) => {
-    for (const listener of listeners)
-      listener({ source: endpoint, origin: 'null', data } as unknown as MessageEvent);
-  };
+  const deliver = (endpoint: typeof source, data: Record<string, unknown>) =>
+    endpoint.deliver(data);
   let sourceHost: ReturnType<typeof attachNappletHost> | undefined,
     targetHost: ReturnType<typeof attachNappletHost> | undefined;
   try {
     sourceHost = make(source, 'attested-source');
+    source.hello();
     deliver(source, { type: 'shell.ready' });
     deliver(source, {
       type: 'intent.invoke',
@@ -73,6 +60,7 @@ test('bound host replies with official invoke result and cold delivery follows t
     });
     sourceHost.close();
     targetHost = make(target, 'editor');
+    target.hello();
     expect(sentTarget).toEqual([]);
     deliver(target, { type: 'shell.ready' });
     expect(sentTarget.map((m) => m.type)).toEqual([
@@ -93,27 +81,13 @@ test('bound host replies with official invoke result and cold delivery follows t
   } finally {
     sourceHost?.close();
     targetHost?.close();
-    if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow);
-    else Reflect.deleteProperty(globalThis, 'window');
-    if (originalStorage) Object.defineProperty(globalThis, 'localStorage', originalStorage);
-    else Reflect.deleteProperty(globalThis, 'localStorage');
+    restore();
   }
 });
 
 test('bound host delivers structured payloads and returns correlated limit errors', async () => {
-  const previous = Object.getOwnPropertyDescriptor(globalThis, 'window');
-  const storage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
-  const listeners = new Set<(event: MessageEvent) => void>();
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      addEventListener: (_: string, listener: (event: MessageEvent) => void) =>
-        listeners.add(listener),
-      removeEventListener: (_: string, listener: (event: MessageEvent) => void) =>
-        listeners.delete(listener),
-    },
-  });
-  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {} });
+  const napplet = fakeNappletFrame();
+  const restore = withGlobals({ window: napplet.window, localStorage: {} });
   const workspace = new IntentWorkspace({ choose: async () => null, launch: async () => {} });
   workspace.register({ id: 'source', contracts: [] });
   workspace.register({
@@ -123,14 +97,9 @@ test('bound host delivers structured payloads and returns correlated limit error
   const deliveries: Record<string, unknown>[] = [];
   const target = workspace.attach('target', (message) => deliveries.push(message));
   target.ready();
-  const replies: Record<string, unknown>[] = [];
-  const frame = {
-    postMessage: (message: Record<string, unknown>) => {
-      replies.push(message);
-    },
-  };
+  const replies = napplet.sent;
   const host = attachNappletHost({
-    frame: { contentWindow: frame } as unknown as HTMLIFrameElement,
+    frame: napplet.frame,
     identity: 'source',
     manifestId: 'a'.repeat(64),
     relays: [],
@@ -139,9 +108,8 @@ test('bound host delivers structured payloads and returns correlated limit error
     files: () => {},
     intent: { workspace, catalogId: 'source' },
   });
-  const send = (data: Record<string, unknown>, source = frame, origin = 'null') => {
-    for (const listener of listeners) listener({ source, origin, data } as unknown as MessageEvent);
-  };
+  napplet.hello();
+  const send = (data: Record<string, unknown>) => napplet.deliver(data);
   const message = (id: string, payload: unknown) => ({
     type: 'intent.invoke',
     id,
@@ -154,8 +122,8 @@ test('bound host delivers structured payloads and returns correlated limit error
       result: { ok: true },
     });
     send({ type: 'shell.ready' });
-    send(message('wrong-source', 'ignored'), { postMessage: () => {} });
-    send(message('wrong-origin', 'ignored'), frame, 'https://example.com');
+    // Another frame's window-level message has no channel to this napplet.
+    napplet.post(message('wrong-source', 'ignored'), { source: {} });
     const circular: { self?: unknown } = {};
     circular.self = circular;
     const accepted = [
@@ -180,9 +148,7 @@ test('bound host delivers structured payloads and returns correlated limit error
       });
     }
     expect(deliveries).toHaveLength(accepted.length + 1);
-    expect(
-      replies.some((reply) => ['wrong-source', 'wrong-origin'].includes(String(reply.id))),
-    ).toBe(false);
+    expect(replies.some((reply) => reply.id === 'wrong-source')).toBe(false);
     const deep: Record<string, unknown> = {};
     let cursor = deep;
     for (let i = 0; i < 70; i++) cursor = cursor.next = {};
@@ -222,9 +188,6 @@ test('bound host delivers structured payloads and returns correlated limit error
     host.close();
     target.close();
     workspace.dropPending('target');
-    if (previous) Object.defineProperty(globalThis, 'window', previous);
-    else Reflect.deleteProperty(globalThis, 'window');
-    if (storage) Object.defineProperty(globalThis, 'localStorage', storage);
-    else Reflect.deleteProperty(globalThis, 'localStorage');
+    restore();
   }
 });

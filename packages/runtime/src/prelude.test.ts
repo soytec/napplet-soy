@@ -1,34 +1,44 @@
 import { expect, test } from 'bun:test';
-import { SHELL_PRELUDE } from './prelude';
+import { WEBRTC_REMOVAL, nappletPrelude } from './prelude';
 
-test('SHELL supports reflects injected domains immediately, never the environment hint', async () => {
-  let receive: (event: any) => void = () => {};
-  const sent: unknown[] = [];
-  const parent = { postMessage: (message: unknown) => sent.push(message) };
-  const window: any = {
-    parent,
-    napplet: { identity: {}, storage: {}, absent: null },
-    addEventListener: (_: string, listener: typeof receive) => {
-      receive = listener;
-    },
+test('interim WebRTC removal pins every RTC global and vendor alias as undefined', () => {
+  const realm: Record<string, unknown> = {
+    RTCPeerConnection: class {},
+    RTCDataChannel: class {},
+    RTCSessionDescription: class {},
+    RTCIceCandidate: class {},
+    webkitRTCPeerConnection: class {},
+    MessageChannel: class {},
   };
-  new Function('window', SHELL_PRELUDE)(window);
-  const shell = window.napplet.shell;
-  expect(shell.supports('identity')).toBe(true);
-  expect(shell.supports('storage')).toBe(true);
-  expect(shell.supports('shell')).toBe(true);
-  for (const domain of ['media', 'absent', '__proto__', 'constructor', 'toString'])
-    expect(shell.supports(domain)).toBe(false);
-  expect(sent).toEqual([{ type: 'shell.ready' }]);
-  const environments: unknown[] = [];
-  shell.onReady((value: unknown) => environments.push(value));
-  receive({ source: {}, data: { type: 'shell.init', capabilities: { domains: ['media'] } } });
-  expect(environments).toEqual([]);
-  const init = { type: 'shell.init', capabilities: { domains: ['media'] }, services: [] };
-  receive({ source: parent, data: init });
-  expect(await shell.ready()).toBe(init);
-  expect(shell.supports('identity')).toBe(true);
-  expect(shell.supports('media')).toBe(false);
-  receive({ source: parent, data: { type: 'shell.init', capabilities: { domains: [] } } });
-  expect(environments).toEqual([init]);
+  new Function('globalThis', WEBRTC_REMOVAL)(realm);
+  for (const name of [
+    'RTCPeerConnection',
+    'RTCDataChannel',
+    'RTCSessionDescription',
+    'RTCIceCandidate',
+    'webkitRTCPeerConnection',
+    'mozRTCPeerConnection',
+    'mozRTCIceCandidate',
+  ]) {
+    expect(realm[name]).toBeUndefined();
+    const descriptor = Object.getOwnPropertyDescriptor(realm, name)!;
+    expect(descriptor.writable).toBe(false);
+    expect(descriptor.configurable).toBe(false);
+    expect(() => {
+      'use strict';
+      realm[name] = class {};
+    }).toThrow();
+    expect(Reflect.deleteProperty(realm, name)).toBe(false);
+  }
+  expect(realm.MessageChannel).toBeFunction();
+});
+
+test('the bootstrap removes WebRTC first and leaves all messaging, including SHELL, to the port shim', () => {
+  const prelude = nappletPrelude('/*shim*/');
+  expect(prelude.indexOf(WEBRTC_REMOVAL)).toBe(0);
+  expect(prelude.indexOf('/*shim*/')).toBeGreaterThan(WEBRTC_REMOVAL.length - 1);
+  const install = /NappletShimPrelude\.install\((.*)\);/.exec(prelude)![1];
+  expect(JSON.parse(install).domains).toContain('shell');
+  expect(prelude).not.toContain('postMessage');
+  expect(prelude).not.toContain("addEventListener('message'");
 });

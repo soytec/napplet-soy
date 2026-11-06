@@ -5,33 +5,33 @@
     "": {
       "name": "independent-current-shell-acceptance",
       "dependencies": {
-        "@kehto/paja": "0.24.4",
-        "@napplet/core": "0.33.0",
-        "@napplet/nap": "0.33.0",
+        "@kehto/paja": "0.29.0",
+        "@napplet/core": "0.37.0",
+        "@napplet/nap": "0.36.0",
         "nostr-tools": "2.25.2",
       },
     },
   },
   "packages": {
-    "@kehto/acl": ["@kehto/acl@0.19.1", "", { "peerDependencies": { "@napplet/core": ">=0.32.0 <0.35.0", "@napplet/nap": ">=0.32.0 <0.35.0" } }, "sha512-4Ib3Gql2AtR1mmjyaLm0VATLIQkbZvCXV31NcaD6jAWZoeQy0dHg+6iSDu8XPGroIJdBMbPUDfGFGwVMi17Gmw=="],
+    "@kehto/acl": ["@kehto/acl@0.20.2", "", { "peerDependencies": { "@napplet/core": ">=0.32.0 <0.38.0", "@napplet/nap": ">=0.32.0 <0.37.0" } }, "sha512-JOg/OnIqEZw0Qc/IkvNDcxP94MsjovEJgRBlqVy4xa7raihkeWcye59W9N1j4pH2MVRqkYhXkWO2+ksJK4fVHw=="],
 
-    "@kehto/firewall": ["@kehto/firewall@0.6.1", "", { "peerDependencies": { "@napplet/core": ">=0.32.0 <0.35.0" } }, "sha512-TlrwRjVlmEWdx8CpUeaMjlVoVQ7N2cGLxYKyK/b03eoUNzUjK8xvwMuWrbRH2gJJLP0c8k51YipWF1tedpsNfA=="],
+    "@kehto/firewall": ["@kehto/firewall@0.6.3", "", { "peerDependencies": { "@napplet/core": ">=0.32.0 <0.38.0" } }, "sha512-zDi3LUmBCmbMjImDlb2HKhzFU73WOq5H3G6gWdzc1ymGVDwuKPg0GlDQP41OQ60YiljQN6occZ/nOdavZGHXPg=="],
 
-    "@kehto/nip": ["@kehto/nip@0.7.0", "", { "dependencies": { "@noble/hashes": "^2.0.0" }, "peerDependencies": { "nostr-tools": ">=2.23.3 <=2.x" } }, "sha512-uDi2fvs8gr2jhhNKU8JbrDaq1cqRpAHdxDWBpoLv59tVTTFcTul/bWpT0aAHcq/SzHgT+3IHT0oIuqJXpqCwhw=="],
+    "@kehto/nip": ["@kehto/nip@0.8.0", "", { "dependencies": { "@noble/hashes": "^2.0.0" }, "peerDependencies": { "nostr-tools": ">=2.23.3 <=2.x" } }, "sha512-vmVTU4ey4zt04qiZcTMMiN6TKhttAFm9tYy4qy4nzNraCXi1mZqLznIZGbhiYwGA7TVWRCO9pIsUyv/umb+yuA=="],
 
-    "@kehto/paja": ["@kehto/paja@0.24.4", "", { "dependencies": { "@kehto/acl": "^0.19.1", "@kehto/firewall": "^0.6.1", "@kehto/nip": "^0.7.0", "@kehto/runtime": "^0.26.0", "@kehto/services": "^0.25.1", "@kehto/shell": "^0.24.4", "@kehto/wm": "^0.0.2" }, "peerDependencies": { "@napplet/core": ">=0.32.0 <0.35.0", "@napplet/nap": ">=0.32.0 <0.35.0", "nostr-tools": ">=2.23.3 <=2.x" } }, "sha512-nTrI3NU/Tbg5+LgdtxHt3I5pPVjcdnKtBHZasTpa0RfJu1wwBKoB8e1lAQLxfxBCmB1M2hBnhk4tZUMnTR8TAg=="],
+    "@kehto/paja": ["@kehto/paja@0.29.0", "", { "dependencies": { "@kehto/acl": "^0.20.2", "@kehto/firewall": "^0.6.3", "@kehto/nip": "^0.8.0", "@kehto/runtime": "^0.27.2", "@kehto/services": "^0.28.2", "@kehto/shell": "^0.29.0", "@kehto/wm": "^0.0.2" }, "peerDependencies": { "@napplet/core": ">=0.32.0 <0.38.0", "@napplet/nap": ">=0.32.0 <0.37.0", "nostr-tools": ">=2.23.3 <=2.x" } }, "sha512-Wg1mjY1pkWIcXfz9uRP9jGKeB1myrtTlqtZgi9RFfFysSttc+Em5TJMQVNprF2Grl1F3gEsUMlVA9QCjN4Cz7w=="],
 
-    "@kehto/runtime": ["@kehto/runtime@0.26.0", "", { "dependencies": { "@kehto/acl": "^0.19.1", "@kehto/firewall": "^0.6.1", "@noble/curves": "^2.0.0", "@noble/hashes": "^2.0.0" }, "peerDependencies": { "@napplet/core": ">=0.32.0 <0.35.0", "@napplet/nap": ">=0.32.0 <0.35.0" } }, "sha512-sxXK7CsEp9cStnU13HGEAQimKF1H+NBuNzfH97DCwrlIWM0JVUxQh2KueC6RCRNSOrzXcHAOw64IiDAsX/lmpg=="],
+    "@kehto/runtime": ["@kehto/runtime@0.27.2", "", { "dependencies": { "@kehto/acl": "^0.20.2", "@kehto/firewall": "^0.6.3", "@noble/curves": "^2.0.0", "@noble/hashes": "^2.0.0" }, "peerDependencies": { "@napplet/core": ">=0.32.0 <0.38.0", "@napplet/nap": ">=0.32.0 <0.37.0" } }, "sha512-NFQOlIoDrA56LkEfVxBcOMU9hVXn38ZlWHhUqTaWl5IRxoZE9kG6MtTMIO3qIOkRoe8OwhzYgGs90gE+H11rSA=="],
 
-    "@kehto/services": ["@kehto/services@0.25.1", "", { "dependencies": { "@kehto/runtime": "^0.26.0" }, "peerDependencies": { "@napplet/core": ">=0.32.0 <0.35.0", "@napplet/nap": ">=0.32.0 <0.35.0", "nostr-tools": ">=2.23.3 <=2.x" }, "optionalPeers": ["nostr-tools"] }, "sha512-33XNXATOEkFXi32qK4Y7O0rMnYLxVts8uEGj8SGoaqIbyBx9nKWEjD77ejuIQV6kTZn+4dCiDCyFlbuIcrW36g=="],
+    "@kehto/services": ["@kehto/services@0.28.2", "", { "dependencies": { "@kehto/runtime": "^0.27.2" }, "peerDependencies": { "@napplet/core": ">=0.32.0 <0.38.0", "@napplet/nap": ">=0.32.0 <0.37.0", "nostr-tools": ">=2.23.3 <=2.x" }, "optionalPeers": ["nostr-tools"] }, "sha512-HNPe4St2QhX9Ho4BFHOwSqEA6+ZsSgmeBJI8dj2v050EOOBPCdwfa6y/ureWAKxGh7ti7jj46iseewLR5ErfeQ=="],
 
-    "@kehto/shell": ["@kehto/shell@0.24.5", "", { "dependencies": { "@kehto/acl": "^0.19.1", "@kehto/runtime": "^0.26.0" }, "peerDependencies": { "@napplet/core": ">=0.32.0 <0.35.0", "@napplet/nap": ">=0.32.0 <0.35.0", "nostr-tools": ">=2.23.3 <=2.x" } }, "sha512-DhD01MIqsYCqSF5MugWNDlcaNzhpgC29eUHbZWeMJIyZywASJQp9t8deh9q48g7hefuViNvWK1pLCZJ6U1LjHQ=="],
+    "@kehto/shell": ["@kehto/shell@0.29.0", "", { "dependencies": { "@kehto/acl": "^0.20.2", "@kehto/runtime": "^0.27.2" }, "peerDependencies": { "@napplet/core": ">=0.32.0 <0.38.0", "@napplet/nap": ">=0.32.0 <0.37.0", "nostr-tools": ">=2.23.3 <=2.x" } }, "sha512-bGnF/8G1UbiKp3QpTCaXlZGS76jXjBfSX91/ubDBQWagrZbhn56arZYW4DFlENCU8G94CWCcBQ1dC0DOlvDVoA=="],
 
     "@kehto/wm": ["@kehto/wm@0.0.2", "", {}, "sha512-8cjneY8paT9jcBRE/XX1oEA0pWtojkO9BESQ7UMTL9gIc+2zClXGLmY0HwdHMHMeZ3+c1sIcxsF08IHVwI3pDQ=="],
 
-    "@napplet/core": ["@napplet/core@0.33.0", "", {}, "sha512-hiodOl6MeWgFNFQLRryv8MdMRekcrgTX5SK/eb9KEhKh4dghf9QlS/eXGiSTvWSMNabwUCArtS7zTe9y6dPsdg=="],
+    "@napplet/core": ["@napplet/core@0.37.0", "", {}, "sha512-Zujsku1KMZKBDW01DtdmpobJiVUjXPoELP9uR/SJZTirDuggXEWxw+GF5fG13CjQ2r0ywrCeWL3vwH+/ENDshQ=="],
 
-    "@napplet/nap": ["@napplet/nap@0.33.0", "", { "dependencies": { "@napplet/core": "^0.33.0", "nostr-tools": "^2.23.3" }, "peerDependencies": { "json-schema-to-ts": "^3.1.1" }, "optionalPeers": ["json-schema-to-ts"] }, "sha512-i3KR+9K50MicpfX00Em/NhQaDiF4IAtcXBGQJO90xbLUsKMXz0FUTmvRvTBnobg3QzCEbQ03SLuzctkfPiSD4g=="],
+    "@napplet/nap": ["@napplet/nap@0.36.0", "", { "dependencies": { "@napplet/core": "^0.37.0", "nostr-tools": "^2.23.3" }, "peerDependencies": { "json-schema-to-ts": "^3.1.1" }, "optionalPeers": ["json-schema-to-ts"] }, "sha512-xmR9VLXFFpcbr7g3VDoPRy5aPLHQAG+pd7AGhVIulYQVdeNbzi3lQ0ex2C4BUulbWVkZzpIrq4yGgCrVR0Revg=="],
 
     "@noble/ciphers": ["@noble/ciphers@2.1.1", "", {}, "sha512-bysYuiVfhxNJuldNXlFEitTVdNnYUc+XNJZd7Qm2a5j1vZHgY+fazadNFWFaMK/2vye0JVlxV3gHmC0WDfAOQw=="],
 

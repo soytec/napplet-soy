@@ -1,36 +1,33 @@
 import { RUNTIME_DOMAINS } from './capabilities';
 import { validateConfigSchema } from './config-schema';
 
-/** NAP-SHELL supplements the pinned upstream domain shim, which does not yet provide it. */
-export const SHELL_PRELUDE = `
+/**
+ * Interim WebRTC removal from the pending NIP-5D revision (dskvr/nips PR 16/17).
+ * Neither the iframe sandbox nor CSP governs WebRTC, and a page cannot disable it
+ * for its iframes. NAP-WEBRTC peer connections stay in the shell realm, so the
+ * napplet realm has no legitimate use for these constructors. A napplet can still
+ * nest a srcdoc frame with its own constructors; this narrows, not closes, the
+ * channel.
+ */
+export const WEBRTC_REMOVAL = `
 (() => {
-  let environment;
-  const listeners = new Set();
-  let resolveReady;
-  const ready = new Promise(resolve => { resolveReady = resolve; });
-  window.addEventListener('message', event => {
-    if (event.source !== window.parent || event.data?.type !== 'shell.init' || environment) return;
-    environment = Object.freeze(event.data);
-    resolveReady(environment);
-    for (const listener of listeners) { try { listener(environment); } catch {} }
-    listeners.clear();
-  });
-  window.napplet.shell = Object.freeze({
-    ready: () => ready,
-    supports: domain => typeof domain === 'string' &&
-      Object.prototype.hasOwnProperty.call(window.napplet, domain) &&
-      window.napplet[domain] !== null && typeof window.napplet[domain] === 'object',
-    get services() { return environment?.services || []; },
-    onReady: handler => {
-      if (environment) queueMicrotask(() => handler(environment));
-      else listeners.add(handler);
-      return { close: () => listeners.delete(handler) };
-    },
-  });
-  window.parent.postMessage({type: 'shell.ready'}, '*');
+  const names = new Set(Object.getOwnPropertyNames(globalThis).filter(name => name.startsWith('RTC')));
+  for (const prefix of ['webkit', 'moz'])
+    for (const name of ['RTCPeerConnection', 'RTCSessionDescription', 'RTCIceCandidate'])
+      names.add(prefix + name);
+  for (const name of names) {
+    try {
+      Object.defineProperty(globalThis, name, { value: undefined, writable: false, configurable: false, enumerable: false });
+    } catch {}
+  }
 })();`;
 
-/** The pinned upstream shim plus optional environment discovery in every host. */
+/**
+ * The pinned upstream shim plus Soy's static config snapshot. The shim opens the
+ * NIP-5D channel before any napplet script runs: it keeps one MessagePort private
+ * and hands the other to the shell in the single window-level `napplet.hello`.
+ * SHELL, like every other domain, travels only over that port.
+ */
 export function nappletPrelude(shim: string, declaration?: { schema?: unknown }) {
   let schema = null;
   try {
@@ -55,5 +52,5 @@ export function nappletPrelude(shim: string, declaration?: { schema?: unknown })
       },
     });
   })();`;
-  return `${shim}\nglobalThis.NappletShimPrelude.install(${JSON.stringify({ domains: RUNTIME_DOMAINS.filter((d) => d !== 'shell') })});\n${config}\n${SHELL_PRELUDE}`;
+  return `${WEBRTC_REMOVAL}\n${shim}\nglobalThis.NappletShimPrelude.install(${JSON.stringify({ domains: RUNTIME_DOMAINS })});\n${config}`;
 }

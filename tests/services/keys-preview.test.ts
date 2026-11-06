@@ -56,10 +56,8 @@ test('game keys and live sessions survive tab switches in the preview and websit
       <output id="ready">waiting</output>
       <script>
       let distance=0;
-      window.shellInitCount=0;
-      window.addEventListener('message', event=>{
-        if(event.source===parent && event.data?.type==='shell.init') window.shellInitCount++;
-      });
+      window.shellReadyCount=0;
+      napplet.shell.onReady(()=>window.shellReadyCount++);
       const hop=()=>document.querySelector('#distance').textContent=String(++distance);
       document.querySelector('#hop').onclick=hop;
       (async()=>{
@@ -137,11 +135,21 @@ test('game keys and live sessions survive tab switches in the preview and websit
       const page = await context.newPage();
       await page.routeWebSocket(/wss?:\/\//, (route) => route.close());
       await page.addInitScript((serverUrl) => {
-        if (window === top)
-          localStorage.setItem(
-            'napplet:network',
-            JSON.stringify({ relays: [], blossom: [serverUrl] }),
-          );
+        if (window !== top) return;
+        (window as any).shellReadyRequests = 0;
+        (window as any).nappletHellos = 0;
+        // Observe the private transport from the trusted host, never from app code.
+        window.addEventListener('message', (event) => {
+          if (event.data?.type !== 'napplet.hello' || event.ports.length !== 1) return;
+          (window as any).nappletHellos++;
+          event.ports[0].addEventListener('message', (reply) => {
+            if (reply.data?.type === 'shell.ready') (window as any).shellReadyRequests++;
+          });
+        });
+        localStorage.setItem(
+          'napplet:network',
+          JSON.stringify({ relays: [], blossom: [serverUrl] }),
+        );
       }, serverUrl);
       await page.goto(url);
       const frame = page.frameLocator('iframe');
@@ -172,7 +180,9 @@ test('game keys and live sessions survive tab switches in the preview and websit
         // Neither the JS world nor the host's transient storage/bootstrap may reset.
         expect(child.isDetached()).toBe(false);
         expect(await frame.locator('#distance').textContent()).toBe('4');
-        expect(await child.evaluate(() => (window as any).shellInitCount)).toBe(1);
+        expect(await child.evaluate(() => (window as any).shellReadyCount)).toBe(1);
+        expect(await page.evaluate(() => (window as any).nappletHellos)).toBe(1);
+        expect(await page.evaluate(() => (window as any).shellReadyRequests)).toBe(1);
         expect(
           await child.evaluate(() =>
             (window as any).napplet.storage.instance.getItem('visibility-marker'),

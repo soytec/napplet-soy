@@ -324,3 +324,80 @@ test('CLI checks explicitly retained media without capture-only selectors, but r
   expect(brokenBuild.data.error.code).toBe('BROWSER_CHECK');
   expect(brokenBuild.out).toContain('Broken merged creation');
 }, 40000);
+
+// NIP-5D port-bound identity (dskvr/nips PR 14/15) and the napplet/evil findings,
+// through the real CLI, preview host, upstream shim and Chromium.
+test.each([
+  [
+    'a legacy window-level NAP request',
+    `<!doctype html><script>parent.postMessage({ type: 'theme.get', id: 'legacy' }, '*')</script>`,
+    'NAPPLET_REVOKED',
+    'window-level message outside its NIP-5D port',
+  ],
+  [
+    'a bundled second handoff',
+    `<!doctype html><script>
+    const channel = new MessageChannel();
+    parent.postMessage({ type: 'napplet.hello' }, '*', [channel.port2]);
+    </script>`,
+    'NAPPLET_REVOKED',
+    'second-hello',
+  ],
+  [
+    'a document that reloads itself',
+    `<!doctype html><script>addEventListener('load', () => setTimeout(() => location.reload(), 20))</script>`,
+    'NAPPLET_REVOKED',
+    'replaced its verified document',
+  ],
+  [
+    'a pre-load navigation to minted unverified bytes',
+    `<!doctype html><script>
+    const page = '<script>parent.postMessage("escaped", "*")<' + '/script>';
+    location.href = URL.createObjectURL(new Blob([page], { type: 'text/html' }));
+    </script>`,
+    'BROWSER_CHECK',
+    'content security policy violation',
+  ],
+  [
+    'WebRTC construction in the napplet realm',
+    `<!doctype html><script>
+    const exposed = Object.getOwnPropertyNames(globalThis).filter(name => /RTC/.test(name) && globalThis[name] !== undefined);
+    if (exposed.length) throw new Error('WebRTC reachable: ' + exposed.join(','));
+    napplet.shell.ready().then(() => napplet.identity.getPublicKey()).then(() => document.title = 'bound');
+    </script>`,
+    null,
+    null,
+  ],
+])(
+  'NIP-5D binding: %s',
+  async (_, html, code, detail) => {
+    const config = new TextEncoder().encode(
+      JSON.stringify({
+        schema: 'space-local-project/v1',
+        name: 'Binding check',
+        license: 'MIT',
+        preview: { delayMs: 500 },
+        previewId: crypto.randomUUID(),
+        entry: 'index.html',
+        requires: [],
+        relays: [],
+        servers: [],
+      }),
+    );
+    const outcome = await checkCli(
+      new Map([
+        ['napplet.json', config],
+        ['index.html', new TextEncoder().encode(html)],
+      ]),
+    );
+    if (code) {
+      expect(outcome.code, outcome.out + outcome.err).toBe(1);
+      expect(outcome.data.error).toMatchObject({ code });
+      expect(outcome.out).toContain(detail!);
+    } else {
+      expect(outcome.code, outcome.out + outcome.err).toBe(0);
+      expect(outcome.data).toMatchObject({ profile: RUNTIME_PROFILE });
+    }
+  },
+  15000,
+);

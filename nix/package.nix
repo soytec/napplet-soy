@@ -63,12 +63,13 @@ let
     '';
   };
 
-  # Only manifests and the lockfile, so source edits do not refetch dependencies.
+  # Only manifests, dependency patches and the lockfile, so other source edits do not refetch dependencies.
   dependencySource = lib.fileset.toSource {
     root = ../.;
     fileset = lib.fileset.unions [
       ../package.json
       ../bun.lock
+      ../packages/runtime/patches
       ../apps/cli/package.json
       ../apps/cvm/package.json
       ../apps/web/package.json
@@ -144,7 +145,7 @@ let
     # Fixup can embed host-specific Nix store paths in the fixed-output tree.
     dontFixup = true;
 
-    outputHash = "sha256-skL2uuB3hII9V/bOefYRoir3hmJxrMvf9556RuKEIqI=";
+    outputHash = "sha256-u5W+B2CyIzWnGNjal51R6gemnGoSOjidLrwm3vv3Vn0=";
     outputHashAlgo = "sha256";
     outputHashMode = "recursive";
   };

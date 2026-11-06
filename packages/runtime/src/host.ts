@@ -67,7 +67,14 @@ export type HostOptions = {
   theme?: ThemeSource;
   /** Narrow shell shortcut; only invoked for a focused, interactive frame. */
   escape?: () => void;
+  /**
+   * Called once after NIP-5D replacement evidence revoked this session. The host
+   * has already closed the port and every grant; the caller must remove the iframe.
+   */
+  revoked?: (reason: NappletRevocation) => void;
 };
+export { NAPPLET_HELLO, revocationMessage, type NappletRevocation } from './revocation';
+import { NAPPLET_HELLO, type NappletRevocation } from './revocation';
 const envelope = z
   .object({
     type: z
@@ -78,20 +85,29 @@ const envelope = z
   })
   .passthrough();
 
-/** A single frame session. Caller supplies verified identity; messages cannot change it. */
+/**
+ * A single verified-document session. Caller supplies verified identity; messages
+ * cannot change it. Per NIP-5D Transport/Identity, the identity is bound to the
+ * MessagePort carried by the document's first `napplet.hello`, never to the
+ * reusable iframe Window, and every NAP message travels only over that port.
+ */
 export function attachNappletHost(options: HostOptions) {
   const source = options.frame.contentWindow;
   const dataPolicy = appDataPolicy(options.identity, options.actionRelays ?? options.relays);
   let alive = true,
     environmentSent = false,
     calls = 0,
-    windowStart = Date.now();
+    windowStart = Date.now(),
+    port: MessagePort | undefined,
+    loads = 0;
   // Frame budgets and concurrency survive account changes.
   const resourceQueue = new WorkQueue(4, 16);
   let resourceCalls = 0,
     resourceBytes = 0;
+  // Shells MUST NOT send NAP messages via iframeWindow.postMessage. Before the
+  // handoff there is no channel, so nothing can be delivered.
   const send = (message: Record<string, unknown>) => {
-    if (alive) source?.postMessage(message, '*');
+    if (alive) port?.postMessage(message);
   };
   const intentEndpoint = options.intent?.workspace.attach(options.intent.catalogId, send);
   // The verified frame outlives account scopes. Each request captures its scope;
@@ -518,9 +534,10 @@ export function attachNappletHost(options: HostOptions) {
   let rtcCalls = 0,
     rtcBytes = 0,
     rtcWindow = Date.now();
-  const listener = (event: MessageEvent) => {
-    if (!alive || event.source !== source || event.origin !== 'null') return;
-    const parsed = envelope.safeParse(event.data);
+  // Sender authority comes only from the bound port; see windowListener.
+  const handle = (data: unknown) => {
+    if (!alive) return;
+    const parsed = envelope.safeParse(data);
     if (!parsed.success) return;
     const message = parsed.data;
     if (message.type === 'shell.ready') {
@@ -714,7 +731,66 @@ export function attachNappletHost(options: HostOptions) {
   const unsubscribeTheme = options.theme?.subscribe(() => {
     send({ type: 'theme.changed', theme: options.theme!.get() });
   });
-  window.addEventListener('message', listener);
+  // The injected bootstrap runs before any napplet script and sends exactly one
+  // window-level message: the hello carrying its private port. Any other
+  // window-level traffic from this frame, a second hello, a second load or a
+  // failed port means the verified document is gone or never owned the frame.
+  const windowListener = (event: MessageEvent) => {
+    if (!alive || !source || event.source !== source) return;
+    const data = event.data as { type?: unknown } | null;
+    if (
+      port ||
+      event.origin !== 'null' ||
+      typeof data !== 'object' ||
+      data === null ||
+      data.type !== NAPPLET_HELLO ||
+      event.ports.length !== 1
+    ) {
+      revoke(
+        data?.type === NAPPLET_HELLO
+          ? port
+            ? 'second-hello'
+            : 'invalid-hello'
+          : port
+            ? 'window-message'
+            : 'invalid-hello',
+      );
+      return;
+    }
+    port = event.ports[0];
+    port.onmessage = (message) => handle(message.data);
+    port.onmessageerror = () => revoke('port-closed');
+    // Browsers that implement MessagePort close events report the document's end.
+    port.addEventListener('close', () => revoke('port-closed'));
+  };
+  const loadListener = () => {
+    if (++loads > 1) revoke('second-load');
+  };
+  const revoke = (reason: NappletRevocation) => {
+    if (!alive) return;
+    // close() is the load-bearing step: removing the iframe kills nothing that
+    // was transferred out of the document.
+    teardown();
+    options.revoked?.(reason);
+  };
+  const teardown = () => {
+    alive = false;
+    port?.close();
+    port = undefined;
+    intentEndpoint?.close();
+    unsubscribePermission();
+    unsubscribeTheme?.();
+    window.removeEventListener('message', windowListener);
+    options.frame.removeEventListener?.('load', loadListener);
+    account.close('Player closed');
+    config.close();
+    keys.close();
+    options.configuration?.(null);
+    options.media?.(null);
+    options.files([]);
+  };
+  window.addEventListener('message', windowListener);
+  options.frame.addEventListener?.('load', loadListener);
   return {
     diagnostics: () => (alive ? account.diagnostics() : Promise.resolve([])),
     updateIdentity(pubkey: string | null) {
@@ -726,18 +802,7 @@ export function attachNappletHost(options: HostOptions) {
       config.updateIdentity(pubkey);
     },
     close() {
-      if (!alive) return;
-      alive = false;
-      intentEndpoint?.close();
-      unsubscribePermission();
-      unsubscribeTheme?.();
-      window.removeEventListener('message', listener);
-      account.close('Player closed');
-      config.close();
-      keys.close();
-      options.configuration?.(null);
-      options.media?.(null);
-      options.files([]);
+      if (alive) teardown();
     },
   };
 }

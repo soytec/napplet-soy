@@ -19,6 +19,10 @@ import {
 import type { CheckReport } from '../../../packages/publish/src/check-report';
 import { AccountError } from '../../../packages/identity/src/signer';
 import { RUNTIME_PROFILE } from '../../../packages/runtime/src/capabilities';
+import {
+  revocationMessage,
+  type NappletRevocation,
+} from '../../../packages/runtime/src/revocation';
 import { MAX_PREVIEW_BYTES } from '../../../packages/protocol/src/preview';
 import { localBackend } from './backend';
 import { builtConfiguration, executableBytes } from '../../../packages/publish/src/artifact';
@@ -166,58 +170,90 @@ export async function checkPublication(
         : route.abort(),
     );
     await page.goto(server.url.href, { waitUntil: 'load', timeout: 10000 });
-    await page.waitForFunction(
-      () => !!document.querySelector('iframe')?.getAttribute('srcdoc'),
-      undefined,
-      { timeout: 10000 },
-    );
-    const iframe = page.locator('iframe');
-    if (
-      (await iframe.getAttribute('sandbox')) !== 'allow-scripts' ||
-      (await iframe.getAttribute('src'))
-    )
-      throw new Error('The preview iframe did not have the required sandbox.');
-    const frame = page.frames().find((frame) => frame.parentFrame());
-    if (!frame) throw new Error('The preview iframe was not created.');
-    await frame.waitForFunction(() => !!(window as any).napplet?.shell, undefined, {
-      timeout: 5000,
-    });
-    await Promise.race([
-      frame.evaluate(() => (window as any).napplet.shell.ready()),
-      new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error('Handshake timed out')), 5000);
-      }),
-    ]);
-    await iframe.evaluate(
-      (node, size) => {
-        node.style.cssText = `position:fixed;top:0;left:0;width:${size.width}px;height:${size.height}px;border:0;display:block;z-index:2147483647;`;
-      },
-      viewport ?? { width: 1200, height: 750 },
-    );
-    await frame.waitForFunction(() => document.fonts.status === 'loaded', undefined, {
-      timeout: 5000,
-    });
-    // Engine initialization is separate from the host SHELL handshake. Creators
-    // may select a visible/DOM milestone (e.g. Bevy's first rendered scene).
-    if (config.preview?.readySelector && (forceScreenshot || recipe || !config.preview?.image)) {
-      try {
-        await frame
-          .locator(config.preview.readySelector)
-          .first()
-          .waitFor({ state: 'attached', timeout: 30000 });
-      } catch (cause) {
+    // The preview host records NIP-5D replacement evidence before removing the
+    // frame, and its page's frame-src blocks a napplet navigating its own frame.
+    // Report those causes instead of a detached-frame or handshake timeout.
+    const assertBound = async (cause?: unknown) => {
+      const [reason, blocked] = await page
+        .evaluate(() => [
+          document.documentElement.dataset.nappletRevoked,
+          ((window as any).__publishViolations as string[]).includes('frame-src'),
+        ])
+        .catch(() => [undefined, false]);
+      if (reason)
         throw new PublishError(
-          'PREVIEW_NOT_READY',
-          'The application did not reach preview.readySelector within 30 seconds. Check engine startup, the selector and browser errors before capturing or publishing.',
+          'NAPPLET_REVOKED',
+          revocationMessage(reason as NappletRevocation, 'creator'),
           'check',
           false,
-          errors.length
-            ? new AggregateError([new Error(errors.join('; ')), cause], 'Browser startup failed.')
-            : cause,
+          cause,
         );
+      if (blocked)
+        throw new Error(
+          'A content security policy violation occurred in the sandbox: the napplet tried to navigate its frame away from the verified document (frame-src).',
+          { cause },
+        );
+    };
+    let frame!: ReturnType<typeof page.mainFrame>;
+    const iframe = page.locator('iframe');
+    try {
+      await page.waitForFunction(
+        () => !!document.querySelector('iframe')?.getAttribute('srcdoc'),
+        undefined,
+        { timeout: 10000 },
+      );
+      if (
+        (await iframe.getAttribute('sandbox')) !== 'allow-scripts' ||
+        (await iframe.getAttribute('src'))
+      )
+        throw new Error('The preview iframe did not have the required sandbox.');
+      const started = page.frames().find((frame) => frame.parentFrame());
+      if (!started) throw new Error('The preview iframe was not created.');
+      frame = started;
+      await started.waitForFunction(() => !!(window as any).napplet?.shell, undefined, {
+        timeout: 5000,
+      });
+      await Promise.race([
+        started.evaluate(() => (window as any).napplet.shell.ready()),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('Handshake timed out')), 5000);
+        }),
+      ]);
+      await iframe.evaluate(
+        (node, size) => {
+          node.style.cssText = `position:fixed;top:0;left:0;width:${size.width}px;height:${size.height}px;border:0;display:block;z-index:2147483647;`;
+        },
+        viewport ?? { width: 1200, height: 750 },
+      );
+      await frame.waitForFunction(() => document.fonts.status === 'loaded', undefined, {
+        timeout: 5000,
+      });
+      // Engine initialization is separate from the host SHELL handshake. Creators
+      // may select a visible/DOM milestone (e.g. Bevy's first rendered scene).
+      if (config.preview?.readySelector && (forceScreenshot || recipe || !config.preview?.image)) {
+        try {
+          await frame
+            .locator(config.preview.readySelector)
+            .first()
+            .waitFor({ state: 'attached', timeout: 30000 });
+        } catch (cause) {
+          throw new PublishError(
+            'PREVIEW_NOT_READY',
+            'The application did not reach preview.readySelector within 30 seconds. Check engine startup, the selector and browser errors before capturing or publishing.',
+            'check',
+            false,
+            errors.length
+              ? new AggregateError([new Error(errors.join('; ')), cause], 'Browser startup failed.')
+              : cause,
+          );
+        }
       }
+      await page.waitForTimeout(delayMs);
+    } catch (cause) {
+      await assertBound(cause);
+      throw cause;
     }
-    await page.waitForTimeout(delayMs);
+    await assertBound();
     if (errors.length || (await frame.evaluate(() => (window as any).__publishViolations?.length)))
       throw new Error(
         errors.length
@@ -230,7 +266,13 @@ export async function checkPublication(
     if (recipe && !recording && !interactive) {
       await iframe.focus();
       await page.waitForTimeout(recipe.startMs);
-      await exerciseInputs(page, recipe, viewport ?? { width: 1200, height: 750 });
+      await exerciseInputs(page, recipe, viewport ?? { width: 1200, height: 750 }).catch(
+        async (cause) => {
+          await assertBound(cause);
+          throw cause;
+        },
+      );
+      await assertBound();
     }
     let preview: Uint8Array;
     if (config.preview?.image && !forceScreenshot) {

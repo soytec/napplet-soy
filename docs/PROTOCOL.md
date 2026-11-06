@@ -1,5 +1,46 @@
 # Napplet interoperability and publishing contract
 
+## NIP-5D port-bound identity and red-team findings — 2026-11-02 source
+
+Not yet released or deployed. The Transport, Identity and Security Considerations
+sections now follow NIP-5D [nostr-protocol/nips PR 2303 at `c041f84`](https://github.com/dskvr/nips/blob/c041f84667c1781c3c1d5bfbd970943131b38cc9/5D.md).
+That head contains [dskvr/nips PR 14](https://github.com/dskvr/nips/pull/14) and
+[PR 15](https://github.com/dskvr/nips/pull/15). Its 5D.md is byte-identical to the
+PR 15 merge `e9fe698` from before the branch was rebased. These changes answer the
+[napplet/evil](https://github.com/napplet/evil) red-team findings.
+
+The shared web/preview host now binds a napplet's verified identity to the MessagePort
+carried by the injected bootstrap's single `napplet.hello`, never to the iframe
+`Window`. All NAP traffic, including SHELL, travels only over that port. A second
+hello, any other window-level message from the frame, a second `load` or a failed
+port closes the port, revokes every grant and session, and removes the frame. The
+viewer can start a fresh frame from the same verified bytes; nothing reloads
+automatically. Host pages lock child-frame navigation with `frame-src`, so a napplet
+cannot navigate itself to minted `blob:`/`data:` bytes before its first load, when
+no replacement evidence fires.
+
+Ahead of merge, the bootstrap also applies the interim WebRTC constructor removal
+from open [PR 16](https://github.com/dskvr/nips/pull/16) (with [PR 17](https://github.com/dskvr/nips/pull/17)).
+Until that merges, this is the one injection outside `window.napplet` that the
+pinned text does not yet permit. A nested `srcdoc` frame still has its own WebRTC
+constructors; the channel is narrowed, not closed. PR 16's other recommendations
+were already implemented: `no-referrer` napplet frames, author-qualified manifest
+resolution and storage, plain-text manifest strings, and icon/screenshot byte and
+pixel caps before decoding.
+
+Every publisher gets the same binding and teardown. Napplets that bundle a pre-port
+shim or SDK and post at window level are stopped with a viewer-facing explanation.
+They must be republished to play. See the [NAP review](NAP-REVIEW.md) for pins,
+verification and the measured catalog impact.
+
+The PR 9, 10 and 12 manifest text included in `c041f84` is handled on the separate
+`nip5d/manifest-drift` branch, so this security change can ship on its own. That
+branch reads and writes NIP-92-style `screenshot`/`preview` fields and the
+four-element `source-archive`, and ignores malformed or repeated source fields.
+Until it lands, soyLI writes `soy.presentation/1` and the two-element
+`source-archive`, and the reader ignores the standard presentation form. PR 9's
+HTML publishing metadata, a SHOULD for publishing tools, was not reviewed here.
+
 ## Compliance audit — 2026-10-27
 
 The [dated compliance audit](NIP5D-COMPLIANCE-AUDIT-2026-10-27.md) records verified

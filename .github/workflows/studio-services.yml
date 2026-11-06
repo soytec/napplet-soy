@@ -19,6 +19,7 @@ on:
       - 'tests/services/studio-original-preview.test.ts'
       - 'tests/services/studio-publication.test.ts'
       - 'tests/services/publish-check.test.ts'
+      - 'tests/services/nip5d-port*.test.ts'
       - 'tests/services/media.test.ts'
       - 'tests/services/current-shell*'
       - 'tests/fixtures/current-shell/**'
@@ -100,6 +101,8 @@ jobs:
         run: bun test tests/services/studio-original-preview.test.ts
       - name: Verify update publication and sandbox media capture
         run: bun test tests/services/studio-publication.test.ts && bun test tests/services/publish-check.test.ts
+      - name: Verify private port identity and sandbox revocation
+        run: bun test tests/services/nip5d-port-privacy.test.ts && bun test tests/services/nip5d-port-browser.test.ts
       - name: Verify media ownership and audio controls through the real shim
         run: bun test tests/services/media.test.ts
       - name: Verify current manifests in an independent shell

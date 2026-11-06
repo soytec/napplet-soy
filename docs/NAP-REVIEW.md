@@ -1,5 +1,67 @@
 # NAP concepts and expansion review
 
+## NIP-5D port-bound identity — 2026-11-02 source
+
+Not yet released or deployed. Authority for Transport, Identity and Security is now
+NIP-5D PR 2303 head `c041f84667c1781c3c1d5bfbd970943131b38cc9` (dskvr/nips PR 14 and
+PR 15). The earlier manifest pin `4d0fb2e` remains the basis for our manifest
+writer; the PR 9/10/12 manifest drift is recorded in [PROTOCOL.md](PROTOCOL.md).
+Runtime profile `space-playback-8` identifies this change.
+
+| Upstream item | Our response |
+| --- | --- |
+| PR 14: identity bound to the `napplet.hello` port | Shared host binds the port and sends nothing via `iframeWindow.postMessage` |
+| PR 14: revoke on second hello, window message, second load, port close | Implemented; `messageerror` and `close` count as port failure |
+| PR 15: `close()` is the load-bearing teardown step | Every teardown path closes the port, including normal `close()` |
+| PR 15: bootstrap must not leave the port reachable | Port stays in the shim's closure; `NappletShimPrelude` exposes only installers |
+| PR 16: `referrerpolicy="no-referrer"` | Already set on every napplet frame, plus a `no-referrer` meta |
+| PR 16: resolve by author pubkey and `d` | Already enforced by manifest resolution |
+| PR 16: state keyed by at least author pubkey and `d` | Already enforced; host identity starts with the publisher pubkey |
+| PR 16: plain-text manifest strings | Already rendered as text |
+| PR 16: cap icon/media bytes and pixels before decoding | Already enforced from verified headers |
+| PR 16/17: interim WebRTC constructor removal | Adopted ahead of merge; see [PROTOCOL.md](PROTOCOL.md) |
+| kehto/web#382: host-page `frame-src` lock | Website drops `blob:`; local preview uses `'none'` outside the workshop |
+
+Packages move to `@napplet/shim` 0.35.0 with core 0.37.0 and nap 0.36.0, published
+2026-11-01 from napplet/web `627f433`. The npm `prelude.global.js` is byte-identical
+to a local build of that commit. The shim's own NAP-SHELL replaces our former
+supplement with the same semantics. Intermediate releases only add domains we do not
+inject (GAMEPAD, LLM) and maturity metadata. The independent acceptance fixture moves
+to Paja 0.29.0, kehto's port-bound host with the same frame lock and WebRTC removal.
+
+Verification:
+
+- Host unit tests cover each revocation reason, port-only replies, pre-hello traffic
+  and transferred-port use after revocation.
+- The real CLI check, with Chromium, rejects window-level NAP, a second hello and
+  self-reload with `NAPPLET_REVOKED`. It reports a blocked pre-load `blob:` navigation
+  as a CSP violation and confirms no `RTC*` global remains.
+- The production website player binds a napplet over its port. It stops legacy and
+  reloading napplets, including after "Try again", and blocks a pre-load `blob:`
+  escape. The same test fails on unchanged `main`, which exposes 24 `RTC*` globals
+  and keeps a legacy napplet running.
+- Independent Paja 0.29.0 acceptance passes all four current-manifest cases.
+- Nix, in an aarch64-linux container without the build sandbox: the new
+  `nodeModules` hash builds and rebuilds identically, and `soyli` builds. The
+  `soyli` rebuild differs between runs here, exactly as on unchanged `main` in the
+  same container. The x86_64 CI and its NixOS VM checks have not yet run.
+
+Catalog impact, measured with a static scan of every artifact on `relay.napplet.soy`:
+
+| Measure | Count |
+| --- | --- |
+| Napplet manifest events | 653 |
+| Distinct artifacts fetched and hash-verified | 332 of 335 |
+| Current listings | 219 |
+| Current listings that post at window level | 50 |
+| Publishers of those listings | 12 |
+
+None of the affected listings are ours. Most bundle an older shim that sends
+`shell.ready`, or an SDK that asks for `theme.get` at window level. A match means the
+code is present, not that every path runs it. Under NIP-5D these napplets are stopped
+when they post; their authors must republish with a current SDK. The scan corpus is
+local working data and is not committed.
+
 ## Compliance corrections — deployed and released 2026-10-28
 
 The selected NIP-5D authority remains `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d51`.

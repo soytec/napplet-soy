@@ -9,7 +9,7 @@ upgrade installed CLIs; the 0.7.0 distribution does not expose `media`.
 ## Contract and supported subset
 
 Authority: [NAP-MEDIA PR 10, revision 2b2d29e90c30b994bf5035a65b57e5fe7f08a9a2](https://github.com/napplet/naps/blob/2b2d29e90c30b994bf5035a65b57e5fe7f08a9a2/naps/NAP-MEDIA.md).
-Current bindings are `@napplet/shim` 0.31.0 with core/nap 0.33.0. We use
+Current bindings are `@napplet/shim` 0.35.0 with core 0.37.0 and nap 0.36.0 (2026-11-02 source; previously 0.31.0 with core/nap 0.33.0). The MEDIA wire contract is unchanged. We use
 the proposal's **Wire Protocol** table, which agrees with that shim:
 `media.session.create`, `.update`, `.destroy`, `media.command`, `.state`,
 `.capabilities` and `.controls`. The proposal's introductory API table uses different

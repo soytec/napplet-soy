@@ -2,7 +2,7 @@ import shim from '@napplet/shim/prelude.global?raw';
 import { PrivateKeySigner } from 'applesauce-signers/signers/private-key-signer';
 import { generateSecretKey } from 'nostr-tools';
 import { loadArtifact, PLAYER_SANDBOX } from '../../runtime/src';
-import { attachNappletHost, type HostPrompt } from '../../runtime/src/host';
+import { attachNappletHost, revocationMessage, type HostPrompt } from '../../runtime/src/host';
 import { nappletPrelude } from '../../runtime/src/prelude';
 import type { PreviewRevision } from '../../../apps/cli/src/preview/server';
 let prompt: HostPrompt | null = null;
@@ -47,6 +47,10 @@ async function start() {
     backendIdentity: info.backendIdentity,
     manifestId: info.id,
     title: 'MiniCraft local demo',
+    revoked: (reason) => {
+      frame.remove();
+      document.querySelector('#stage')!.textContent = revocationMessage(reason, 'creator');
+    },
     relays: info.relays,
     backend: info.backend,
     servers: [],

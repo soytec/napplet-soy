@@ -7,7 +7,11 @@ import shim from '@napplet/shim/prelude.global?raw';
 import { loadArtifact, PLAYER_SANDBOX } from '../../../../packages/runtime/src';
 import { nappletPrelude } from '../../../../packages/runtime/src/prelude';
 import { missingDomains } from '../../../../packages/runtime/src/capabilities';
-import { attachNappletHost, type HostPrompt } from '../../../../packages/runtime/src/host';
+import {
+  attachNappletHost,
+  revocationMessage,
+  type HostPrompt,
+} from '../../../../packages/runtime/src/host';
 import type { ExportFile } from '../../../../packages/runtime/src/filesystem';
 import type { PreviewRevision } from './server';
 import { setupListing } from './listing-client';
@@ -194,6 +198,7 @@ async function refresh() {
     stage.replaceChildren();
     frame = undefined;
     loaded = info.id;
+    delete document.documentElement.dataset.nappletRevoked;
     status.textContent = 'Verifying preview…';
     const missing = missingDomains(info.requires);
     if (missing.length) throw new Error(`Unsupported required capabilities: ${missing.join(', ')}`);
@@ -227,6 +232,15 @@ async function refresh() {
       media: (session) =>
         mediaRoot.render(session ? createElement(MediaControls, { media: session }) : null),
       frame,
+      // NIP-5D replacement evidence. Do not reload automatically: a self-navigating
+      // napplet must not drive a reload loop. Saving or Reload creates a fresh frame.
+      revoked: (reason) => {
+        host = undefined;
+        frame = undefined;
+        stage.replaceChildren();
+        document.documentElement.dataset.nappletRevoked = reason;
+        status.textContent = revocationMessage(reason, 'creator');
+      },
       identity: info.hostIdentity,
       manifestId: info.id,
       relays: info.relays,

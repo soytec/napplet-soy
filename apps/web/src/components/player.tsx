@@ -25,7 +25,11 @@ import {
 } from '../../../../packages/backend/src/public-model';
 import shim from '@napplet/shim/prelude.global?raw';
 import { nappletPrelude } from '../../../../packages/runtime/src/prelude';
-import { attachNappletHost, type HostPrompt } from '../../../../packages/runtime/src/host';
+import {
+  attachNappletHost,
+  revocationMessage,
+  type HostPrompt,
+} from '../../../../packages/runtime/src/host';
 import type { ExportFile } from '../../../../packages/runtime/src/filesystem';
 import { declaredConfig } from '../../../../packages/runtime/src/config-schema';
 import type { NappletConfig } from '../../../../packages/runtime/src/config-session';
@@ -185,6 +189,13 @@ export function Player({
         declaration: declaration.current,
         configuration: setConfiguration,
         media: setMedia,
+        // NIP-5D replacement evidence: the host already revoked every grant. Remove
+        // the frame; "Try again" creates a fresh one from the verified bytes.
+        revoked: (reason) => {
+          host.current = undefined;
+          setDoc('');
+          setError(revocationMessage(reason, 'viewer'));
+        },
       });
     },
     [release, reviewScope, napplet.title],

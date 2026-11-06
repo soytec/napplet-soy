@@ -1,0 +1,28 @@
+diff --git a/dist/prelude.global.js b/dist/prelude.global.js
+index 3bf21e5aa156b9984d12399493bc4e2cdd2492f4..4d343b87271246de7cc88aa372512e0c929094b7 100644
+--- a/dist/prelude.global.js
++++ b/dist/prelude.global.js
+@@ -342,8 +342,13 @@ var NappletShimPrelude = (() => {
+       }
+     }
+   }
++  // Capture transport intrinsics before untrusted napplet scripts can replace them.
++  var postPortMessage = Function.prototype.call.bind(MessagePort.prototype.postMessage);
++  var readMessageData = Function.prototype.call.bind(
++    Object.getOwnPropertyDescriptor(MessageEvent.prototype, "data").get
++  );
+   function sendPortEnvelope(port, message) {
+-    deliverEnvelope((value) => port.postMessage(value), message);
++    deliverEnvelope((value) => postPortMessage(port, value), message);
+   }
+ 
+   // ../nap/dist/chunk-GNKSDV4F.js
+@@ -351,7 +356,7 @@ var NappletShimPrelude = (() => {
+   var connection = null;
+   var listeners = /* @__PURE__ */ new Set();
+   function dispatch2(event) {
+-    const message = event.data;
++    const message = readMessageData(event);
+     if (typeof message !== "object" || message === null || typeof message.type !== "string") return;
+     for (const listener of listeners) listener(message);
+   }
