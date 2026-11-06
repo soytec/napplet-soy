@@ -1,3 +1,4 @@
+import { inferenceCapabilities } from './inference-capabilities';
 import { chooseCapability } from './capability-dialog';
 import type { LlmModel, LlmService, Generation } from './llm-contract';
 type Connection = {
@@ -9,6 +10,8 @@ type Connection = {
   provider: string;
   images?: boolean;
   json?: boolean;
+  tools?: boolean;
+  toolChoiceModes?: import('./llm-contract').ToolChoiceMode[];
 };
 type Api = <T>(path: string, body?: unknown) => Promise<T>;
 export function inferenceService(
@@ -24,8 +27,7 @@ export function inferenceService(
     name: c.name,
     model: c.model,
     route: `${route} → ${new URL(c.endpoint).origin}`,
-    images: c.images === true,
-    json: c.json === true && c.provider !== 'anthropic',
+    ...inferenceCapabilities(c),
   });
   return {
     async select(requirements, signal) {
@@ -33,6 +35,7 @@ export function inferenceService(
         (c) =>
           (!requirements.images || c.images) &&
           (!requirements.json || model(c).json) &&
+          (!requirements.tools || model(c).tools) &&
           (!requirements.model || requirements.model === c.model),
       );
       signal.throwIfAborted();
@@ -52,7 +55,7 @@ export function inferenceService(
       if (!c) throw new Error('selection-expired');
       return model(c);
     },
-    async generate(request, signal, delta) {
+    async generate(request, signal) {
       signal.throwIfAborted();
       const boundApi = capture?.() ?? api;
       const { id } = await boundApi<{ id: string }>('connections/llm-start', request);
@@ -71,7 +74,6 @@ export function inferenceService(
           signal.throwIfAborted();
           if (state.error) throw new Error(state.error);
           if (state.result) {
-            delta(state.result.text);
             return state.result;
           }
           await new Promise<void>((resolve) => setTimeout(resolve, 1000));

@@ -13,8 +13,8 @@ CLI publication. See [release evidence](CLI-RELEASES.md) and
 [deployment record](DEPLOYMENT.md). The editor handoff is covered by local real
 browser tests; the public Black Site version checked during rollout did not expose
 that action.
-The shared web/preview runtime uses `@napplet/shim` 0.31.0 with core/nap 0.33.0
-bindings and the canonical NAP-INTENT contract at [`e5308ac`](https://github.com/napplet/naps/blob/e5308ac/naps/NAP-INTENT.md). Existing NIP-5D
+The shared web/preview runtime uses `@napplet/shim` 0.35.0 with core 0.37.0 and nap
+0.36.0 bindings (2026-11-02 source; previously 0.31.0 with core/nap 0.33.0) and the canonical NAP-INTENT contract at [`e5308ac`](https://github.com/napplet/naps/blob/e5308ac/naps/NAP-INTENT.md). Existing NIP-5D
 manifest authority and identifiers remain unchanged.
 
 ## Native map writes

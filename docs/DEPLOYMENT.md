@@ -3,9 +3,50 @@
 Deployment is operator-run. Routine changes are verified and committed locally;
 do not deploy or upload releases unless the user explicitly requests deployment.
 
-Updated 2026-10-28. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
+Updated 2026-10-30. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-### Most recent application deployment — NIP-5D compliance corrections, 2026-10-28
+### Most recent application deployment — Standalone HTML remixes, 2026-10-30
+
+Website release **`20261030150744472-18351`** runs source
+`6b5abd746fc76eb2f9777ef980bf357d63548ef0` from the separate
+`codex/fix-remix-initialization` branch ([PR #44](https://github.com/soytec/napplet-soy/pull/44)).
+Deployment was authorized independently of merging the PR. Non-Git imports now
+receive an initial checkpoint; older drafts without a baseline recover on retry.
+Dependency-free HTML remixes use their verified executable as editable source,
+without requiring a starter compiler or lockfile. Shared sandbox checks remain
+mandatory; absent upstream conformance tests are explicitly skipped.
+
+The additive worker image is
+`sha256:8b9c3f930b2810bd6665bb9700c2a0063bc82db29731bd47475e925334b3f1bc`.
+The actual signed Pokédex artifact passed isolated VPS setup, build and sandbox
+startup with its bytes unchanged. A dependency-bearing missing-lock fixture was
+refused with actionable diagnostics. No inference calls or user draft edits were
+used for acceptance. Downloadable soyLI remains **0.31.4**; this rollout updates
+the website and its bundled worker tools.
+
+Local checks passed **926 tests / 7,294 assertions**; the VPS passed
+**926 tests / 7,293 assertions**, five relay, 18 Blossom and nine GRASP tests.
+The production build scope completed successfully. Nix realization, forced
+`nodeModules`/`soyli` rebuilds and x86_64 Linux flake/VM checks passed. The first
+Studio CI run timed out in a browser capture test; the same capture suite passed
+locally. Current PR check status is tracked on GitHub rather than inferred from
+the successful rollout.
+
+The SSH console disconnected during the rollout, but independent inspection
+confirmed successful activation: source hashes and worker digest match, all five
+PM2 processes are online without restarts, and Studio, CVM, TURN, Caddy and the
+backup timer are active. Public HTTPS health, homepage, Manage, Studio and Pokédex
+routes passed. All 14 existing Git workspaces, bindings and revision pins were
+preserved. One draft recorded a failed retry on the previous release during the
+build window; no workspace changes occurred. Unrelated private configuration and
+Studio egress rules are unchanged; Studio configuration remains service-readable
+as `root:napplet-studio` / `0640`.
+
+Application release `20261028073825802-68374`, its worker image and a protected
+Studio configuration backup remain available for rollback. Local evidence is in
+`.local/remix-init-fix/`.
+
+### Previous application deployment — NIP-5D compliance corrections, 2026-10-28
 
 Website release **`20261028073825802-68374`** runs the tested tree `6682423`,
 identical to merged source `0ed9f119059b37c7c05477b2a810186e3c4344da`

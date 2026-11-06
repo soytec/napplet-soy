@@ -15,8 +15,102 @@ import { reasoningLimits } from './types';
 import { writeBinding } from '../../packages/publish/src/binding';
 import { dispatchStudio } from './dispatch';
 import catalog from '../../packages/backend/data/catalog.json';
+import { prepareProposal } from './proposal';
 
 const cleanup: Array<() => Promise<unknown>> = [];
+
+test('saved remixes derive proposal availability from the real binding, not a source link or cached flag', async () => {
+  const prompts: string[] = [];
+  const { studio, root, options } = await fixture({
+    model: 'fixture',
+    async run(_root, prompt) {
+      prompts.push(prompt);
+    },
+  });
+  const id = await studio.create('Imported HTML', 'Keep this app');
+  await settled(studio);
+  const p = studio.project(id);
+  p.source = 'https://napplet.soy/n/original';
+  p.sourceRevision = 'a'.repeat(64);
+  p.proposalAvailable = true;
+  await studio.close();
+  const save = () => {
+    const store = new StudioStore(root);
+    store.save([p]);
+    store.close();
+  };
+  save();
+  const restored = new Studio(options);
+  await restored.initialize();
+  cleanup.push(() => restored.close());
+  expect((await restored.state()).projects[0].proposalAvailable).toBe(false);
+  const session = restored.signing.connect(getPublicKey(generateSecretKey()));
+  await dispatchStudio(restored, `projects/${id}/prepare-proposal`, {
+    session: session.id,
+    proposal: { description: 'Improve this remix' },
+  });
+  const refusal = await settled(restored);
+  expect(refusal.error?.code).toBe('STUDIO_UPSTREAM');
+  expect(refusal.error?.recovery).toContain('Publish');
+  expect(refusal.messages.at(-1)?.text).not.toContain('soyli doctor');
+  await restored.send(id, 'Why can I not propose?');
+  await settled(restored);
+  expect(prompts.at(-1)).toContain(
+    'Controller source context: this remix has no upstream Git repository binding.',
+  );
+  expect(prompts.at(-1)).toContain('temporary repository');
+  expect(prompts.at(-1)).toContain('Do not send browser-only creators to a local terminal');
+  await restored.close();
+  await writeBinding(join(root, 'projects', id, 'workspace'), {
+    version: 1,
+    project: {},
+    upstream: {
+      address: `30617:${'b'.repeat(64)}:original`,
+      relays: [],
+      clone: 'https://git.example/original.git',
+      commit: 'c'.repeat(40),
+      manifest: null,
+    },
+  });
+  p.proposalAvailable = false;
+  save();
+  const gitRemix = new Studio(options);
+  await gitRemix.initialize();
+  cleanup.push(() => gitRemix.close());
+  expect((await gitRemix.state()).projects[0].proposalAvailable).toBe(true);
+});
+
+test('HTML-only proposal refusal gives browser recovery before checks or signing', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'soy-no-upstream-'));
+  cleanup.push(() => rm(root, { recursive: true, force: true }));
+  let work = 0;
+  const hooks = {
+    verify: async () => {
+      work++;
+    },
+    checkpoint: async () => {
+      work++;
+      return 'a'.repeat(40);
+    },
+  };
+  let diagnostic;
+  try {
+    await prepareProposal(
+      root,
+      'b'.repeat(64),
+      { description: 'Improve it' },
+      hooks,
+      new AbortController().signal,
+    );
+  } catch (error) {
+    diagnostic = diagnose(error, 'prepare Studio proposal');
+  }
+  expect(diagnostic?.code).toBe('STUDIO_UPSTREAM');
+  expect(diagnostic?.recovery).toContain('Publish');
+  expect(diagnostic?.recovery).not.toContain('doctor');
+  expect(diagnostic?.message).toContain('upstream Git repository');
+  expect(work).toBe(0);
+});
 
 test('an existing remix remembers its imported manifest before inference without promoting a draft preview', async () => {
   let calls = 0;
@@ -307,6 +401,63 @@ async function settled(studio: Studio) {
   }
   return (await studio.state()).projects[0];
 }
+
+test('an interrupted HTML remix recovers its unborn Git history and checks without starter scripts in either build mode', async () => {
+  let calls = 0;
+  const commands: string[][] = [];
+  const { studio, root } = await fixture(
+    {
+      model: 'fixture',
+      async run(directory, prompt, _session, _signal, _emit, execution) {
+        calls++;
+        expect(prompt).toContain('standalone HTML');
+        expect(execution?.browserBuild).toBe(false);
+        await writeFile(join(directory, 'index.html'), '<!doctype html><p>Edited remix</p>');
+      },
+    },
+    {
+      projectCommand: async (_root, args) => {
+        commands.push(args);
+        if (commands.length === 1) throw new Error('Fixture interrupted setup');
+        return 'Checked; independent-host compatibility not measured.';
+      },
+    },
+  );
+  const id = await studio.create('HTML remix', 'Edit it');
+  await settled(studio);
+  const p = studio.project(id);
+  const directory = join(root, 'projects', id, 'workspace');
+  const config = JSON.parse(await readFile(join(directory, 'napplet.json'), 'utf8'));
+  await writeFile(
+    join(directory, 'napplet.json'),
+    JSON.stringify({ ...config, entry: 'index.html' }),
+  );
+  await writeFile(join(directory, 'index.html'), '<!doctype html><p>Original remix</p>');
+  await rm(join(directory, '.git'), { recursive: true });
+  await run(['git', 'init'], {
+    cwd: directory,
+    env: cleanEnvironment(),
+    signal: AbortSignal.timeout(5000),
+    operation: 'fixture unborn repository',
+  });
+  p.source = 'https://napplet.soy/n/fixture';
+  p.initialized = true; // Old Studio saved this before rev-parse failed.
+  delete p.baseline;
+  for (const browser of [undefined, crypto.randomUUID()]) {
+    await studio.send(id, 'Make it better', browser);
+    const result = await settled(studio);
+    expect(result.error).toBeUndefined();
+    expect(result.phase).toBe('ready');
+    expect(result.baseline).toMatch(/^[a-f0-9]{40}$/);
+    expect(result.checks.map((check) => check.state)).toEqual(['passed', 'passed', 'skipped']);
+    expect(await readFile(join(directory, 'index.html'), 'utf8')).toContain('Edited remix');
+  }
+  expect(calls).toBe(2);
+  expect(commands).not.toContainEqual(['run', 'verify']);
+  expect(commands).not.toContainEqual(['run', 'test:conformance']);
+  expect(commands).toContainEqual(['build']);
+  expect(commands).toContainEqual(['check']);
+});
 
 test('real process failure is repaired, skipped checks stay visible, and reload resumes the same agent session', async () => {
   const sessions: Array<string | undefined> = [];

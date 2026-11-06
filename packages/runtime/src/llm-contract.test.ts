@@ -8,6 +8,8 @@ const model = {
   route: 'Local fixture',
   images: true,
   json: true,
+  tools: false,
+  toolChoiceModes: [],
 };
 const request = (handle: string) => ({
   handle,
@@ -25,8 +27,10 @@ function setup() {
     generate: async (r, s, d) => {
       calls++;
       s.throwIfAborted();
-      d('{"ok":true}');
-      return { text: '{"ok":true}', finish: 'stop' };
+      d({ event: 'start', block: 'text', blockIndex: 0 });
+      d({ event: 'delta', block: 'text', blockIndex: 0, text: '{"ok":true}' });
+      d({ event: 'end', block: 'text', blockIndex: 0 });
+      return { content: [{ type: 'text', text: '{"ok":true}' }], finish: 'stop' };
     },
   };
   const session = new LlmSession(
@@ -49,7 +53,11 @@ function setup() {
 test('model handles are scoped to a napplet lifetime and consent gates provider traffic', async () => {
   const a = setup(),
     b = setup();
-  const selected = await a.session.handle({ type: 'llm.select', requirements: { json: true } });
+  const selected = await a.session.handle({
+    id: crypto.randomUUID(),
+    type: 'llm.select',
+    requirements: { json: true },
+  });
   const handle = (selected.model as typeof model).handle;
   expect(handle).not.toBe(model.handle);
   await expect(
@@ -63,7 +71,7 @@ test('model handles are scoped to a napplet lifetime and consent gates provider 
 });
 test('connection changes invalidate handles; cancellation suppresses late output', async () => {
   const a = setup();
-  const selected = await a.session.handle({ type: 'llm.select' }),
+  const selected = await a.session.handle({ id: crypto.randomUUID(), type: 'llm.select' }),
     handle = (selected.model as typeof model).handle;
   a.service.describe = async () => ({ ...model, model: 'changed' });
   await expect(
@@ -76,8 +84,8 @@ test('connection changes invalidate handles; cancellation suppresses late output
   a.service.generate = async (r, s, d) => {
     entered();
     await waiting;
-    d('late secret');
-    return { text: 'late', finish: 'stop' };
+    d({ event: 'delta', block: 'text', blockIndex: 0, text: 'late secret' });
+    return { content: [{ type: 'text', text: 'late' }], finish: 'stop' };
   };
   const pending = a.session.handle({
     type: 'llm.generate',
@@ -85,12 +93,12 @@ test('connection changes invalidate handles; cancellation suppresses late output
     request: request(handle),
   });
   await ready;
-  await a.session.handle({ type: 'llm.cancel', requestId: 'cancel-me' });
+  await a.session.handle({ id: crypto.randomUUID(), type: 'llm.cancel', requestId: 'cancel-me' });
   release();
   await expect(pending).rejects.toThrow();
   expect(a.sent).toEqual([]);
   a.lifetime.abort();
-  await expect(a.session.handle({ type: 'llm.select' })).rejects.toThrow();
+  await expect(a.session.handle({ id: crypto.randomUUID(), type: 'llm.select' })).rejects.toThrow();
 });
 test('provider adapter never forwards HTTP errors, credential echoes or incomplete output', async () => {
   const c = {
@@ -112,7 +120,7 @@ test('provider adapter never forwards HTTP errors, credential echoes or incomple
     run({ choices: [{ message: { content: 'private-key' }, finish_reason: 'stop' }] }),
   ).rejects.toThrow('withheld');
   await expect(run({ choices: [{ message: { content: '{"ok":true}' } }] })).rejects.toThrow(
-    'completed',
+    'provider-error',
   );
   expect(
     (await run({ choices: [{ message: { content: 'partial' }, finish_reason: 'length' }] })).finish,
@@ -153,12 +161,12 @@ test('provider adapters preserve image payloads and roles; unsupported system im
       new AbortController().signal,
       fetcher,
     ),
-  ).rejects.toThrow('system instructions');
+  ).rejects.toThrow('System-message images');
 });
 
 test('cancellation during connection revalidation cannot start a paid provider request', async () => {
   const a = setup(),
-    selected = await a.session.handle({ type: 'llm.select' });
+    selected = await a.session.handle({ id: crypto.randomUUID(), type: 'llm.select' });
   let resume!: (m: typeof model) => void;
   a.service.describe = () => new Promise((r) => (resume = r));
   const generation = a.session.handle({
@@ -166,7 +174,9 @@ test('cancellation during connection revalidation cannot start a paid provider r
     id: 'early',
     request: request((selected.model as typeof model).handle),
   });
-  expect(await a.session.handle({ type: 'llm.cancel', requestId: 'early' })).toEqual({
+  expect(
+    await a.session.handle({ id: crypto.randomUUID(), type: 'llm.cancel', requestId: 'early' }),
+  ).toEqual({
     cancelled: true,
   });
   resume(model);
@@ -182,7 +192,7 @@ test('LLM-C10: JSON object validation, refusal and provider tool calls cannot ma
         choices: [{ message: { content, refusal }, finish_reason }],
       })) as unknown as typeof fetch);
   for (const value of ['[]', 'null', '42', 'broken'])
-    await expect(run(value, 'stop')).rejects.toThrow('JSON object');
-  expect(await run(null, 'stop', 'declined')).toMatchObject({ text: '', finish: 'refusal' });
-  await expect(run('call a tool', 'tool_calls')).rejects.toThrow('completed text');
+    await expect(run(value, 'stop')).rejects.toThrow('provider-error');
+  expect(await run(null, 'stop', 'declined')).toMatchObject({ content: [], finish: 'refusal' });
+  await expect(run('call a tool', 'tool_calls')).rejects.toThrow('provider-error');
 });

@@ -8,7 +8,11 @@ import { preparePlayback } from '../../../../packages/runtime/src/playback';
 import { loadArtifact, PLAYER_SANDBOX } from '../../../../packages/runtime/src';
 import { nappletPrelude } from '../../../../packages/runtime/src/prelude';
 import { declaredConfig } from '../../../../packages/runtime/src/config-schema';
-import { attachNappletHost, type HostOptions } from '../../../../packages/runtime/src/host';
+import {
+  attachNappletHost,
+  revocationMessage,
+  type HostOptions,
+} from '../../../../packages/runtime/src/host';
 import type { PreviewRevision } from './server';
 
 /** Preview retains source and verified targets in one host-owned workspace. */
@@ -110,6 +114,12 @@ export function previewIntents(options: {
         servers: [...release.servers, ...(base.servers ?? [])],
         declaration,
         intent: { workspace, catalogId: entry.id },
+        revoked: (reason) => {
+          workspace.dropPending(entry.id);
+          targets.delete(entry.id);
+          panel.remove();
+          status.textContent = revocationMessage(reason, 'creator');
+        },
       });
       targets.set(entry.id, { frame, host, panel });
       if (behavior?.focus !== false) frame.focus();

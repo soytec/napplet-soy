@@ -22,6 +22,7 @@ import {
 import type { StudioState } from './types';
 import { working } from './types';
 import { ProposalDialog } from './proposal-ui';
+import { ProposalEntry } from './proposal-entry';
 import { MergePanel } from './merge-ui';
 import { PublicationDialog, usePublicationSigner } from './publication-ui';
 import { ActivityPanel, ChatText } from './activity-ui';
@@ -117,8 +118,8 @@ export function StudioApp({
   const bottom = useRef<HTMLDivElement>(null);
   const p = state.projects.find((p) => p.id === id);
   // Keep the previous passing frame while the next preview URL is being resolved.
-  const preview = draftPreview?.project === p?.id && p?.preview ? draftPreview?.url ?? '' : '';
-  const original = p?.source && OriginalPreview ? p.sourceRevision ?? p.source : undefined;
+  const preview = draftPreview?.project === p?.id && p?.preview ? (draftPreview?.url ?? '') : '';
+  const original = p?.source && OriginalPreview ? (p.sourceRevision ?? p.source) : undefined;
   const showingOriginal = !!original && !preview;
   const busy = !!state.busy || sending;
   const active = p && working(p.phase);
@@ -585,15 +586,7 @@ export function StudioApp({
                   ? 'Publish update'
                   : 'Publish'}
               </button>
-              {p.source && !p.merge && (
-                <button
-                  className="outline"
-                  disabled={busy || !p.preview}
-                  onClick={() => setProposalOpen(true)}
-                >
-                  Propose changes
-                </button>
-              )}
+              <ProposalEntry project={p} busy={busy} open={() => setProposalOpen(true)} />
             </div>
             <div className={`status ${p.phase}`} role="status">
               {active ? (
@@ -669,7 +662,13 @@ export function StudioApp({
                       <details key={c.name}>
                         <summary>
                           <span className={c.state}>
-                            {c.state === 'passed' ? '✓' : c.state === 'failed' ? '×' : '◌'}
+                            {c.state === 'passed'
+                              ? '✓'
+                              : c.state === 'failed'
+                                ? '×'
+                                : c.state === 'skipped'
+                                  ? '–'
+                                  : '◌'}
                           </span>
                           {c.name}
                           <ChevronDown size={13} />

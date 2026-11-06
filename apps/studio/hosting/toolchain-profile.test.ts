@@ -5,6 +5,28 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { selectToolchainProfile, toolchainProfileId } from './toolchain-profile';
 
+test('standalone HTML needs no installed dependency profile; missing locks for dependency projects stay actionable', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'studio-html-profile-'));
+  try {
+    await writeFile(join(root, 'napplet.json'), JSON.stringify({ entry: 'index.html' }));
+    await writeFile(join(root, 'package.json'), JSON.stringify({ scripts: { dev: 'soyli dev' } }));
+    await writeFile(join(root, 'index.html'), '<!doctype html><p>Original</p>');
+    expect(await selectToolchainProfile(root, join(root, 'absent-installation'))).toBeNull();
+    for (const pkg of [
+      { dependencies: { vite: '7.0.0' } },
+      { scripts: { build: 'custom-build' } },
+    ]) {
+      await writeFile(join(root, 'package.json'), JSON.stringify(pkg));
+      await expect(selectToolchainProfile(root)).rejects.toMatchObject({ code: 'STUDIO_PROFILE' });
+    }
+    await writeFile(join(root, 'package.json'), '{}');
+    await writeFile(join(root, 'napplet.json'), JSON.stringify({ entry: 'dist/index.html' }));
+    await expect(selectToolchainProfile(root)).rejects.toMatchObject({ code: 'STUDIO_PROFILE' });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('a proposal can use its exact operator-installed dependency profile without rewriting source', async () => {
   const root = await mkdtemp(join(tmpdir(), 'studio-profile-'));
   const base = { packageManager: 'pnpm@10.8.0', dependencies: { '@napplet/sdk': '^0.24.4' } };

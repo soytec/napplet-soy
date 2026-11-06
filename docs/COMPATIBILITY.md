@@ -1,5 +1,15 @@
 # Compatibility evidence and remaining audit
 
+## NIP-5D port-bound identity — 2026-11-02 source
+
+Not yet released or deployed. Transport, Identity and Security follow NIP-5D PR 2303
+head `c041f84`; manifest writing keeps the `4d0fb2e` basis. Runtime bindings move to
+`@napplet/shim` 0.35.0 with core 0.37.0 and nap 0.36.0. Independent acceptance now
+uses Paja 0.29.0, whose host is port-bound, and passes all four current-manifest
+cases. Napplets that still post at window level are stopped by every port-bound
+host, including Paja. Evidence and catalog impact are in the
+[NAP review](NAP-REVIEW.md#nip-5d-port-bound-identity--2026-11-02-source).
+
 ## OUTBOX integration — released 0.29.0
 
 The shared web/preview host now implements verified Applesauce stores and network

@@ -26,6 +26,11 @@ export const connectionInput = z
     steps: z.number().int().min(10).max(100),
     images: z.boolean().optional(),
     json: z.boolean().optional(),
+    tools: z.boolean().optional(),
+    toolChoiceModes: z
+      .array(z.enum(['auto', 'none', 'required', 'tool']))
+      .max(4)
+      .optional(),
     // Omission keeps the saved key. Empty explicitly clears it for a local server.
     key: z.string().max(4096).optional(),
   })
@@ -229,7 +234,15 @@ export class Connections {
         ...this.data,
         connections: this.data.connections.map((v) =>
           v.id === id
-            ? { ...v, model, images: false, json: false, revision: crypto.randomUUID() }
+            ? {
+                ...v,
+                model,
+                images: false,
+                json: false,
+                tools: false,
+                toolChoiceModes: [],
+                revision: crypto.randomUUID(),
+              }
             : v,
         ),
       });

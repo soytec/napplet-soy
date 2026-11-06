@@ -13,7 +13,7 @@ export async function currentShell(
   options: { absent?: boolean; corrupt?: boolean } = {},
 ) {
   const pkg = await Bun.file(join(currentPajaPath, 'package.json')).json();
-  if (pkg.version !== '0.24.4') throw new Error(`Expected Paja 0.24.4, got ${pkg.version}`);
+  if (pkg.version !== '0.29.0') throw new Error(`Expected Paja 0.29.0, got ${pkg.version}`);
   const paja = await import(pathToFileURL(join(currentPajaPath, 'dist/index.js')).href);
   const hash = new Bun.CryptoHasher('sha256').update(html).digest('hex');
   let event: ReturnType<typeof finalizeEvent>;

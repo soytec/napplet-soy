@@ -29,7 +29,12 @@ export async function suggestLabel(llm: DraftLlm | undefined, text: string, sign
     { signal },
   );
   if (result.finish !== 'stop') throw new Error(`Generation incomplete: ${result.finish}`);
-  const value = JSON.parse(result.text);
+  const value = JSON.parse(
+    result.content
+      .filter((p) => p.type === 'text')
+      .map((p) => p.text)
+      .join(''),
+  );
   if (!value || typeof value.label !== 'string' || !value.label.trim())
     throw new Error('The model did not return a usable label.');
   // Render as text, never HTML or executable code.

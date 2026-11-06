@@ -51,7 +51,10 @@ import {
   type SelectedRepository,
 } from './repository';
 
-import { MANIFEST_PRESENTATION_PROFILE } from '../../protocol/src/presentation';
+import {
+  MANIFEST_PRESENTATION_PROFILE,
+  NIP5D_PRESENTATION_PROFILE,
+} from '../../protocol/src/presentation';
 
 export { PublishError } from './config';
 type RelayOperations = Pick<PublicationRelays, 'latest' | 'ensure' | 'close'> &
@@ -424,7 +427,7 @@ export async function publishProject(options: PublishOptions) {
           if (
             !job &&
             previous?.fingerprint === inspected.fingerprint &&
-            previous.presentationProfile === MANIFEST_PRESENTATION_PROFILE &&
+            !!previous.presentationProfile &&
             !retired &&
             !refreshedInShell &&
             (previous.repository?.address ?? null) === (selected?.address ?? null) &&
@@ -619,7 +622,7 @@ export async function publishProject(options: PublishOptions) {
               );
             job = {
               version: 1,
-              presentationProfile: MANIFEST_PRESENTATION_PROFILE,
+              presentationProfile: NIP5D_PRESENTATION_PROFILE,
               id,
               fingerprint: inspected.fingerprint,
               snapshotMode: options.snapshot ? 'explicit' : 'none',
@@ -782,7 +785,10 @@ export async function publishProject(options: PublishOptions) {
         // A prepared legacy journal keeps its original wire shape, even if signing was
         // interrupted. Fresh jobs always use the standalone NIP-5D manifest.
         const standalone = job.plan.manifestFormat === 'standalone';
-        const directPresentation = job.presentationProfile === MANIFEST_PRESENTATION_PROFILE;
+        const directPresentation = !!job.presentationProfile;
+        // Frozen jobs keep their original tags so resumed signatures still match.
+        const standardMedia = job.presentationProfile === NIP5D_PRESENTATION_PROFILE;
+        const archiveUrl = `${job.plan.targets.blossom}/${job.archiveHash}`;
         const tags = [
           ...(standalone
             ? [['x', job.plan.artifactHash]]
@@ -805,11 +811,32 @@ export async function publishProject(options: PublishOptions) {
               ]
             : []),
           ...(directPresentation && job.preview
-            ? [
-                ['presentation', MANIFEST_PRESENTATION_PROFILE],
-                ['screenshot', job.preview.hash, 'image/png'],
-                ...(job.video ? [['preview', job.video.hash, 'video/webm']] : []),
-              ]
+            ? standardMedia
+              ? [
+                  [
+                    'screenshot',
+                    `x ${job.preview.hash}`,
+                    'm image/png',
+                    `size ${job.preview.bytes}`,
+                  ],
+                  ...(job.video
+                    ? [
+                        [
+                          'preview',
+                          `x ${job.video.hash}`,
+                          'm video/webm',
+                          `dim ${job.video.width}x${job.video.height}`,
+                          `size ${job.video.bytes}`,
+                          `duration ${job.video.durationMs / 1000}`,
+                        ],
+                      ]
+                    : []),
+                ]
+              : [
+                  ['presentation', MANIFEST_PRESENTATION_PROFILE],
+                  ['screenshot', job.preview.hash, 'image/png'],
+                  ...(job.video ? [['preview', job.video.hash, 'video/webm']] : []),
+                ]
             : []),
           ...(job.plan.remix
             ? [
@@ -847,7 +874,11 @@ export async function publishProject(options: PublishOptions) {
                 (t) => t[0] === 'soy-source-repository',
               ) ?? [])),
           ['source-commit', job.commit],
-          ['source-archive', `${job.plan.targets.blossom}/${job.archiveHash}`],
+          // NIP-5D requires an HTTPS archive URL; local development keeps the
+          // older two-element form, which every reader still accepts.
+          standardMedia && archiveUrl.startsWith('https://')
+            ? ['source-archive', archiveUrl, job.archiveHash, 'application/x-tar']
+            : ['source-archive', archiveUrl],
         ];
         const sign = async (template: EventTemplate, existing?: SignedEvent) => {
           const event = verifiedEvent(existing ?? (await signer!.signEvent(template)));

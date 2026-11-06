@@ -1,5 +1,40 @@
 # Napplet previews
 
+## NIP-5D presentation media and source fields — 2026-11-02 source
+
+Not yet released or deployed. NIP-5D PR 2303 at
+[`c041f84`](https://github.com/dskvr/nips/blob/c041f84667c1781c3c1d5bfbd970943131b38cc9/5D.md)
+merged our earlier source/media amendment (dskvr/nips PR 12) in a simpler form.
+Screenshots and the preview clip now use NIP-92 `key value` fields:
+
+```json
+[
+  ["screenshot", "x <sha256>", "m image/png", "size 184320"],
+  ["preview", "x <sha256>", "m video/webm", "dim 960x600", "size 812345", "duration 8.5"],
+  ["source-archive", "https://blossom.example/<sha256>", "<sha256>", "application/x-tar"]
+]
+```
+
+New soyLI jobs write this form and no `presentation` tag. The journal records the
+choice, so a job frozen by an earlier CLI resumes with its original tags and
+signatures. Local development keeps the two-element `source-archive` because
+NIP-5D requires HTTPS there. soyLI does not yet record screenshot pixel size, so
+it omits the recommended `dim` field for screenshots.
+
+Readers accept both forms from every publisher. Standard entries keep tag order;
+malformed, repeated-`x` and unsupported-format entries are ignored without hiding
+usable ones. An entry without a supported `m` is unusable here because this client
+verifies the declared format. More than one `preview` tag ignores the clip, including malformed or legacy tags
+alongside a standard tag.
+`source`, `source-commit` and `source-archive` are ignored when malformed or
+repeated, as NIP-5D requires; `source` accepts `http`, `https`, `ssh`, `git`,
+`nostr` and scp-like Git locations.
+
+Rollout order matters. The deployed reader understands only `soy.presentation/1`,
+so deploy this reader before releasing a CLI that writes the standard form;
+otherwise new screenshots stay hidden until the site updates. The four-element
+`source-archive` is already readable by the deployed site.
+
 ## Direct manifest presentation — 2026-10-06 source
 
 Reconciled with main on 2026-10-13; released as soyLI **0.28.0** on 2026-10-14,

@@ -1,109 +1,135 @@
 # NAP-LLM reference implementation
 
-This branch implements the [NAP-LLM draft (upstream #134)](https://github.com/napplet/naps/pull/134) for review in the
-shared napplet.soy / soyLI runtime. It is experimental, not deployed, and is not
-part of the pinned upstream SDK. The selected NIP-5D pin and strict sandbox stay
-unchanged. Optional inference does not become a playback requirement.
+This implements [NAP-LLM PR #134 at `5e93bdf`](https://github.com/zeSchlausKwab/naps/blob/5e93bdfce0e84c0de728234cb7b3feed498f8635/naps/NAP-LLM.md)
+in the shared napplet.soy / soyLI preview runtime. It remains experimental and is
+not deployed by this PR. Inference is optional; the NIP-5D sandbox and equal
+publisher treatment remain unchanged. VALUE and paid CVM checkout are separate.
 
-## Use from a napplet
+## Napplet API
 
-The runtime injects `window.napplet.llm`. Check for its presence and keep the
-rest of the napplet usable without it. The [optional consumer example](../examples/nap-llm.ts)
-selects a JSON-capable connection, sends a conversation, requires normal
-completion and validates the application's output schema. It contains no
-provider URL, API key, network call or payment operation.
+Check for `window.napplet.llm` and keep the rest of the app usable when absent.
+The pinned `@napplet/shim` 0.35.0 supplies `select`, `describe`, `generate` and
+`cancel` over its private MessagePort. Our reviewed package patch preserves the
+captured transport intrinsics, adds the draft's block deltas and prevents a
+pre-aborted generation from being dispatched. There is no extra window-level
+transport or application-owned handshake. Runtime profile: `space-playback-9-draft-llm`.
 
-`generate(request, { signal, onDelta })` returns the final generation. The signal
-cancels this invocation; the binding creates the request ID and maps abort to the
-wire cancellation. `onDelta(text)` receives optional provisional text. The final
-`text` replaces provisional text. This local binding is a draft adapter, not a
-claim that the upstream SDK already exposes these methods.
+`generate(request, { signal, onDelta })` returns a promise with a `requestId`.
+The authoritative result has **`content`**, not the older draft's `text` field.
+Content contains text, display-only thinking and tool-call blocks. For ordinary
+completion require `finish: "stop"`; for JSON concatenate the text parts and
+validate the application's output schema. See the [consumer example](../examples/nap-llm.ts).
 
-The application pattern comes from AI Doc 3D's shell-owned inference path:
-application-owned prompts and inline images, runtime-owned connection and consent,
-then application validation of a complete JSON object. The standalone example
-makes that boundary reviewable without including the proprietary report service.
+Tool definitions are data. **The runtime never executes tools.** A napplet may
+execute only its own validated, allowlisted tools after a final `toolUse` result.
+It then replays the assistant content and immediately answers every parallel call
+with one `toolResult`, preserving call IDs and names. Historical calls/results
+can be replayed without enabling new tools. Thinking is stripped from provider
+input. A truncated/refused result contains no executable calls, even when some
+parallel calls finished earlier.
 
-## Connection and authority path
+Discover `tools` and `toolChoiceModes` on the selected Model. `auto` and `none`
+are required when tools are enabled; `required` and named `tool` forcing are
+individually configured capabilities. Unsupported modes fail before submission;
+a provider ignoring a supported requested mode produces `provider-error`.
 
-1. The user configures AI connections in the main shell settings or soyLI preview's
-   **AI connections** panel. Image and JSON capabilities are explicit settings.
-2. The napplet requests a selection. The runtime offers matching connections and
-   returns an opaque handle scoped to the verified frame and current account.
-3. Each generation asks for disclosure consent showing the connection, route,
-   model, image count, text summary and possible provider charges. A selection
-   does not authorize disclosure. No generation starts when consent is declined.
-4. The credential-owning service makes the provider request. Credentials never
-   enter the frame, project or published artifact. On hosted Studio this process
-   is on the server; prompts/images pass through that server. With soyLI preview
-   it runs on the user's computer.
-5. Cancellation, deadlines and account retirement settle locally even when a
-   provider ignores cancellation. Late output is discarded. Cancellation cannot
-   guarantee the provider stopped computing, storing input or charging.
+Optional deltas carry request ID, sequence, event (`start`/`delta`/`end`), block
+kind and index. Tool-call starts also identify the call and name. Blocks may
+interleave. Deltas are provisional and never authorize execution; replace them
+with the terminal content. Our HTTP adapters currently buffer and emit **no**
+deltas. The binding/session tests exercise synthetic block streams.
 
-The provider adapters support OpenAI-compatible APIs (including compatible local
-servers), Anthropic and Google. Anthropic JSON-object mode and system-message
-images are explicitly unsupported. Unknown completion reasons/tool calls fail;
-this domain executes no tools. HTTP failures do not forward provider bodies.
+## Connection, consent and lifecycle
 
-## Files and local checks
+1. Configure a connection in shell settings or soyLI preview's **AI connections**
+   panel. Declare image, JSON and tool capabilities for that endpoint/model.
+   Changing models resets those declarations; changing any saved connection
+   rotates its revision and invalidates existing selections.
+2. Select a matching connection. Handles belong to one verified napplet endpoint
+   and account, and expose only a label, model and human-readable route.
+3. Each generation asks for consent, including destination/intermediaries, model,
+   input summary, images, tool definitions/results and possible provider charges.
+   Selection is not disclosure consent. Changes during consent require reselection.
+4. The credential-owning service sends the request. With hosted Studio, inputs
+   pass through the server; with soyLI preview, this process is local. Keys never
+   enter the iframe, source or published artifact.
+5. Cancel, account retirement, revocation and deadlines settle locally even if
+   the provider ignores abort. Late output is suppressed. Nothing automatically
+   retries an ambiguous operation; provider computation or charges may continue.
 
-- [Contract and session lifecycle](../packages/runtime/src/llm-contract.ts)
-- [Frame/account dispatch](../packages/runtime/src/host.ts)
-- [Injected binding](../packages/runtime/src/experimental-prelude.ts)
-- [Shared shell connection client](../packages/runtime/src/llm-service.ts)
-- [Provider adapters](../packages/runtime/src/inference-provider.ts)
-- [Private inference jobs](../apps/studio/inference-jobs.ts)
-- [soyLI preview service](../apps/cli/src/preview/server.ts)
+## Provider support and explicit limits
 
-Run the focused fixtures without external inference or payment credentials:
+OpenAI-compatible, Anthropic Messages and Google generateContent adapters map
+content, controls, tool definitions/results, completion reasons and token usage.
+They reject malformed/unknown output without forwarding provider error bodies.
+Credentials echoed anywhere in a response, including arguments, are withheld.
+Usage includes available cache/read/write and reasoning counts; it is not a bill.
+
+- OpenAI-compatible images are supported in user messages; assistant/tool-result
+  images are rejected. Tool errors receive the `Tool execution failed.` prefix.
+- Anthropic supports image tool results and its native error flag. Parallel
+  results share a user turn. Thinking/tool histories needing signed continuation
+  are rejected before submission. JSON-object mode and system images are unsupported.
+- Google tools are currently limited to the non-thinking Gemini 2.0 Flash family.
+  Other Gemini tool selections/continuations are rejected because this adapter
+  cannot preserve opaque thought signatures. Its tool results currently support
+  text only. Other supported requests can still use text, images and JSON.
+- DeepSeek reasoner tool continuations are rejected; the non-thinking adapter
+  explicitly disables thinking. OpenAI reasoning-model temperature overrides are
+  rejected. Adapter temperature ranges are 0–1 for Anthropic and 0–2 otherwise.
+- System-message images are rejected by all adapters; roles are never silently
+  changed. Thinking-only historical messages have no replayable provider content
+  and are explicitly unsupported.
+- Tool parameter schemas are checked against JSON Schema 2020-12. The adapter
+  supports object properties, required fields, arrays/items, additionalProperties,
+  primitive types, enum/const, annotations and numeric/string/array/object size
+  constraints. References, composition, patterns and other valid unsupported
+  keywords fail before submission. Schemas are never executed or remotely fetched.
+- Capability settings are user declarations intersected with adapter limits,
+  not automatic model certification. Provider-specific live acceptance and
+  independent-runtime acceptance remain unverified.
+
+Local input policy retains 200 messages, 128 parts/message, 200,000 characters per
+text part, 2,000,000 base64 characters/image and an 8 MB wire request, plus shared
+host quotas. Inputs are rejected rather than truncated. Generation has a
+20-minute deadline including consent; the shared consent dialog expires after
+25 seconds without a response. `maxTokens` is forwarded when provided; omission
+adds no napplet-defined limit. Anthropic requires a limit and uses the adapter's
+8,192-token default when omitted. These are runtime policy, not NAP requirements.
+
+Provider mapping references: [OpenAI Chat Completions](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create),
+[Anthropic tools](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools),
+[Gemini function calling](https://ai.google.dev/gemini-api/docs/function-calling)
+and [thought signatures](https://ai.google.dev/gemini-api/docs/thought-signatures).
+
+## Verification
+
+Local verification on 2026-11-06: typecheck, production web build and the full
+971-test suite pass. The final provider/capability changes also pass 13 focused
+tests. Chromium port-privacy tests (four cases) and production-player revocation
+pass. On x86_64 Linux, package realization, forced dependency/soyLI rebuilds and
+the NixOS VM regressions also pass. The aarch64 Nix checks were not run locally.
 
 ```sh
 bun test packages/runtime/src/llm-contract.test.ts \
-  packages/runtime/src/llm-conformance.test.ts \
-  packages/runtime/src/experimental-prelude.test.ts \
-  packages/runtime/src/host.test.ts apps/studio/inference-jobs.test.ts
+  packages/runtime/src/llm-conformance.test.ts packages/runtime/src/llm-tools.test.ts \
+  packages/runtime/src/experimental-prelude.test.ts packages/runtime/src/host.test.ts \
+  apps/studio/inference-jobs.test.ts
+bun test tests/services/nip5d-port-privacy.test.ts
 ```
 
-The conformance IDs in the draft map to these executable checks:
+| Draft cases | Regression evidence |
+|-------------|---------------------|
+| C01–C03 | Optional consumer, injected private-port binding, strict request and capability rejection |
+| C04–C08 | Consent denial, endpoint/account handles, duplicate IDs, abort during consent/revalidation, deadlines and late-output suppression |
+| C09–C11 | Block ordering and final replacement, partial/JSON/refusal validation, credential redaction and authenticated local HTTP entrypoint |
+| C12, C20–C21 | Parallel history, missing/duplicate/orphan/mismatched results, unique IDs/names, strict fields, schemas, choices and control validation |
+| C13–C16 | Forced choices, synthesized IDs reused in history, stop normalization, truncated parallel calls, malformed arguments and unknown names |
+| C17–C19 | Thinking omitted on replay, unsupported opaque state rejected before submission, interleaved blocks and capability mode rejection |
+| C22–C23 | Image-result rejection, native/prefixed tool errors and explicit consent for definitions/results |
 
-| Cases | Evidence |
-|-------|----------|
-| C01–C03 | Session/input fixtures, injected binding and optional consumer fallback |
-| C04–C06 | Consent denial, endpoint-local handles/cancellation and duplicate generation ID |
-| C07–C08 | Stalled provider/consent cancellation, deadline, changed connection and host account switch |
-| C09–C10 | Buffered provider and synthetic deltas, ordering, terminal suppression, refusal/limits, missing completion and JSON validation |
-| C11 | Provider credential/body redaction and actual authenticated Studio HTTP entrypoint |
-
-These are reference implementation checks. They are not independent-shell
-acceptance evidence. Synthetic deltas exercise the contract; real provider
-responses are currently buffered and the shell client reports their text at
-completion. No live-provider request or paid test is required by this suite.
-
-## Current limits and remaining work
-
-- Runtime policy bounds each generation to 20 minutes including revalidation and
-  consent. Its shared consent dialog expires after 25 seconds without an answer.
-  These values are local policy, not protocol requirements. Users must explicitly
-  retry; the implementation never automatically retries a provider generation.
-- Local input policy allows 200 messages, 128 parts per message, 200,000 characters
-  per text part, 2,000,000 base64 characters per image and an 8 MB wire request.
-  The shared frame quota applies too. Limits reject requests; they never truncate
-  conversation input. Anthropic's adapter requests at most 8,192 output tokens
-  and preserves an output-limit finish as incomplete.
-- Provider capabilities are user-configured; they are not certification that
-  every model or endpoint supports the chosen input. Provider-specific live
-  acceptance and an independent runtime implementation remain unverified.
-- The connection/job API is private to the shell. Its short status checks are
-  inference-job checks, not wallet polling. No wallet calls occur on this path.
-- VALUE amendments, paid CVM checkout/rollout, invoice handling and the private
-  AI Doc service are separate work and are absent from this reference change.
-
-## Verification record
-
-Reference code commit: `0200e7c82675a781ea11292a57801f16a93d3101`.
-On 2026-10-30, typecheck and all 940 tests passed; the focused inference/host/HTTP
-suite passed all 20 tests. The production web build passed. On x86_64 Linux with
-KVM, `bash scripts/nix-check.sh` passed the dependency and soyLI realization,
-forced rebuild, flake checks and NixOS VM regression check. aarch64 Linux was not
-validated in this run. No live inference or payment operations were performed.
+Chromium executes both identity and LLM operations in a real opaque-origin
+iframe while adversarial code replaces MessagePort and MessageEvent intrinsics.
+The port remains inaccessible. These tests use fixture providers and do not
+perform live inference or payments. The inference-job status API never contacts
+a wallet; paid CVM rollout and Minibits behavior are outside this change.

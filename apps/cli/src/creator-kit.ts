@@ -438,11 +438,16 @@ tests in your normal verification command, not only in a one-off test run.
 ## Experimental shell inference
 
 An experimental reference host may offer the optional llm domain. This is a draft,
-not an accepted NAP or published SDK API. Use it only when the project owner opts
+not an accepted NAP. Use it only when the project owner opts
 into the draft. Check for the injected domain, select a model in the shell, keep
 provider credentials outside the napplet and never add direct network access.
-Send only the intended conversation and inline images; validate the result and
-require finish === 'stop' before treating it as complete. A timeout/cancellation
+Send only the intended conversation, inline images and tool definitions/results.
+Generation.content contains text, thinking and toolCall parts. For ordinary text
+require finish === 'stop'; for JSON concatenate text parts and validate your schema.
+Only execute an application-owned tool after authoritative finish === 'toolUse',
+checking its name and arguments. Answer every parallel call with one toolResult;
+never execute provisional deltas. Thinking is display-only and cannot authorize
+action. Discover tools/toolChoiceModes instead of assuming forced calls work. A timeout/cancellation
 may still incur provider charges; do not retry automatically. Missing llm must
 leave the rest of the app usable. See docs/LLM.md in the soyLI source repository.
 

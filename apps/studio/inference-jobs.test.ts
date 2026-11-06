@@ -77,7 +77,7 @@ test('real Studio HTTP authenticates inference, isolates jobs and redacts provid
       }
       throw new Error('fixture did not finish');
     };
-    expect((await run()).result.text).toBe('{"ok":true}');
+    expect((await run()).result.content).toEqual([{ type: 'text', text: '{"ok":true}' }]);
     fail = true;
     const error = await run();
     expect(error.error).toContain('HTTP 401');

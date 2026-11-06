@@ -8,5 +8,8 @@ Keep contract changes there so this repository does not maintain a second spec.
 The [reference implementation guide](../LLM.md) records implemented behavior,
 local policy limits and verification. The implementation is proposed in
 [soytec/napplet-soy#45](https://github.com/soytec/napplet-soy/pull/45).
-Both are drafts; neither implies upstream acceptance or deployment.
+The implementation tracks upstream revision `5e93bdfce0e84c0de728234cb7b3feed498f8635`
+(content blocks, tool calls/results, tool choice and C01–C23). The upstream PR is
+open for review; this reference PR remains a draft. Neither implies acceptance
+or deployment.
 VALUE amendments and paid CVM checkout/rollout remain separate.

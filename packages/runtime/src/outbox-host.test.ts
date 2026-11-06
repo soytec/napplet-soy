@@ -1,23 +1,12 @@
 import { expect, test } from 'bun:test';
 import { finalizeEvent, getPublicKey } from 'nostr-tools';
 import { attachNappletHost } from './host';
+import { fakeNappletFrame, withGlobals } from './host-test-support';
 
 test('host deduplicates publication dispatch and account changes cancel a late signer before relay writes', async () => {
-  const globals = ['window', 'localStorage'] as const;
-  const saved = globals.map((key) => Object.getOwnPropertyDescriptor(globalThis, key));
-  const sent: Record<string, unknown>[] = [];
-  const source = { postMessage: (message: Record<string, unknown>) => sent.push(message) };
-  let listener: (event: MessageEvent) => void = () => {};
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      addEventListener(type: string, fn: typeof listener) {
-        if (type === 'message') listener = fn;
-      },
-      removeEventListener() {},
-    },
-  });
-  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {} });
+  const napplet = fakeNappletFrame();
+  const sent = napplet.sent;
+  const restore = withGlobals({ window: napplet.window, localStorage: {} });
   const key = new Uint8Array(32).fill(61),
     pubkey = getPublicKey(key);
   let signs = 0,
@@ -45,7 +34,7 @@ test('host deduplicates publication dispatch and account changes cancel a late s
   });
   const url = `ws://127.0.0.1:${relay.port}/`;
   const host = attachNappletHost({
-    frame: { contentWindow: source } as unknown as HTMLIFrameElement,
+    frame: napplet.frame,
     identity: 'verified-third-party',
     manifestId: 'a'.repeat(64),
     relays: [url],
@@ -62,8 +51,8 @@ test('host deduplicates publication dispatch and account changes cancel a late s
     },
     files() {},
   });
-  const deliver = (data: Record<string, unknown>) =>
-    listener({ data, source, origin: 'null' } as unknown as MessageEvent);
+  napplet.hello();
+  const deliver = napplet.deliver;
   const until = async (predicate: () => boolean) => {
     for (let i = 0; i < 500; i++) {
       if (predicate()) return;
@@ -145,9 +134,6 @@ test('host deduplicates publication dispatch and account changes cancel a late s
   } finally {
     host.close();
     relay.stop(true);
-    globals.forEach((key, i) => {
-      if (saved[i]) Object.defineProperty(globalThis, key, saved[i]!);
-      else Reflect.deleteProperty(globalThis, key);
-    });
+    restore();
   }
 });

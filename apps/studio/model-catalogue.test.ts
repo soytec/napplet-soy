@@ -47,6 +47,10 @@ test('discovery reads saved keys without changing settings; quick model changes 
     key: secret,
     model: 'old-alias',
     steps: 100,
+    images: true,
+    json: true,
+    tools: true,
+    toolChoiceModes: ['required', 'tool'],
   });
   const c = state.connections[0];
   const before = await readFile(file, 'utf8');
@@ -61,7 +65,14 @@ test('discovery reads saved keys without changing settings; quick model changes 
   expect(await readFile(file, 'utf8')).toBe(before);
   const session = connections.sessionKey;
   const selected = await connections.setModel({ id: c.id, revision: c.revision, model: 'coder-b' });
-  expect(selected.connections[0].model).toBe('coder-b');
+  expect(selected.connections[0]).toMatchObject({
+    model: 'coder-b',
+    images: false,
+    json: false,
+    tools: false,
+    toolChoiceModes: [],
+  });
+  expect(connections.resolve(c.id + ':' + c.revision)).toBeUndefined();
   expect(selected.selected).toBe(c.id);
   expect(JSON.stringify(selected)).not.toContain(secret);
   expect(connections.sessionKey).not.toBe(session);

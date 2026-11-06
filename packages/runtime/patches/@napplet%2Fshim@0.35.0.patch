@@ -1,0 +1,61 @@
+diff --git a/dist/prelude.global.js b/dist/prelude.global.js
+index 3bf21e5aa156b9984d12399493bc4e2cdd2492f4..4d343b87271246de7cc88aa372512e0c929094b7 100644
+--- a/dist/prelude.global.js
++++ b/dist/prelude.global.js
+@@ -342,8 +342,13 @@ var NappletShimPrelude = (() => {
+       }
+     }
+   }
++  // Capture transport intrinsics before untrusted napplet scripts can replace them.
++  var postPortMessage = Function.prototype.call.bind(MessagePort.prototype.postMessage);
++  var readMessageData = Function.prototype.call.bind(
++    Object.getOwnPropertyDescriptor(MessageEvent.prototype, "data").get
++  );
+   function sendPortEnvelope(port, message) {
+-    deliverEnvelope((value) => port.postMessage(value), message);
++    deliverEnvelope((value) => postPortMessage(port, value), message);
+   }
+ 
+   // ../nap/dist/chunk-GNKSDV4F.js
+@@ -351,7 +356,7 @@ var NappletShimPrelude = (() => {
+   var connection = null;
+   var listeners = /* @__PURE__ */ new Set();
+   function dispatch2(event) {
+-    const message = event.data;
++    const message = readMessageData(event);
+     if (typeof message !== "object" || message === null || typeof message.type !== "string") return;
+     for (const listener of listeners) listener(message);
+   }
+@@ -432,7 +437,11 @@
+     });
+   }
+   function handleDelta(message) {
+-    if ("id" in message || typeof message.requestId !== "string" || typeof message.sequence !== "number" || typeof message.text !== "string") return;
++    if ("id" in message || typeof message.requestId !== "string" || !Number.isSafeInteger(message.sequence) || message.sequence < 0 || !Number.isSafeInteger(message.blockIndex) || message.blockIndex < 0) return;
++    if (!["start", "delta", "end"].includes(message.event) || !["text", "thinking", "toolCall"].includes(message.block)) return;
++    if (message.event === "delta" ? typeof message.text !== "string" : "text" in message) return;
++    const toolStart = message.event === "start" && message.block === "toolCall";
++    if (toolStart ? typeof message.toolCallId !== "string" || !message.toolCallId || typeof message.name !== "string" || !message.name : "toolCallId" in message || "name" in message) return;
+     const entry = pending.get(message.requestId);
+     if (!entry || entry.type !== "llm.generate.result") return;
+     if (message.sequence !== entry.nextSequence) {
+@@ -440,7 +449,10 @@
+       return;
+     }
+     entry.nextSequence += 1;
+-    entry.onDelta?.({ requestId: message.requestId, sequence: message.sequence, text: message.text });
++    const { requestId, sequence, event, block, blockIndex } = message;
++    try { entry.onDelta?.({ requestId, sequence, event, block, blockIndex,
++      ...(event === "delta" ? { text: message.text } : {}),
++      ...(toolStart ? { toolCallId: message.toolCallId, name: message.name } : {}) }); } catch {}
+   }
+   function handleLlmMessage(message) {
+     if (message.type === "llm.delta") {
+@@ -469,6 +481,7 @@
+     return sendRequest("llm.describe", { handle }, REQUEST_TIMEOUT_MS);
+   }
+   function generate(request7, options = {}) {
++    if (options.signal?.aborted) return Promise.reject(new LlmError({ code: "cancelled", message: "Inference cancelled." }));
+     const id = crypto.randomUUID();
+     const promise = sendRequest("llm.generate", { request: request7 }, GENERATE_TIMEOUT_MS, id);
+     const entry = pending.get(id);

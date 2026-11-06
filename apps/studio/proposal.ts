@@ -52,7 +52,12 @@ export async function prepareProposal(
   if (!(await readBinding(root))?.upstream)
     throw new DiagnosticError(
       'STUDIO_UPSTREAM',
-      'Remix a napplet with Git source before proposing changes.',
+      'This remix has no upstream Git repository to receive a proposal.',
+      {
+        operation: 'prepare Studio proposal',
+        recovery:
+          'Your edits and preview are saved. Use Publish to share your own remix, subject to the original license. To propose changes to the original, its author must publish a Git source reference and revision, then you can remix that release. Running soyLI diagnostics or prompting the maker cannot add that missing upstream.',
+      },
     );
   await prepareSharingIdentity(root, network, pubkey);
   await hooks.verify();

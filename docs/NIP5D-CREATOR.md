@@ -73,6 +73,13 @@ domains essential to the core experience. Missing optional domains must degrade
 gracefully. Declarations never grant access: inspect `window.napplet.<domain>`
 and handle the host's actual operation results.
 
+Do not bundle `@napplet/shim` or post to `window.parent` yourself. The host's
+bootstrap hands a private MessagePort to the shell before your scripts run, and all
+NAP traffic uses it. Under NIP-5D, any other window-level message, a second
+handoff, a reload or a navigation away stops the napplet. `soyli check` reports this
+as `NAPPLET_REVOKED` with the cause. The bootstrap also removes the `RTC*`
+constructors; use the injected `window.napplet.webrtc` domain for peer connections.
+
 Archetypes are descriptive labels, not privileges or categories enforced by the
 host. An intent is a queryless convention identity, such as `napplet:track/edit`;
 the `parameters` list advertises names, not embedded payload values. Advertise

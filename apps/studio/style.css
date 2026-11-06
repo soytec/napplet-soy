@@ -435,6 +435,17 @@
     white-space: nowrap;
     text-overflow: ellipsis;
   }
+  .proposal-entry {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .proposal-entry small {
+    max-width: 240px;
+    color: var(--muted-foreground);
+    font-size: 12px;
+  }
   .draft-badge {
     font-family: var(--font-code);
     font-size: 8px;

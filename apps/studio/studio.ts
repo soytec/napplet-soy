@@ -57,6 +57,7 @@ import { publicationStatus, type PublishOptions } from '../../packages/publish/s
 import { BrowserBuilds, browserBuildInput } from './browser-build';
 import { builtConfiguration } from '../../packages/publish/src/artifact';
 import { readBinding } from '../../packages/publish/src/binding';
+import { standaloneProject } from '../cli/src/standalone-project';
 
 export type StudioOptions = {
   directory: string;
@@ -116,6 +117,7 @@ export class Studio {
       for (const project of this.projects) {
         if (!/^[a-f0-9-]{36}$/.test(project.id)) throw new Error('Invalid saved project ID.');
         delete project.previewUrl;
+        delete project.proposalAvailable;
         if (project.initialized) await this.rememberSourceRevision(project);
         const publication = project.publication?.attempt;
         if (publication?.status === 'published' && !publication.result?.websiteReady) {
@@ -577,10 +579,13 @@ export class Studio {
     );
   }
   private async rememberSourceRevision(p: Project) {
-    if (!p.source || p.sourceRevision) return;
+    if (!p.source) return;
     try {
-      p.sourceRevision = (await readBinding(this.workspace(p.id)))?.project.remix?.revision;
+      const binding = await readBinding(this.workspace(p.id));
+      p.sourceRevision ??= binding?.project.remix?.revision;
+      p.proposalAvailable = !!binding?.upstream;
     } catch {
+      delete p.proposalAvailable;
       // Optional preview metadata cannot prevent opening a saved workspace.
       // Source/publication operations still validate the binding and report errors.
     }
@@ -589,10 +594,8 @@ export class Studio {
     if (p.source) this.options.sourcePolicy?.(p.source);
     const root = join(this.options.directory, 'projects', p.id);
     await mkdir(root, { recursive: true });
-    if (!p.initialized) {
-      if (await exists(join(this.workspace(p.id), 'napplet.json'))) {
-        await this.git(p, ['rev-parse', 'HEAD'], signal);
-      } else {
+    if (!p.initialized || !p.baseline) {
+      if (!(await exists(join(this.workspace(p.id), 'napplet.json')))) {
         await this.command(
           p,
           [
@@ -608,11 +611,15 @@ export class Studio {
           root,
         );
       }
-      p.initialized = true;
+      // Older archive/HTML imports initialized Git without a first commit. Only
+      // recover a genuinely empty history; corrupt repositories still fail visibly.
+      if ((await this.git(p, ['rev-list', '--all', '--count'], signal)).trim() === '0')
+        await this.checkpoint(p, 'Studio: imported remix starting point', signal);
       p.baseline = (await this.git(p, ['rev-parse', 'HEAD'], signal)).trim();
-      await this.rememberSourceRevision(p);
+      p.initialized = true;
       await this.save();
     }
+    await this.rememberSourceRevision(p);
     if (!p.setup) {
       await this.stage(p, 'preparing', 'Installing the project’s pinned tools');
       await this.command(p, [...this.options.soyli, 'setup'], signal, 'set up soyLI project');
@@ -712,14 +719,20 @@ export class Studio {
         saveError = error;
       });
     };
+    const standalone = await standaloneProject(this.workspace(p.id));
     await this.options.agent.run(
       this.workspace(p.id),
-      (browserSession
+      (standalone
         ? taskInstructions.replace(
             nativeCheckInstructions,
-            'This turn uses the experimental browser compiler. Use studio_check after your first playable edit and after fixes to get real TypeScript and build diagnostics. Wait for its result before editing again. Repair those errors in this turn, then finish your reply. Do not run soyli, package scripts, host build tools, tests or a dev server. Studio independently checks again at the end. Full soyLI/conformance verification is deferred to Publish. Never claim those full checks passed.',
+            'This is a standalone HTML remix. Edit index.html directly and preserve its existing APIs and attribution. No compiler or dependencies are needed. Run soyli build and soyli check sequentially. There are no starter verify or test:conformance scripts; do not invent passing results for them. Studio independently checks the sandbox and owns previews; do not start a dev server.',
           )
-        : taskInstructions) +
+        : browserSession
+          ? taskInstructions.replace(
+              nativeCheckInstructions,
+              'This turn uses the experimental browser compiler. Use studio_check after your first playable edit and after fixes to get real TypeScript and build diagnostics. Wait for its result before editing again. Repair those errors in this turn, then finish your reply. Do not run soyli, package scripts, host build tools, tests or a dev server. Studio independently checks again at the end. Full soyLI/conformance verification is deferred to Publish. Never claim those full checks passed.',
+            )
+          : taskInstructions) +
         (connection && !p.session
           ? 'Recent conversation for continuity (the working files are authoritative):\n' +
             p.messages
@@ -727,6 +740,9 @@ export class Studio {
               .map((m) => `${m.role}: ${m.text.slice(0, 2000)}`)
               .join('\n') +
             '\nCurrent request:\n'
+          : '') +
+        (p.source && p.proposalAvailable === false
+          ? 'Controller source context: this remix has no upstream Git repository binding. Its files and private Git checkpoints are valid, but it cannot submit an upstream proposal. The creator can use Publish to share a separate remix, subject to the original license. Do not try to repair Git or run doctor to enable proposals.\n'
           : '') +
         prompt,
       p.session,
@@ -754,6 +770,13 @@ export class Studio {
   }
   private async turn(p: Project, prompt: string, signal: AbortSignal, browserSession?: string) {
     await this.prepare(p, signal);
+    if (browserSession && (await standaloneProject(this.workspace(p.id)))) {
+      browserSession = undefined;
+      this.activity(
+        p,
+        'Standalone HTML needs no browser compilation; checking it in the shared sandbox.',
+      );
+    }
     if (browserSession) {
       if (this.options.projectCommand && !this.options.browserLibraryRoot)
         throw new DiagnosticError(
@@ -848,6 +871,8 @@ export class Studio {
   private async verify(p: Project, signal: AbortSignal, browserSession?: string, promote = true) {
     await this.stage(p, 'checking', 'Checking the build and sandbox');
     p.checks = [];
+    const standalone = await standaloneProject(this.workspace(p.id));
+    if (standalone) browserSession = undefined;
     if (await this.protectedFiles(p, signal))
       throw new DiagnosticError(
         'STUDIO_GUARDRAIL',
@@ -915,10 +940,19 @@ export class Studio {
       }
     }
     for (const [name, args] of [
-      ['Build & project checks', ['run', 'verify']],
+      ['Build & project checks', standalone ? ['build'] : ['run', 'verify']],
       ['soyLI sandbox', ['check']],
       ['Upstream conformance', ['run', 'test:conformance']],
     ] as const) {
+      if (standalone && name === 'Upstream conformance') {
+        p.checks.push({
+          name,
+          state: 'skipped',
+          detail:
+            'Not run: this standalone HTML project has no upstream conformance suite. Shared sandbox startup is checked separately; gameplay and independent-host compatibility still need review.',
+        });
+        continue;
+      }
       const check: Check = { name, state: 'running' };
       p.checks.push(check);
       p.stage = name;

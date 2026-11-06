@@ -23,8 +23,13 @@ export const Route = createRootRoute({
         ? siteHead(match.context.clientPolicy.siteOrigin).meta
         : [{ title: 'napplet.soy' }]),
       {
+        // CSP checks every navigation of a child frame against this page's
+        // frame-src, including one a napplet starts itself before its first load,
+        // when NIP-5D replacement evidence cannot fire. srcdoc napplets need no
+        // source; 'self' serves the collaboration story. Never allow blob: or
+        // data:, which a napplet can mint to run unverified code without its CSP.
         httpEquiv: 'Content-Security-Policy',
-        content: `frame-src 'self' blob:${import.meta.env.DEV ? ' http://127.0.0.1:*' : ''}; object-src 'none'; base-uri 'self'`,
+        content: `frame-src 'self'${import.meta.env.DEV ? ' http://127.0.0.1:*' : ''}; object-src 'none'; base-uri 'self'`,
       },
     ],
     links: [

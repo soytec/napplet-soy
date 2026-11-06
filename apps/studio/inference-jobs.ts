@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { generationSchema, type Generation } from '../../packages/runtime/src/llm-contract';
+import {
+  generationSchema,
+  checkCapabilities,
+  type Generation,
+} from '../../packages/runtime/src/llm-contract';
+import { inferenceCapabilities } from '../../packages/runtime/src/inference-capabilities';
 import { infer } from '../../packages/runtime/src/inference-provider';
 import type { Connections } from './connections';
 
@@ -20,12 +25,7 @@ export class InferenceJobs {
       const request = generationSchema.parse(input),
         connection = this.connections.resolve(request.handle);
       if (!connection) throw new Error('selection-expired: Select the connection again.');
-      if (
-        (request.format === 'json' && !connection.json) ||
-        (request.messages.some((m) => m.content.some((c) => c.type === 'image')) &&
-          !connection.images)
-      )
-        throw new Error('unsupported: The saved model capabilities do not match this request.');
+      checkCapabilities(request, inferenceCapabilities(connection));
       const id = crypto.randomUUID(),
         job: { controller: AbortController; result?: Generation; error?: string; expires: number } =
           { controller: new AbortController(), expires: Date.now() + 30 * 60_000 };
@@ -51,6 +51,7 @@ export class InferenceJobs {
         'selection-expired: The inference job expired; it may have incurred provider charges.',
       );
     if (action === 'llm-cancel') {
+      if (job.result || job.error || job.controller.signal.aborted) return { cancelled: false };
       job.controller.abort();
       return { cancelled: true };
     }

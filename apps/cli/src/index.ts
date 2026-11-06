@@ -12,7 +12,7 @@ import { projectConfiguration, screenshotProject, recordProject } from './projec
 import { parseArgs } from 'node:util';
 import { join } from 'node:path';
 import { nip19 } from 'nostr-tools';
-import { scaffold, ScaffoldInputError } from './scaffold';
+import { scaffold, initializeGit, ScaffoldInputError } from './scaffold';
 import {
   Accounts,
   accountStorage,
@@ -559,7 +559,10 @@ try {
           )
         : undefined;
     const directory = remix?.directory ?? (await scaffold(process.cwd(), folder, template));
-    if (remix && remix.source !== 'git') await installCreatorSkills(directory);
+    if (remix && remix.source !== 'git') {
+      await installCreatorSkills(directory);
+      await initializeGit(directory);
+    }
     createdProject = directory;
     let account = values.identity === 'later' ? null : await accounts.current();
     let identity = values.identity;

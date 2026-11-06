@@ -23,7 +23,11 @@ export type Message = {
   at: string;
 };
 export type Checkpoint = { commit: string; at: string; label: string };
-export type Check = { name: string; state: 'running' | 'passed' | 'failed'; detail?: string };
+export type Check = {
+  name: string;
+  state: 'running' | 'passed' | 'failed' | 'skipped';
+  detail?: string;
+};
 export const reasoningLimits = { blocks: 16, characters: 12000 } as const;
 export type ReasoningBlock = { id: string; text: string; truncated?: boolean };
 export type WorkshopEntry =
@@ -34,6 +38,8 @@ export type Project = {
   source?: string;
   /** Exact published manifest selected by the source import, not the draft build. */
   sourceRevision?: string;
+  /** Derived by the controller from the real upstream binding, never the job copy. */
+  proposalAvailable?: boolean;
   createdAt: string;
   updatedAt: string;
   phase: Phase;
