@@ -59,10 +59,14 @@ export class CvmConnection {
   get closed() {
     return this.dead;
   }
+  get signal() {
+    return this.lifetime.signal;
+  }
   constructor(
     readonly provider: BackendProvider,
     signer: NostrSigner,
     notify: (message: unknown) => void = () => {},
+    explicitPayments = false,
   ) {
     this.pool = new ApplesauceRelayPool(provider.relays, {
       publishOptions: { timeout: 5000, retries: 0 },
@@ -76,23 +80,70 @@ export class CvmConnection {
       oversizedTransfer: { enabled: false },
       openStream: { enabled: false },
     });
+    if (explicitPayments) {
+      this.transport.setClientPmis(['bitcoin-lightning-bolt11']);
+      this.transport.setPaymentInteraction('explicit_gating');
+    }
     this.client.fallbackNotificationHandler = async (message) => {
+      // Native checkout offers belong to the shell, never the untrusted frame.
+      // Transparent payments cannot meet our per-invocation approval policy.
+      if (message.method.startsWith('notifications/payment_')) {
+        if (message.method === 'notifications/payment_required') {
+          this.lifetime.abort(
+            new Error('CVM_PAYMENT_REQUIRED: This service needs explicit-gating payment support.'),
+          );
+          void this.close();
+        }
+        return;
+      }
       if (!this.dead) notify(message);
     };
   }
-  async request(method: string, params?: Record<string, unknown>, timeoutMs = 15000) {
+  get paymentInteraction() {
+    return this.transport.getEffectivePaymentInteraction();
+  }
+  async pricedTool(
+    method: string,
+    params: Record<string, unknown> | undefined,
+    timeoutMs: number,
+    signal: AbortSignal,
+  ) {
+    if (method !== 'tools/call') return false;
+    if (!this.transport.getServerToolsListEvent())
+      await this.request('tools/list', undefined, timeoutMs, signal);
+    return (
+      this.transport
+        .getServerToolsListEvent()
+        ?.tags.some((tag) => tag[0] === 'cap' && tag[1] === `tool:${params?.name}`) ?? false
+    );
+  }
+  async request(
+    method: string,
+    params?: Record<string, unknown>,
+    timeoutMs = 30000,
+    signal?: AbortSignal,
+  ) {
     if (this.dead) throw new Error('CVM session closed');
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 300000)
+      throw new Error('CVM timeout must be between 1 and 300000 ms');
+    const deadline = Date.now() + timeoutMs;
+    const bounded = AbortSignal.any([
+      this.lifetime.signal,
+      AbortSignal.timeout(timeoutMs),
+      ...(signal ? [signal] : []),
+    ]);
     this.ready ??= this.client
-      .connect(this.transport, { timeout: 10000, signal: this.lifetime.signal })
+      .connect(this.transport, { timeout: Math.min(10000, timeoutMs), signal: bounded })
       .catch(async (error) => {
         await this.close();
         throw error;
       });
     await this.ready;
+    bounded.throwIfAborted();
     const result = await this.client.request(
       { method, ...(params ? { params } : {}) },
       z.object({}).passthrough(),
-      { timeout: Math.max(1000, Math.min(timeoutMs, 25000)), signal: this.lifetime.signal },
+      { timeout: Math.max(1, deadline - Date.now()), signal: bounded },
     );
     if (JSON.stringify(result).length > 256000) throw new Error('CVM response too large');
     return result;

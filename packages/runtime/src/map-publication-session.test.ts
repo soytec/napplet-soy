@@ -92,12 +92,20 @@ test('denial, incomplete reads and foreign destinations never sign', async () =>
 test('stale reads after consent and signer reject publication', async () => {
   for (const stage of ['consent', 'sign']) {
     const f = fixture();
+    const template = make();
     const update = async () => {
-      f.state.events.push(finalizeEvent({ ...make(), created_at: make().created_at - 1 }, alice));
+      // Capture time once: crossing a wall-clock second must not turn the
+      // competing revision into the exact event our signer is about to return.
+      f.state.events.push(
+        finalizeEvent(
+          { ...template, content: 'another device', created_at: template.created_at - 1 },
+          alice,
+        ),
+      );
     };
     if (stage === 'consent') f.state.onConsent = update;
     else f.state.onSign = update;
-    expect((await f.send()).ok).toBe(false);
+    expect((await f.send(template)).ok).toBe(false);
     expect(f.state.publish).toBe(0);
     f.session.close();
   }

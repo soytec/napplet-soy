@@ -8,8 +8,9 @@ proposal, not an accepted NAP. Its contract is pinned to upstream PR #134 at
 `5e93bdfce0e84c0de728234cb7b3feed498f8635`. It uses the pinned shim’s private
 port, with a reviewed block-delta patch; NIP-5D transport follows `c041f84`.
 Sandbox policy and equal publisher treatment remain unchanged. Provider keys stay
-outside frames; optional inference never becomes a playback requirement. This
-reference contains no VALUE amendment or paid CVM checkout changes.
+outside frames; optional inference never becomes a playback requirement. The coordinated release also includes [native CVM checkout](LLM-CVM.md) through
+ContextVM SDK 0.14.3 and NAP-CVM at `28cf1bdb5c6412bfbfcecb79a5a5121e18376f2f`.
+No VALUE amendment or iframe wallet API is added.
 
 ## NIP-5D port-bound identity and red-team findings — 2026-11-02 source
 
@@ -86,7 +87,7 @@ see [wallet relay/discovery policy](WALLET.md#recipient-discovery-and-relay-poli
 
 ## Hosted Studio control — implementation, rollout pending
 
-Hosted Studio uses the existing ContextVM SDK 0.13.16 encrypted MCP transport and
+Hosted Studio uses ContextVM SDK 0.14.3 encrypted MCP transport and
 NIP-98 kind 27235 session authorization. Private source/build/media bytes use
 owner-authenticated HTTPS transfers; drafts are never published as a side effect.
 Publication/proposal events still require exact signatures from the shared shell

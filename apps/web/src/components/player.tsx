@@ -1,3 +1,5 @@
+import { useWallet } from './wallet/wallet-provider';
+import { cvmWalletPayments } from '@/lib/cvm-wallet-payments';
 import { useStudio } from './studio-provider';
 import { inferenceService } from '../../../../packages/runtime/src/llm-service';
 import {
@@ -89,6 +91,9 @@ export function Player({
   returnLabel?: string;
   onLoadError?: (error: Error) => void;
 }) {
+  const wallet = useWallet();
+  const walletRef = useRef(wallet);
+  walletRef.current = wallet;
   const studio = useStudio();
   const studioRef = useRef(studio);
   studioRef.current = studio;
@@ -170,6 +175,13 @@ export function Player({
       host.current = undefined;
       if (!node || !release) return;
       host.current = attachNappletHost({
+        disableCvmPayments: !!reviewScope,
+        cvmPayments: reviewScope
+          ? undefined
+          : cvmWalletPayments(
+              () => walletRef.current.runtime,
+              (fn) => walletRef.current.run(fn),
+            ),
         llm: reviewScope
           ? undefined
           : inferenceService(

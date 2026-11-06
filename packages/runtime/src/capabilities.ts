@@ -20,7 +20,7 @@ export const RUNTIME_DOMAINS = [
   'cvm',
   'webrtc',
 ] as const;
-export const RUNTIME_PROFILE = 'space-playback-9-draft-llm';
+export const RUNTIME_PROFILE = 'space-playback-9-llm-cvm-payments';
 
 // Only request types understood by this host. Notifications, responses and future
 // operations must be ignored, including unknown operations in supported domains.

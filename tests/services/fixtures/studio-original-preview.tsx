@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { StudioApp } from '../../../apps/studio/ui';
 import { StudioOriginalPreview } from '../../../apps/web/src/components/studio-original-preview';
+import { WalletProvider } from '../../../apps/web/src/components/wallet/wallet-provider';
 import { configureClient } from '../../../apps/web/src/lib/network';
 import type { StudioState, Project } from '../../../apps/studio/types';
 import type { StudioClient } from '../../../apps/studio/local-client';
@@ -114,4 +115,8 @@ function App() {
     </div>
   );
 }
-createRoot(document.getElementById('root')!).render(<App />);
+createRoot(document.getElementById('root')!).render(
+  <WalletProvider>
+    <App />
+  </WalletProvider>,
+);
