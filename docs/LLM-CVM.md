@@ -84,8 +84,10 @@ credential store. soyLI preview's AI connections use
 `~/.config/soyli/inference/connections.json` (or `SOYLI_INFERENCE_DIRECTORY`),
 owner-only and separate from projects. Provider/model handles belong to one
 frame/account lifetime; keys never enter the frame. Changing configuration
-invalidates handles. No provider tools, automatic inference retries or arbitrary
-app-supplied endpoint/headers are allowed.
+invalidates handles. Napplet-declared tools follow the NAP-LLM content-block
+contract; the napplet executes returned tool calls. Provider-native tools,
+automatic inference retries and arbitrary app-supplied endpoint/headers are
+not allowed.
 
 OpenAI-compatible providers, Anthropic Messages and Gemini GenerateContent remain
 supported. Explicit image/JSON capability declarations are required. Anthropic
@@ -102,7 +104,10 @@ policy refusal, withheld offers, invoice validation, wallet approval, durable
 spending, pending-payment handling and QR removal. Private tests cover native
 gating, restart recovery, a single invoice/report and zero background NWC calls.
 AI Doc fixtures cover BYOK, paid recovery, explicit confirmation and validation.
-Current combined-release evidence is recorded in [the rollout checklist](LLM-CVM-ROLLOUT.md), separate from prior branch tests. No funded transaction is part of automated acceptance.
+The combined candidate passes 981 unit tests, type checking, a production web
+build, the encrypted native-payment fixture, browser checkout acceptance and
+the full Linux Nix/KVM checks. No funded transaction is part of automated
+acceptance.
 
 The deployed service remains the earlier quiet version until this migration is
 explicitly rolled out. Earlier 90-second live observation of that version saw
