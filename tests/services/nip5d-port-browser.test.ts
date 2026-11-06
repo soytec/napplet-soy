@@ -148,11 +148,15 @@ test('the website player binds every napplet to its port and removes replaced or
     for (const name of ['legacy', 'reloading']) {
       await play(name);
       await browserExpect(page.getByRole('alert')).toContainText('was stopped');
-      expect(await page.locator('iframe').count()).toBe(0);
+      await browserExpect(page.locator('iframe')).toHaveCount(0);
       // "Try again" creates a fresh frame from the verified bytes; it is removed again.
+      // The previous alert can still be present while React schedules the retry.
+      // Observe a new frame before asserting its asynchronous revocation.
+      const replacement = page.waitForEvent('frameattached');
       await page.getByRole('button', { name: 'Try again' }).click();
+      await replacement;
+      await browserExpect(page.locator('iframe')).toHaveCount(0);
       await browserExpect(page.getByRole('alert')).toContainText('was stopped');
-      expect(await page.locator('iframe').count()).toBe(0);
     }
 
     violations.length = 0;
