@@ -355,3 +355,57 @@ test('keyboard actions are port bound without SHELL, survive account switches, a
     restore();
   }
 });
+
+test('draft inference wire rejects foreign frames, revokes handles on account switch and returns typed errors', async () => {
+  const napplet = fakeNappletFrame();
+  const restore = withGlobals({ window: napplet.window, localStorage: {} });
+  const sent = napplet.sent as any[];
+  const model = {
+    handle: 'private',
+    name: 'Fixture',
+    model: 'fixture',
+    route: 'Test',
+    images: false,
+    json: false,
+    tools: false,
+    toolChoiceModes: [],
+  };
+  const host = attachNappletHost({
+    frame: napplet.frame,
+    identity: 'verified-app',
+    manifestId: 'a'.repeat(64),
+    relays: [],
+    pubkey: null,
+    prompt() {},
+    files() {},
+    llm: {
+      select: async () => model,
+      describe: async () => model,
+      generate: async () => ({ content: [{ type: 'text', text: 'hello' }], finish: 'stop' }),
+    },
+  });
+  const send = napplet.deliver;
+  napplet.hello();
+  try {
+    napplet.post({ type: 'llm.select', id: 'foreign' }, { source: {} });
+    await Bun.sleep(0);
+    expect(sent).toEqual([]);
+    send({ type: 'llm.select', id: 'select' });
+    await Bun.sleep(0);
+    const h = sent.find((r) => r.id === 'select').model.handle;
+    host.updateIdentity('b'.repeat(64));
+    send({ type: 'llm.describe', id: 'old', handle: h });
+    await Bun.sleep(0);
+    expect(sent.find((r) => r.id === 'old').error.code).toBe('selection-expired');
+    send({
+      type: 'llm.select',
+      id: 'malformed',
+      requirements: { providerUrl: 'https://evil.test' },
+    });
+    await Bun.sleep(0);
+    expect(sent.find((r) => r.id === 'malformed').error.code).toBe('invalid-request');
+  } finally {
+    host.close();
+    restore();
+  }
+});

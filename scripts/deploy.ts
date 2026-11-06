@@ -89,6 +89,7 @@ export async function createDeploymentArchive(archive: string) {
     'docs/WASM.md',
     'docs/VISUAL-DESIGN.md',
     'docs/NIP5D-CREATOR.md',
+    'examples/nap-llm.ts',
     'apps',
     'packages',
     'scripts',

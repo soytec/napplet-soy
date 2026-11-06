@@ -16,6 +16,10 @@ const fresh = (): ConnectionInput => ({
   provider: 'openrouter',
   endpoint: providers.openrouter.url,
   model: '',
+  images: false,
+  json: false,
+  tools: false,
+  toolChoiceModes: [],
   steps: defaultSteps,
   key: '',
 });
@@ -81,6 +85,10 @@ export function ConnectionsDialog({
       endpoint: c.endpoint,
       model: c.model,
       steps: c.steps,
+      images: c.images,
+      json: c.json,
+      tools: c.tools,
+      toolChoiceModes: c.toolChoiceModes,
     });
     setEditing(true);
     setError('');
@@ -215,6 +223,10 @@ export function ConnectionsDialog({
                     provider,
                     endpoint: providers[provider].url,
                     model: '',
+                    images: false,
+                    json: false,
+                    tools: false,
+                    toolChoiceModes: [],
                     key: '',
                   });
                 }}
@@ -280,7 +292,16 @@ export function ConnectionsDialog({
             }}
             api={api}
             value={form.model}
-            onChange={(model) => setForm({ ...form, model })}
+            onChange={(model) =>
+              setForm({
+                ...form,
+                model,
+                images: false,
+                json: false,
+                tools: false,
+                toolChoiceModes: [],
+              })
+            }
             disabled={busy || pending}
             autoLoad={
               !!form.id &&
@@ -296,6 +317,52 @@ export function ConnectionsDialog({
               Clear saved API key on save
             </button>
           )}
+          <label>
+            <input
+              type="checkbox"
+              checked={form.images ?? false}
+              onChange={(e) => setForm({ ...form, images: e.target.checked })}
+            />{' '}
+            This model accepts images
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={form.json ?? false}
+              onChange={(e) => setForm({ ...form, json: e.target.checked })}
+            />{' '}
+            This model supports JSON object output
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={form.tools ?? false}
+              onChange={(e) => setForm({ ...form, tools: e.target.checked, toolChoiceModes: [] })}
+            />{' '}
+            This model supports tool calls (auto and none)
+          </label>
+          {form.tools &&
+            (['required', 'tool'] as const).map((mode) => (
+              <label key={mode}>
+                <input
+                  type="checkbox"
+                  checked={form.toolChoiceModes?.includes(mode) ?? false}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      toolChoiceModes: e.target.checked
+                        ? [...(form.toolChoiceModes ?? []), mode]
+                        : form.toolChoiceModes?.filter((m) => m !== mode),
+                    })
+                  }
+                />{' '}
+                {mode === 'required' ? 'Can require a tool call' : 'Can require one named tool'}
+              </label>
+            ))}
+          <p>
+            These capabilities allow napplets to select this connection. Enable only what your
+            chosen model supports.
+          </p>
           <p className="settings-hint">
             Higher step limits can cost more.{' '}
             {hosted

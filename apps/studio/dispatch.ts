@@ -82,7 +82,11 @@ export async function dispatchStudio(
     if (/^\/api\/browser-builds\/[a-f0-9-]{36}$/.test(url.pathname)) {
       await studio.browserBuilds.reply(url.pathname.split('/').pop()!, body);
       result = { ok: true };
-    } else if (/^\/api\/connections\/(save|select|remove|test|models|model)$/.test(url.pathname)) {
+    } else if (
+      /^\/api\/connections\/(save|select|remove|test|models|model|llm-start|llm-read|llm-cancel)$/.test(
+        url.pathname,
+      )
+    ) {
       result = await studio.connectionAction(url.pathname.split('/').pop()!, body);
     } else if (url.pathname === '/api/signers') {
       result = await studio.signing.connect(

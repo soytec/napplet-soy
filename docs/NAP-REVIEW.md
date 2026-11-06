@@ -1,5 +1,16 @@
 # NAP concepts and expansion review
 
+## Experimental NAP-LLM reference — not deployed
+
+The optional [NAP-LLM draft](proposals/NAP-LLM.md) and [reference implementation](LLM.md)
+provide user-selected inference through the shell and soyLI preview. This is a
+proposal, not an accepted NAP. Its contract is pinned to upstream PR #134 at
+`5e93bdfce0e84c0de728234cb7b3feed498f8635`. It uses the pinned shim’s private
+port, with a reviewed block-delta patch; NIP-5D transport follows `c041f84`.
+Sandbox policy and equal publisher treatment remain unchanged. Provider keys stay
+outside frames; optional inference never becomes a playback requirement. This
+reference contains no VALUE amendment or paid CVM checkout changes.
+
 ## NIP-5D port-bound identity — 2026-11-02 source
 
 Not yet released or deployed. Authority for Transport, Identity and Security is now
