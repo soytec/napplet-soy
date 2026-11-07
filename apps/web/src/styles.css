@@ -1714,7 +1714,8 @@ pre:focus-visible {
 .host-prompt {
   position: absolute;
   z-index: 5;
-  inset: auto 1.5rem 1.5rem;
+  inset: 0;
+  width: min(34rem, calc(100vw - 32px));
   margin: auto;
   max-width: 34rem;
   padding: 1.5rem;
@@ -3644,4 +3645,31 @@ input::placeholder, textarea::placeholder { color: var(--muted-foreground); opac
 }
 .manage-network .community-form {
   max-width: 48rem;
+}
+
+/* Trusted shell UI is native top-layer content, including in browser fullscreen. */
+dialog[data-shell-dialog]::backdrop {
+  background: #0006;
+}
+dialog[data-shell-layer]::backdrop {
+  background: transparent;
+}
+.shell-notice[data-state='working'] > span:first-child {
+  animation: shell-progress 1.3s linear infinite;
+}
+.shell-notice[data-state='success'] > span:first-child {
+  color: var(--primary);
+}
+.shell-notice[data-state='error'] {
+  border-color: var(--destructive);
+}
+@keyframes shell-progress {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell-notice[data-state='working'] > span:first-child {
+    animation: none;
+  }
 }

@@ -52,7 +52,10 @@ test('shared CVM checkout: external QR, wallet approval, uncertainty and cancell
     await open(true, testInvoice(21, new Uint8Array(32).fill(8)));
     await page.getByRole('button', { name: 'Pay from wallet' }).click();
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
-    await page.getByText(/Payment is unconfirmed/).waitFor();
+    await page
+      .locator('dialog > p')
+      .filter({ hasText: /Payment is unconfirmed/ })
+      .waitFor();
     expect(await page.getByAltText('Lightning invoice QR').count()).toBe(0);
     expect(await page.getByRole('button', { name: 'Pay from wallet' }).isDisabled()).toBe(true);
     expect(await page.getByRole('button', { name: 'Copy invoice' }).isDisabled()).toBe(true);

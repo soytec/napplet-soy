@@ -1,3 +1,4 @@
+import { shellActivity } from './shell-ui';
 import { z } from 'zod';
 import { sha256 } from '../../protocol/src/artifact';
 import { downloadBytes, readBytes, resourceUrl } from '../../client/src/bytes';
@@ -123,6 +124,7 @@ export class NappletUploads {
     input: z.infer<typeof requestSchema>,
   ) {
     const signal = AbortSignal.any([this.options.signal, AbortSignal.timeout(300000)]);
+    let activity: ReturnType<typeof shellActivity> | undefined;
     try {
       signal.throwIfAborted();
       const approved = await this.options.consent(
@@ -134,6 +136,7 @@ export class NappletUploads {
         this.update(status, { status: 'cancelled', error: 'user cancelled' });
         return;
       }
+      activity = shellActivity('Uploading your approved file…', signal);
       const bytes = new Uint8Array(await blob.arrayBuffer());
       const hash = await sha256(bytes),
         now = Math.floor(Date.now() / 1000);
@@ -175,6 +178,7 @@ export class NappletUploads {
         url.hash
       )
         throw new Error('inconsistent upload descriptor');
+      activity.update('Checking the uploaded file…');
       this.update(status, { bytesSent: bytes.length });
       const stored = await downloadBytes(url.href, signal, MAX_BYTES, this.options.localServers);
       if (stored.length !== bytes.length || (await sha256(stored)) !== hash)
@@ -198,7 +202,13 @@ export class NappletUploads {
         mimeType: mime,
         nip94,
       });
+      activity.success('File uploaded and verified.');
     } catch (error) {
+      if (this.options.signal.aborted) activity?.dismiss();
+      else
+        (activity ?? shellActivity('File upload')).error(
+          'The upload could not complete. See the napplet for details.',
+        );
       this.update(status, {
         status: this.options.signal.aborted ? 'cancelled' : 'failed',
         error: signal.aborted

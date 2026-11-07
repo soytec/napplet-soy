@@ -1,3 +1,4 @@
+import { presentShellDialog } from './shell-ui';
 /** Trusted shell UI. Never render napplet/provider strings as HTML. */
 export function chooseCapability(
   title: string,
@@ -33,7 +34,9 @@ export function chooseCapability(
       option.textContent = item.label;
       select.append(option);
     }
+    let dispose = () => {};
     const finish = (id?: string) => {
+      dispose();
       signal.removeEventListener('abort', abort);
       dialog.remove();
       id ? resolve(id) : reject(new Error('user-cancelled'));
@@ -68,7 +71,7 @@ export function chooseCapability(
       });
     button('Cancel', () => finish());
     document.body.append(dialog);
-    dialog.showModal();
+    dispose = presentShellDialog(dialog);
     select.focus();
   });
 }

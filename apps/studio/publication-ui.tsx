@@ -1,3 +1,4 @@
+import { presentShellDialog } from '../../packages/runtime/src/shell-ui';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Check, ExternalLink, Send, X } from 'lucide-react';
 import type { EventTemplate, NostrEvent } from 'nostr-tools';
@@ -248,7 +249,7 @@ export function PublicationDialog({
     return () => clearTimeout(timer);
   }, [automaticChecks, busy, availabilityChecks, success?.jobId]);
   useEffect(() => {
-    dialog.current?.showModal();
+    if (dialog.current) return presentShellDialog(dialog.current);
   }, []);
   const startingPublication =
     busy && (p.publication?.progress?.step === 0 || attempt?.status === 'running');
@@ -301,7 +302,9 @@ export function PublicationDialog({
       aria-labelledby="publication-title"
       className="publication-dialog"
       onCancel={close}
-      onClose={close}
+      onClose={(event) => {
+        if (!event.currentTarget.open) close();
+      }}
     >
       <div className="publication-header">
         <div>

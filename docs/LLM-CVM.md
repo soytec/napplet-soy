@@ -90,7 +90,8 @@ automatic inference retries and arbitrary app-supplied endpoint/headers are
 not allowed.
 
 OpenAI-compatible providers, Anthropic Messages and Gemini GenerateContent remain
-supported. Explicit image/JSON capability declarations are required. Anthropic
+supported. Image support can be discovered from DeepSeek/OpenRouter model metadata
+and saved in connection settings; JSON/tool support still requires manual configuration. Anthropic
 JSON-object output remains unsupported by this adapter. Responses are buffered;
 the optional delta arrives at completion, not token by token. Input limits reject
 rather than truncate; inference has its existing 20-minute deadline and ephemeral

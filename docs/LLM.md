@@ -42,8 +42,13 @@ deltas. The binding/session tests exercise synthetic block streams.
 ## Connection, consent and lifecycle
 
 1. Configure a connection in shell settings or soyLI preview's **AI connections**
-   panel. Declare image, JSON and tool capabilities for that endpoint/model.
-   Changing models resets those declarations; changing any saved connection
+   panel. Fetching models fills image support from DeepSeek's `input_modalities`
+   or OpenRouter's `architecture.input_modalities`, when present. Review/save the
+   setting; manual overrides remain possible. Missing metadata leaves an existing
+   manual setting unchanged; a newly selected unknown model defaults to text.
+   JSON/tool capabilities still require manual declaration. Changing models resets
+   those declarations; image support follows the newly selected model's metadata.
+   Changing any saved connection
    rotates its revision and invalidates existing selections.
 2. Select a matching connection. Handles belong to one verified napplet endpoint
    and account, and expose only a label, model and human-readable route.
@@ -56,6 +61,17 @@ deltas. The binding/session tests exercise synthetic block streams.
 5. Cancel, account retirement, revocation and deadlines settle locally even if
    the provider ignores abort. Late output is suppressed. Nothing automatically
    retries an ambiguous operation; provider computation or charges may continue.
+
+Model catalogues are read only; fetching never changes a saved connection. For
+an existing connection, open **Edit**, wait for model discovery (or **Refresh
+models**), review the image checkbox and **Save connection**. Select the model
+again in the napplet after saving; old handles deliberately expire. Image support
+is a model property, independent of the current report's attachments.
+
+See [shell dialogs and feedback](SHELL-UI.md) for fullscreen presentation and
+connection/generation progress notices. Catalogue field references:
+[DeepSeek models](https://api-docs.deepseek.com/api/list-models/) and
+[OpenRouter models](https://openrouter.ai/docs/api/api-reference/models/list-all-models-and-their-properties).
 
 ## Provider support and explicit limits
 
@@ -85,7 +101,7 @@ Usage includes available cache/read/write and reasoning counts; it is not a bill
   primitive types, enum/const, annotations and numeric/string/array/object size
   constraints. References, composition, patterns and other valid unsupported
   keywords fail before submission. Schemas are never executed or remotely fetched.
-- Capability settings are user declarations intersected with adapter limits,
+- Saved capability settings (provider-discovered or manually declared) are intersected with adapter limits,
   not automatic model certification. Provider-specific live acceptance and
   independent-runtime acceptance remain unverified.
 

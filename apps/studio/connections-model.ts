@@ -55,5 +55,6 @@ export type Connection = Omit<ConnectionInput, 'id' | 'key'> & {
 };
 export type ConnectionState = { connections: Connection[]; selected?: string };
 export type ModelCatalogueInput = Pick<ConnectionInput, 'id' | 'provider' | 'endpoint' | 'key'>;
-export type InferenceModel = { id: string; name: string };
+/** Omitted capabilities are unknown, not unsupported. */
+export type InferenceModel = { id: string; name: string; images?: boolean };
 export type ModelCatalogue = { models: InferenceModel[]; truncated: boolean };

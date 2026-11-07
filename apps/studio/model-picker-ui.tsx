@@ -10,13 +10,15 @@ export function ModelPicker({
   api,
   value,
   onChange,
+  onDetected,
   disabled,
   autoLoad = false,
 }: {
   source: ModelCatalogueInput;
   api: Api;
   value: string;
-  onChange: (id: string) => void;
+  onChange: (id: string, images?: boolean) => void;
+  onDetected?: (model: string, images: boolean) => void;
   disabled: boolean;
   autoLoad?: boolean;
 }) {
@@ -27,13 +29,20 @@ export function ModelPicker({
   const [search, setSearch] = useState('');
   const [manual, setManual] = useState(false);
   const request = useRef(0);
+  const selected = useRef({ value, onDetected });
+  selected.current = { value, onDetected };
   const load = async () => {
     const current = ++request.current;
     setLoading(true);
     setError('');
     try {
       const next = await api<ModelCatalogue>('connections/models', source);
-      if (current === request.current) setCatalogue(next);
+      if (current === request.current) {
+        setCatalogue(next);
+        const { value, onDetected } = selected.current;
+        const detected = next.models.find((m) => m.id === value);
+        if (detected?.images !== undefined) onDetected?.(value, detected.images);
+      }
     } catch (e) {
       if (current === request.current) setError((e as Error).message);
     } finally {
@@ -92,7 +101,8 @@ export function ModelPicker({
         onChange={(e) => {
           const custom = e.target.value === '__manual';
           setManual(custom);
-          if (!custom) onChange(e.target.value);
+          if (!custom)
+            onChange(e.target.value, models.find((m) => m.id === e.target.value)?.images);
         }}
       >
         <option value="" disabled>
@@ -107,6 +117,7 @@ export function ModelPicker({
         {shown.map((m) => (
           <option key={m.id} value={m.id}>
             {m.name === m.id ? m.id : `${m.name} · ${m.id}`}
+            {m.images === true ? ' · Images' : ''}
           </option>
         ))}
         <option value="__manual">Enter a model ID manually…</option>
@@ -158,6 +169,7 @@ export function QuickModelChoice({
   const c = state?.connections.find((c) => c.id === state.selected);
   const [open, setOpen] = useState(false);
   const [model, setModel] = useState('');
+  const [images, setImages] = useState<boolean>();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const root = useRef<HTMLDivElement>(null);
@@ -188,6 +200,7 @@ export function QuickModelChoice({
   }, [open, c?.id]);
   useEffect(() => {
     setModel(c?.model ?? '');
+    setImages(undefined);
     setError('');
   }, [c?.id, c?.revision, open]);
   useEffect(() => {
@@ -213,7 +226,7 @@ export function QuickModelChoice({
     setPending(true);
     setError('');
     try {
-      await api('connections/model', { id: c.id, revision: c.revision, model });
+      await api('connections/model', { id: c.id, revision: c.revision, model, images });
       await refresh();
       setOpen(false);
       trigger.current?.focus();
@@ -257,7 +270,10 @@ export function QuickModelChoice({
             source={{ id: c.id, provider: c.provider, endpoint: c.endpoint }}
             api={api}
             value={model}
-            onChange={setModel}
+            onChange={(model, images) => {
+              setModel(model);
+              setImages(images);
+            }}
             disabled={disabled || pending}
             autoLoad
           />

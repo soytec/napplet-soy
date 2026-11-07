@@ -1,3 +1,4 @@
+import { presentShellDialog } from './shell-ui';
 import { IntentWorkspace, type IntentAvailability, type IntentRequest } from './intent-session';
 
 /** Host-owned dialog: selection and defaults never come from the napplet frame. */
@@ -13,8 +14,9 @@ export function chooseIntentHandler(
     const explanation = document.createElement('p');
     explanation.textContent = `Choose a napplet for ${request.action}.`;
     const controls = document.createElement('div');
+    let dispose = () => {};
     const finish = (id: string | null) => {
-      dialog.close();
+      dispose();
       dialog.remove();
       resolve(id);
     };
@@ -35,7 +37,7 @@ export function chooseIntentHandler(
     };
     dialog.append(title, explanation, controls, cancel);
     document.body.append(dialog);
-    dialog.showModal();
+    dispose = presentShellDialog(dialog);
     cancel.focus();
   });
 }

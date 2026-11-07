@@ -1,3 +1,4 @@
+import { presentShellDialog, shellActivity } from './shell-ui';
 import QRCode from 'qrcode';
 import type { CvmCheckout } from './cvm-payment';
 import {
@@ -55,12 +56,16 @@ export function cvmCheckout(
       dialog.append(invoice);
       const status = text('p', 'Scan or copy the invoice to use another wallet.');
       status.setAttribute('role', 'status');
+      let dispose = () => {};
+      let activity: ReturnType<typeof shellActivity> | undefined;
       let finished = false,
         busy = false;
       const finish = (error?: Error) => {
         if (finished) return;
         finished = true;
         offer.signal.removeEventListener('abort', abort);
+        activity?.dismiss();
+        dispose();
         dialog.remove();
         error ? reject(error) : resolve();
       };
@@ -107,18 +112,24 @@ export function cvmCheckout(
           pay.disabled = true;
           copy.disabled = true;
           external.disabled = true;
-          dialog.close();
+          dispose();
+          activity = shellActivity('Preparing your wallet payment…');
           const journal = new InvoicePaymentSession(
             scope,
             localStorage,
             backend,
             offer.signal,
-            async (message) =>
-              (await chooseCapability(
-                message,
-                [{ id: 'approve', label: 'Approve this payment' }],
-                offer.signal,
-              )) === 'approve',
+            async (message) => {
+              activity?.update('Review the payment in the shell dialog.');
+              const approved =
+                (await chooseCapability(
+                  message,
+                  [{ id: 'approve', label: 'Approve this payment' }],
+                  offer.signal,
+                )) === 'approve';
+              activity?.update('Submitting your approved wallet payment…');
+              return approved;
+            },
             () => {},
             async (work) => {
               if (!navigator.locks) throw new Error('Wallet requires Web Locks.');
@@ -138,6 +149,8 @@ export function cvmCheckout(
               },
             })) as { result: InvoicePaymentTransfer };
             if (result.result.status === 'settled') {
+              activity?.success('Wallet payment confirmed.');
+              activity = undefined;
               finish();
               return;
             }
@@ -146,8 +159,10 @@ export function cvmCheckout(
               pay.disabled = false;
               copy.disabled = false;
               external.disabled = false;
+              activity?.dismiss();
               status.textContent = 'Payment cancelled.';
             } else {
+              activity?.error('Payment is unconfirmed. Check wallet activity before paying again.');
               image.remove();
               invoice.remove();
               status.textContent =
@@ -156,6 +171,9 @@ export function cvmCheckout(
               external.disabled = false;
             }
           } catch {
+            activity?.error(
+              'Payment could not be confirmed. Check wallet activity before paying again.',
+            );
             image.remove();
             invoice.remove();
             status.textContent =
@@ -163,7 +181,7 @@ export function cvmCheckout(
             external.textContent = 'Return to service';
             external.disabled = false;
           }
-          if (!finished && !offer.signal.aborted) dialog.showModal();
+          if (!finished && !offer.signal.aborted) dispose = presentShellDialog(dialog);
         });
       }
       button('Close', () =>
@@ -175,7 +193,7 @@ export function cvmCheckout(
       });
       offer.signal.addEventListener('abort', abort, { once: true });
       document.body.append(dialog);
-      dialog.showModal();
+      dispose = presentShellDialog(dialog);
     });
   };
 }
