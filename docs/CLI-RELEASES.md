@@ -5,6 +5,21 @@ The current published version is **0.32.0**. The repository has transferred to
 [`soytec/napplet-soy`](https://github.com/soytec/napplet-soy), including its history,
 issues, pull requests and releases.
 
+**0.32.1 — release candidate; not yet published**
+
+When controller support is implemented, creator guidance now covers the entire
+napplet: menus, settings, gameplay, pause/resume, restart, results and back
+navigation. It calls for visible focus, predictable confirm/back actions, input
+isolation between screens and a controller-only acceptance walkthrough. Controller
+support remains optional, and checks must distinguish simulated input from actual
+hardware testing.
+
+The generated project instructions and bundled controller guide include this
+policy. Existing projects can receive the managed guidance with `soyli skills
+update` after upgrading; review reported conflicts so creator edits are preserved.
+The same source is merged into the extracted soyLI repository. This patch keeps
+the existing `soytec/napplet-soy` binary release and update channel.
+
 **0.32.0 — standard media and preview compatibility**
 
 Fresh publications use the selected NIP-5D proposal's `screenshot` and `preview`
@@ -63,9 +78,8 @@ Merged creator-guidance follow-ups
 ([shell PR #54](https://github.com/soytec/napplet-soy/pull/54),
 [standalone PR #2](https://github.com/soytec/soyli/pull/2)) require complete napplet
 navigation when controller support is chosen; controller support remains optional.
-These source changes are for a future CLI release. They are not included in the
-immutable 0.32.0 binaries or their bundled guides, or the currently deployed
-application and worker.
+These source changes are included in the 0.32.1 release candidate above. They are
+not part of the immutable 0.32.0 binaries or their bundled guides.
 
 **0.31.4 — compliance corrections**
 
