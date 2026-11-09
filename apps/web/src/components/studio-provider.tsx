@@ -1,3 +1,4 @@
+import { shellActivity } from '../../../../packages/runtime/src/shell-ui';
 import {
   createContext,
   lazy,
@@ -15,6 +16,14 @@ import { useBrowserBuild, type BrowserBuildController } from '../../../studio/br
 
 import { useNostr } from './nostr-provider';
 import { browserIdentity } from '@/lib/browser-identity';
+
+function OpeningConnections() {
+  useEffect(() => {
+    const activity = shellActivity('Opening AI connection settings…');
+    return activity.dismiss;
+  }, []);
+  return null;
+}
 
 const StudioConnections = lazy(() => import('./studio-connections'));
 const StudioContext = createContext<{
@@ -105,13 +114,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     >
       {children}
       {open && client && (
-        <Suspense
-          fallback={
-            <p className="studio-settings-loading" role="status">
-              Opening AI connections…
-            </p>
-          }
-        >
+        <Suspense fallback={<OpeningConnections />}>
           <StudioConnections client={client} close={close} />
         </Suspense>
       )}

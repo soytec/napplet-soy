@@ -43,7 +43,7 @@ const catalogueInput = connectionInput.pick({
   key: true,
 });
 const modelInput = connectionInput
-  .pick({ id: true, model: true })
+  .pick({ id: true, model: true, images: true })
   .extend({ id: z.uuid(), revision: z.uuid() });
 
 const savedConnection = connectionInput
@@ -224,7 +224,7 @@ export class Connections {
   async setModel(value: unknown) {
     const parsed = modelInput.safeParse(value);
     if (!parsed.success) throw fail('Choose a connection and a valid model ID.');
-    const { id, model, revision } = parsed.data;
+    const { id, model, revision, images } = parsed.data;
     const c = this.data.connections.find((c) => c.id === id);
     if (!c) throw fail('Connection not found.');
     if (c.revision !== revision)
@@ -237,7 +237,7 @@ export class Connections {
             ? {
                 ...v,
                 model,
-                images: false,
+                images: images ?? false,
                 json: false,
                 tools: false,
                 toolChoiceModes: [],

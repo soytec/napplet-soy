@@ -86,7 +86,20 @@ export async function fetchModelCatalogue(c: ModelCatalogueInput): Promise<Model
         truncated = true;
         break;
       }
-      models.set(id, { id, name });
+      // Only use documented metadata; names such as "vision" are not evidence.
+      const modalities =
+        c.provider === 'deepseek'
+          ? row.input_modalities
+          : c.provider === 'openrouter'
+            ? row.architecture?.input_modalities
+            : undefined;
+      const images =
+        Array.isArray(modalities) &&
+        modalities.length > 0 &&
+        modalities.every((m: unknown) => typeof m === 'string')
+          ? { images: modalities.includes('image') }
+          : {};
+      models.set(id, { id, name, ...images });
     }
     const next =
       c.provider === 'google'

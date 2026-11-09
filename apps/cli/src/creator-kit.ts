@@ -249,9 +249,11 @@ saved release destinations. Keep the publication journal to preserve that histor
 Publishing automatically captures a 1200 × 750 PNG from the sandbox when no
 preview.image is selected, using preview.delayMs (1500 by default, 250–10000).
 It uploads the PNG to the selected Blossom server and signs its hash/MIME in the
-napplet manifest. The optional soy.presentation/1 convention uses presentation,
-screenshot and preview tags; these are not established NIP-5D fields. Clients that
-ignore them can still play the same napplet. No new Zapstore event is generated.
+napplet manifest. Fresh publications use the selected NIP-5D proposal's screenshot
+and preview key/value fields: x is the media hash, m the optional MIME, with size
+and video dimensions/duration when known. No presentation marker is required.
+Older soy.presentation/1 events remain readable; clients ignoring optional media
+can still play the same napplet. No new Zapstore event is generated.
 This fallback prevents accidental
 imageless releases; an inspected screenshot is still the preferred finishing step.
 For an interactive scene needing a start click, take a representative PNG during

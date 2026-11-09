@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { asapScheduler, subscribeOn, Subscription, type Observable } from 'rxjs';
+import { asapScheduler, subscribeOn, type Observable } from 'rxjs';
 import { use$ } from 'applesauce-react/hooks';
 import { Link } from '@tanstack/react-router';
 import { Heart, MessageCircle, Zap, ChevronLeft, ChevronRight, LockKeyhole } from 'lucide-react';
@@ -32,8 +32,10 @@ import { publicLink, type PublicNapplet } from '../../../../packages/backend/src
 import { protocolClient } from '@/lib/network';
 import { readLikeState } from '../../../../packages/client/src/social';
 import { useZapTotals, zapTotalsStore } from '@/lib/zap-totals';
+import { useCountRankings, type Rankings } from '@/lib/use-count-rankings';
+import { rankingNotice } from '@/lib/count-rankings';
+export { useCountRankings } from '@/lib/use-count-rankings';
 
-type Rankings = Record<'liked' | 'commented', PublicNapplet[]> & { loading: boolean };
 const Context = createContext<{
   data: GalleryZapData | null;
   rankings: Rankings;
@@ -378,8 +380,15 @@ export function SocialRankings({
           loading={
             kind === 'zapped'
               ? (!social?.data && !social?.error) || !!social?.data?.refreshing
-              : (social?.rankings.loading ?? true)
+              : (social?.rankings.status[kind] ?? 'loading') === 'loading'
           }
+          notice={
+            kind === 'zapped'
+              ? ''
+              : social?.rankings.retryError ||
+                rankingNotice(social?.rankings.status[kind] ?? 'loading')
+          }
+          retry={kind === 'zapped' ? undefined : social?.rankings.retry}
           active={active}
           setActive={setActive}
         />
@@ -392,12 +401,16 @@ function SocialRail({
   kind,
   entries,
   loading,
+  notice,
+  retry,
   active,
   setActive,
 }: {
   kind: 'liked' | 'zapped' | 'commented';
   entries: PublicNapplet[];
   loading: boolean;
+  notice: string;
+  retry?: () => void;
   active: string | null;
   setActive: (id: string | null) => void;
 }) {
@@ -456,6 +469,11 @@ function SocialRail({
           </Button>
         </div>
       </div>
+      {notice && (
+        <p className="rail-empty" role="status">
+          {notice} <button onClick={retry}>Retry counts</button>
+        </p>
+      )}
       {entries.length ? (
         <div
           ref={rail}
@@ -479,13 +497,13 @@ function SocialRail({
             );
           })}
         </div>
-      ) : (
+      ) : !notice ? (
         <p className="rail-empty">
           {loading
             ? 'Finding the conversation…'
             : `No ${kind === 'zapped' ? 'verified zaps' : kind === 'liked' ? 'likes' : 'comments'} found for this collection yet.`}
         </p>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -509,58 +527,4 @@ function useNappletCounts(napplet: PublicNapplet) {
     ...(likes?.value !== undefined ? { likeCount: likes.value } : {}),
     ...(comments?.value !== undefined ? { commentCount: comments.value } : {}),
   };
-}
-
-/** Rank a gallery by COUNT answers; cards observing the same metrics share each request. */
-function useCountRankings(entries: PublicNapplet[] | null): Rankings {
-  const [rankings, setRankings] = useState<Rankings>({ liked: [], commented: [], loading: true });
-  const key = entries?.map((n) => n.revisionId).join(',');
-  useEffect(() => {
-    const counts = socialCounts();
-    if (!counts || !entries) return;
-    const values = new Map<string, { likes?: number; comments?: number }>();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const rank = (field: 'likes' | 'comments') =>
-      entries
-        .filter((n) => (values.get(n.revisionId)?.[field] ?? 0) > 0)
-        .sort(
-          (a, b) =>
-            values.get(b.revisionId)![field]! - values.get(a.revisionId)![field]! ||
-            b.manifest.created_at - a.manifest.created_at ||
-            a.revisionId.localeCompare(b.revisionId),
-        )
-        .slice(0, 12);
-    const publish = () => {
-      timer = undefined;
-      setRankings({
-        liked: rank('likes'),
-        commented: rank('comments'),
-        loading: entries.some((n) => {
-          const v = values.get(n.revisionId);
-          return v?.likes === undefined || v.comments === undefined;
-        }),
-      });
-    };
-    const subscriptions = new Subscription();
-    for (const n of entries) {
-      const handle = counts.event(countTarget(n.manifest));
-      for (const [field, metric] of [
-        ['likes', handle.metric(likesMetric)],
-        ['comments', handle.comments],
-      ] as const)
-        subscriptions.add(
-          metric.subscribe((state) => {
-            values.set(n.revisionId, { ...values.get(n.revisionId), [field]: state.value });
-            // Coalesce hundreds of answers into a few renders.
-            timer ??= setTimeout(publish, 100);
-          }),
-        );
-    }
-    publish();
-    return () => {
-      clearTimeout(timer);
-      subscriptions.unsubscribe();
-    };
-  }, [key]);
-  return rankings;
 }

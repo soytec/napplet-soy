@@ -116,6 +116,27 @@ test('direct manifest previews verify declared fallback bytes, take precedence o
   }
 });
 
+test('a wrong first MIME claim does not suppress a usable screenshot with the same hash', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'same-hash-mime-'));
+  try {
+    const event = manifest(
+      [
+        ['screenshot', `x ${imageHash}`, 'm image/jpeg'],
+        ['screenshot', `x ${imageHash}`, 'm image/png'],
+      ],
+      tags.filter((tag) => !['presentation', 'screenshot', 'preview'].includes(tag[0])),
+    );
+    const entry = await publicNapplet(event);
+    await indexPreviewImages(directory, [entry], [], AbortSignal.timeout(3000), {
+      download: async () => image,
+    });
+    expect(entry.preview?.descriptor.id).toBe(event.id);
+    expect(await cachedPreviewBytes(directory, entry.preview!)).not.toBeNull();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('malformed optional media, unsupported profiles and origins never affect artifact validation', async () => {
   for (const event of [
     manifest([['presentation', MANIFEST_PRESENTATION_PROFILE]]),
@@ -145,6 +166,33 @@ test('malformed optional media, unsupported profiles and origins never affect ar
   expect(manifestScreenshotSources(origins)).toEqual([]);
   expect(manifestVideoSources(origins)).toEqual([]);
   expect(manifestVideoSources(manifest([['preview', videoHash, 'video/webm']]))).toEqual([]);
+});
+
+test('indexed screenshots infer optional MIME fields from verified raster bytes', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'direct-media-inferred-'));
+  try {
+    for (const [index, fields] of [[], ['m'], ['m image/png', 'm image/jpeg']].entries()) {
+      const event = manifest(
+        [],
+        [
+          ['d', `optional-mime-${index}`],
+          ['x', 'a'.repeat(64)],
+          ['server', 'https://image.example'],
+          ['screenshot', `x ${imageHash}`, ...fields],
+        ],
+      );
+      const entry = await publicNapplet(event);
+      await indexPreviewImages(directory, [entry], [], AbortSignal.timeout(3000), {
+        download: async () => image,
+      });
+      expect(validatedPreview(event, entry.preview)).not.toBeNull();
+      expect(await cachedPreviewBytes(directory, entry.preview!)).not.toBeNull();
+      expect(publicPoster(entry)).toBe(`/api/previews/${event.id}`);
+      expect(entry.artifactHash).toBe('a'.repeat(64));
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('wrong MIME, damaged optional bytes and removed attachments fall back without resurrecting old cached media', async () => {

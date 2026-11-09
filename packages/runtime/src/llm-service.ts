@@ -1,3 +1,4 @@
+import { shellActivity } from './shell-ui';
 import { inferenceCapabilities } from './inference-capabilities';
 import { chooseCapability } from './capability-dialog';
 import type { LlmModel, LlmService, Generation } from './llm-contract';
@@ -31,24 +32,40 @@ export function inferenceService(
   });
   return {
     async select(requirements, signal) {
-      const list = (await connections()).filter(
-        (c) =>
-          (!requirements.images || c.images) &&
-          (!requirements.json || model(c).json) &&
-          (!requirements.tools || model(c).tools) &&
-          (!requirements.model || requirements.model === c.model),
-      );
       signal.throwIfAborted();
-      const id = await chooseCapability(
-        'Choose a model for this napplet',
-        list.map((c) => ({
-          id: c.id,
-          label: `${c.name} · ${c.model} · ${new URL(c.endpoint).hostname}`,
-        })),
+      const activity = shellActivity(
+        'Loading your AI connections… Approve the account request if asked.',
         signal,
-        configure,
       );
-      return model(list.find((c) => c.id === id)!);
+      try {
+        const list = (await connections()).filter(
+          (c) =>
+            (!requirements.images || c.images) &&
+            (!requirements.json || model(c).json) &&
+            (!requirements.tools || model(c).tools) &&
+            (!requirements.model || requirements.model === c.model),
+        );
+        signal.throwIfAborted();
+        activity.update('Choose a model in the shell dialog.');
+        const id = await chooseCapability(
+          'Choose a model for this napplet',
+          list.map((c) => ({
+            id: c.id,
+            label: `${c.name} · ${c.model} · ${new URL(c.endpoint).hostname}`,
+          })),
+          signal,
+          configure,
+        );
+        activity.success('AI connection ready.');
+        return model(list.find((c) => c.id === id)!);
+      } catch (error) {
+        if (signal.aborted || (error as Error).message === 'user-cancelled') activity.dismiss();
+        else
+          activity.error(
+            'Could not load AI connections. Check your account and connection settings.',
+          );
+        throw error;
+      }
     },
     async describe(handle) {
       const c = (await connections()).find((c) => `${c.id}:${c.revision}` === handle);
@@ -57,29 +74,38 @@ export function inferenceService(
     },
     async generate(request, signal) {
       signal.throwIfAborted();
-      const boundApi = capture?.() ?? api;
-      const { id } = await boundApi<{ id: string }>('connections/llm-start', request);
-      const cancel = () => {
-        void boundApi('connections/llm-cancel', { id }).catch(() => {});
-      };
-      signal.addEventListener('abort', cancel, { once: true });
-      if (signal.aborted) cancel();
+      const activity = shellActivity('Sending your approved request to the AI provider…', signal);
       try {
-        for (;;) {
-          signal.throwIfAborted();
-          const state = await boundApi<{ result?: Generation; error?: string }>(
-            'connections/llm-read',
-            { id },
-          );
-          signal.throwIfAborted();
-          if (state.error) throw new Error(state.error);
-          if (state.result) {
-            return state.result;
+        const boundApi = capture?.() ?? api;
+        const { id } = await boundApi<{ id: string }>('connections/llm-start', request);
+        activity.update('The AI provider is preparing a response…');
+        const cancel = () => {
+          void boundApi('connections/llm-cancel', { id }).catch(() => {});
+        };
+        signal.addEventListener('abort', cancel, { once: true });
+        if (signal.aborted) cancel();
+        try {
+          for (;;) {
+            signal.throwIfAborted();
+            const state = await boundApi<{ result?: Generation; error?: string }>(
+              'connections/llm-read',
+              { id },
+            );
+            signal.throwIfAborted();
+            if (state.error) throw new Error(state.error);
+            if (state.result) {
+              activity.success('AI response received.');
+              return state.result;
+            }
+            await new Promise<void>((resolve) => setTimeout(resolve, 1000));
           }
-          await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+        } finally {
+          signal.removeEventListener('abort', cancel);
         }
-      } finally {
-        signal.removeEventListener('abort', cancel);
+      } catch (error) {
+        if (signal.aborted) activity.dismiss();
+        else activity.error('The AI request could not complete. See the napplet for details.');
+        throw error;
       }
     },
   };

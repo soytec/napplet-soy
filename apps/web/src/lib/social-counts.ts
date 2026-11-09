@@ -1,10 +1,12 @@
-import { RelayPool } from 'applesauce-relay';
+import { Relay, RelayPool } from 'applesauce-relay';
 import { createCountService, type CountCache, type CountService } from 'applesauce-loaders/loaders';
 import { BehaviorSubject } from 'rxjs';
 import { firstCountRelay } from '../../../../packages/client/src/social-counts';
 import { network } from './network';
 
 const remembered = 'napplet:count-relay';
+export type CountAvailability = 'discovering' | 'available' | 'unavailable';
+export const socialCountAvailability = new BehaviorSubject<CountAvailability>('discovering');
 
 /** Answers survive reloads so returning visitors see counts before any relay answers. */
 function browserCountCache(): CountCache | undefined {
@@ -46,17 +48,30 @@ function countRelays(pool: RelayPool) {
     last = localStorage.getItem(remembered);
   } catch {}
   const selected = new BehaviorSubject<string[]>(last && relays.includes(last) ? [last] : []);
-  void firstCountRelay(relays, (url) => pool.relay(url).getSupported()).then((relay) => {
-    if (relay !== selected.value[0]) selected.next(relay ? [relay] : []);
-    try {
-      if (relay) localStorage.setItem(remembered, relay);
-      else localStorage.removeItem(remembered);
-    } catch {}
-  });
+  let checking: Promise<void> | undefined;
+  refreshRelays = (fresh = true) =>
+    (checking ??= (async () => {
+      socialCountAvailability.next('discovering');
+      const relay = await firstCountRelay(network().relays, (url) =>
+        fresh
+          ? Relay.fetchInformationDocument(url).then((info) => info?.supported_nips ?? null)
+          : pool.relay(url).getSupported(),
+      );
+      if (relay !== selected.value[0]) selected.next(relay ? [relay] : []);
+      socialCountAvailability.next(relay ? 'available' : 'unavailable');
+      try {
+        if (relay) localStorage.setItem(remembered, relay);
+        else localStorage.removeItem(remembered);
+      } catch {}
+    })().finally(() => {
+      checking = undefined;
+    }));
+  void refreshRelays(false);
   return selected;
 }
 
 let service: CountService | undefined;
+let refreshRelays: (fresh?: boolean) => Promise<void> = async () => {};
 /** One browser-wide count service; cards and rankings share each metric's request. */
 export function socialCounts() {
   if (typeof window === 'undefined') return undefined;
@@ -65,4 +80,11 @@ export function socialCounts() {
     service = createCountService(pool, { relays: countRelays(pool), cache: browserCountCache() });
   }
   return service;
+}
+
+/** An explicit retry rechecks support as well as failed COUNT requests; it never invents zeroes. */
+export async function retrySocialCounts() {
+  const counts = socialCounts();
+  await refreshRelays();
+  await counts?.invalidate();
 }

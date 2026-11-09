@@ -16,6 +16,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as CliRouteImport } from './routes/cli'
 import { Route as CreateRouteImport } from './routes/create'
 import { Route as DocsRouteImport } from './routes/docs'
+import { Route as GgRouteImport } from './routes/gg'
 import { Route as ManageRouteImport } from './routes/manage'
 import { Route as NetworkRouteImport } from './routes/network'
 import { Route as StudioRouteImport } from './routes/studio'
@@ -79,6 +80,11 @@ const CreateRoute = CreateRouteImport.update({
 const DocsRoute = DocsRouteImport.update({
   id: '/docs',
   path: '/docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GgRoute = GgRouteImport.update({
+  id: '/gg',
+  path: '/gg',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ManageRoute = ManageRouteImport.update({
@@ -236,6 +242,7 @@ export interface FileRoutesByFullPath {
   '/cli': typeof CliRouteWithChildren
   '/create': typeof CreateRoute
   '/docs': typeof DocsRoute
+  '/gg': typeof GgRoute
   '/manage': typeof ManageRoute
   '/network': typeof NetworkRoute
   '/studio': typeof StudioRouteWithChildren
@@ -274,6 +281,7 @@ export interface FileRoutesByTo {
   '/cli': typeof CliRouteWithChildren
   '/create': typeof CreateRoute
   '/docs': typeof DocsRoute
+  '/gg': typeof GgRoute
   '/manage': typeof ManageRoute
   '/network': typeof NetworkRoute
   '/studio-connect': typeof StudioConnectRoute
@@ -312,6 +320,7 @@ export interface FileRoutesById {
   '/cli': typeof CliRouteWithChildren
   '/create': typeof CreateRoute
   '/docs': typeof DocsRoute
+  '/gg': typeof GgRoute
   '/manage': typeof ManageRoute
   '/network': typeof NetworkRoute
   '/studio': typeof StudioRouteWithChildren
@@ -352,6 +361,7 @@ export interface FileRouteTypes {
     | '/cli'
     | '/create'
     | '/docs'
+    | '/gg'
     | '/manage'
     | '/network'
     | '/studio'
@@ -390,6 +400,7 @@ export interface FileRouteTypes {
     | '/cli'
     | '/create'
     | '/docs'
+    | '/gg'
     | '/manage'
     | '/network'
     | '/studio-connect'
@@ -427,6 +438,7 @@ export interface FileRouteTypes {
     | '/cli'
     | '/create'
     | '/docs'
+    | '/gg'
     | '/manage'
     | '/network'
     | '/studio'
@@ -466,6 +478,7 @@ export interface RootRouteChildren {
   CliRoute: typeof CliRouteWithChildren
   CreateRoute: typeof CreateRoute
   DocsRoute: typeof DocsRoute
+  GgRoute: typeof GgRoute
   ManageRoute: typeof ManageRoute
   NetworkRoute: typeof NetworkRoute
   StudioRoute: typeof StudioRouteWithChildren
@@ -536,6 +549,13 @@ declare module '@tanstack/react-router' {
       path: '/docs'
       fullPath: '/docs'
       preLoaderRoute: typeof DocsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gg': {
+      id: '/gg'
+      path: '/gg'
+      fullPath: '/gg'
+      preLoaderRoute: typeof GgRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/manage': {
@@ -837,6 +857,7 @@ const rootRouteChildren: RootRouteChildren = {
   CliRoute: CliRouteWithChildren,
   CreateRoute: CreateRoute,
   DocsRoute: DocsRoute,
+  GgRoute: GgRoute,
   ManageRoute: ManageRoute,
   NetworkRoute: NetworkRoute,
   StudioRoute: StudioRouteWithChildren,

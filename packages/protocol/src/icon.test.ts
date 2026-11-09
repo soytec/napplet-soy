@@ -25,13 +25,40 @@ test('PNG, JPEG and all common WebP headers bound dimensions before decoding', a
     expect(iconDimensions(bytes)).toEqual({ width: 21, height: 13 });
     expect(
       await verifyIconBytes(bytes, { hash: await sha256(bytes), mime: iconMime(bytes)! }),
-    ).toEqual({ width: 21, height: 13 });
+    ).toEqual({ width: 21, height: 13, mime: iconMime(bytes)! });
     await expect(
       verifyIconBytes(bytes, { hash: '0'.repeat(64), mime: iconMime(bytes)! }),
     ).rejects.toThrow('Invalid manifest icon bytes');
     for (const end of [0, 3, 8, 12])
       expect(() => iconDimensions(bytes.subarray(0, end))).toThrow('dimensions');
   }
+});
+
+test('hash-addressed screenshots infer supported format but keep declared MIME and digest binding', async () => {
+  for (const bytes of [
+    await image().png().toBuffer(),
+    await image().jpeg().toBuffer(),
+    await image().webp().toBuffer(),
+  ]) {
+    const hash = await sha256(bytes);
+    expect(await verifyIconBytes(bytes, { hash, mime: null })).toEqual({
+      width: 21,
+      height: 13,
+      mime: iconMime(bytes)!,
+    });
+    await expect(verifyIconBytes(bytes, { hash: '0'.repeat(64), mime: null })).rejects.toThrow();
+    await expect(verifyIconBytes(bytes, { hash, mime: 'image/svg+xml' })).rejects.toThrow();
+    const mismatch = iconMime(bytes) === 'image/png' ? 'image/jpeg' : 'image/png';
+    await expect(verifyIconBytes(bytes, { hash, mime: mismatch })).rejects.toThrow();
+  }
+  for (const bytes of [
+    await image().gif().toBuffer(),
+    new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"></svg>'),
+    new TextEncoder().encode('<html>not an image</html>'),
+  ])
+    await expect(
+      verifyIconBytes(bytes, { hash: await sha256(bytes), mime: null }),
+    ).rejects.toThrow();
 });
 
 test('oversized signed PNG dimensions and malformed chunk lengths fail before image decode', async () => {

@@ -1,3 +1,4 @@
+import { presentShellDialog } from '../../packages/runtime/src/shell-ui';
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Plus, X } from 'lucide-react';
 import { ModelPicker } from './model-picker-ui';
@@ -50,7 +51,7 @@ export function ConnectionsDialog({
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   useEffect(() => {
-    dialog.current?.showModal();
+    if (dialog.current) return presentShellDialog(dialog.current);
   }, []);
   const perform = async (action: string, body: unknown) => {
     setPending(true);
@@ -100,7 +101,9 @@ export function ConnectionsDialog({
       className="connections-dialog"
       aria-label="AI connections"
       onCancel={close}
-      onClose={close}
+      onClose={(event) => {
+        if (!event.currentTarget.open) close();
+      }}
     >
       <div className="settings-heading">
         <div>
@@ -145,6 +148,10 @@ export function ConnectionsDialog({
               <small>
                 {new URL(c.endpoint).host} · {c.hasKey ? 'Key saved' : 'No API key'} · {c.steps}{' '}
                 steps per turn
+              </small>
+              <small>
+                {c.images ? 'Images enabled' : 'Text input'}
+                {c.json ? ' · JSON output' : ''}
               </small>
             </div>
             <div className="connection-buttons">
@@ -292,15 +299,18 @@ export function ConnectionsDialog({
             }}
             api={api}
             value={form.model}
-            onChange={(model) =>
+            onChange={(model, images) =>
               setForm({
                 ...form,
                 model,
-                images: false,
+                images: images ?? false,
                 json: false,
                 tools: false,
                 toolChoiceModes: [],
               })
+            }
+            onDetected={(model, images) =>
+              setForm((current) => (current.model === model ? { ...current, images } : current))
             }
             disabled={busy || pending}
             autoLoad={
@@ -360,8 +370,8 @@ export function ConnectionsDialog({
               </label>
             ))}
           <p>
-            These capabilities allow napplets to select this connection. Enable only what your
-            chosen model supports.
+            Image support is filled from the provider’s model catalogue when available. You can
+            override it here; save to apply it to napplets. JSON and tool support remain manual.
           </p>
           <p className="settings-hint">
             Higher step limits can cost more.{' '}

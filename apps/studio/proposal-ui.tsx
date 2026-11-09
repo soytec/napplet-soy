@@ -1,3 +1,4 @@
+import { presentShellDialog } from '../../packages/runtime/src/shell-ui';
 import React, { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { nip19 } from 'nostr-tools';
@@ -31,7 +32,7 @@ export function ProposalDialog({
       ? p.proposal.attempt.result
       : undefined;
   useEffect(() => {
-    dialog.current?.showModal();
+    if (dialog.current) return presentShellDialog(dialog.current);
   }, []);
   useEffect(() => {
     setConfirmed(false);
@@ -59,7 +60,9 @@ export function ProposalDialog({
       ref={dialog}
       className="publication-dialog"
       aria-labelledby="proposal-title"
-      onClose={close}
+      onClose={(event) => {
+        if (!event.currentTarget.open) close();
+      }}
       onCancel={close}
     >
       <div className="publication-header">

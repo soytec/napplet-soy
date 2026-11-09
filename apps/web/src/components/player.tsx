@@ -1,3 +1,4 @@
+import { presentShellDialog } from '../../../../packages/runtime/src/shell-ui';
 import { useWallet } from './wallet/wallet-provider';
 import { cvmWalletPayments } from '@/lib/cvm-wallet-payments';
 import { useStudio } from './studio-provider';
@@ -109,8 +110,11 @@ export function Player({
   const declaration = useRef<ReturnType<typeof declaredConfig>>({});
   const host = useRef<ReturnType<typeof attachNappletHost> | undefined>(undefined);
   const currentPubkey = useRef(pubkey);
-  const focusPrompt = useCallback((node: HTMLDivElement | null) => {
-    node?.querySelector<HTMLButtonElement>('button')?.focus();
+  const focusPrompt = useCallback((node: HTMLDialogElement | null) => {
+    if (!node) return;
+    const dispose = presentShellDialog(node);
+    node.querySelector<HTMLButtonElement>('button')?.focus();
+    return dispose;
   }, []);
   useLayoutEffect(() => {
     currentPubkey.current = pubkey;
@@ -332,8 +336,12 @@ export function Player({
             </div>
           )}
           {prompt && (
-            <div
+            <dialog
               className="host-prompt"
+              onCancel={(event) => {
+                event.preventDefault();
+                prompt.dismiss();
+              }}
               role="dialog"
               aria-modal="true"
               aria-label={
@@ -438,7 +446,7 @@ export function Player({
                   </Button>
                 )}
               </div>
-            </div>
+            </dialog>
           )}
         </div>
         <PlayerChrome

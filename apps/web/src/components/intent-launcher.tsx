@@ -1,3 +1,4 @@
+import { presentShellDialog } from '../../../../packages/runtime/src/shell-ui';
 import { useSyncExternalStore, useState, useRef, useEffect } from 'react';
 import { Player } from './player';
 import {
@@ -15,7 +16,7 @@ export function IntentLauncher() {
   const [remember, setRemember] = useState(false);
   const choiceDialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
-    if (state.choice && !choiceDialog.current?.open) choiceDialog.current?.showModal();
+    if (state.choice && choiceDialog.current) return presentShellDialog(choiceDialog.current);
   }, [state.choice]);
   return (
     <>

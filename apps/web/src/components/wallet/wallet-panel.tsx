@@ -206,6 +206,7 @@ export function WalletPanel({ full = false }: { full?: boolean }) {
             <Button
               variant="ghost"
               className="wallet-back"
+              data-gamegrid-back
               disabled={wallet.busy}
               onClick={() => changeView('home')}
             >

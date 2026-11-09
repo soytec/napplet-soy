@@ -406,7 +406,7 @@ for attempt in {1..30}; do
 done
 [[ "$healthy" == 1 ]]
 # API health alone cannot catch a broken server-rendered provider tree.
-for endpoint in / /studio /studio/create; do
+for endpoint in / /gg /studio /studio/create; do
   code=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$smoke_port$endpoint")
   [[ "$code" == 200 ]] || { echo "Candidate page $endpoint failed to render ($code)." >&2; exit 1; }
 done

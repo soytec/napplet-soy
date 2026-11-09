@@ -81,6 +81,53 @@ test('WebM admission checks container, codec, dimensions, duration and frame bou
   expect(() => inspectPreviewVideo(dimensions)).toThrow();
 });
 
+test('standard preview clips with unusable optional MIME verify their actual supported bytes', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'video-optional-mime-'));
+  try {
+    for (const mimeFields of [[], ['m invalid'], ['m video/webm', 'm video/mp4']]) {
+      const standard = finalizeEvent(
+        {
+          kind: 35129,
+          content: 'A public preview',
+          created_at: at,
+          tags: [
+            ['d', 'optional-mime'],
+            ['x', 'a'.repeat(64)],
+            ['server', 'https://media.example'],
+            ['preview', `x ${hash}`, ...mimeFields],
+          ],
+        },
+        key,
+      );
+      const entry: { manifest: SignedEvent; video?: any } = { manifest: standard };
+      await indexPreviewVideos(directory, [entry], [], AbortSignal.timeout(3000), {
+        download: async () => bytes,
+      });
+      expect(entry.video?.hash).toBe(hash);
+      expect(await cachedVideoBytes(directory, entry.video)).toEqual(bytes);
+      const unsupported = new TextEncoder().encode('<html>not a video</html>');
+      const unsupportedHash = await sha256(unsupported);
+      entry.manifest = finalizeEvent(
+        {
+          kind: standard.kind,
+          content: standard.content,
+          created_at: at,
+          tags: standard.tags.map((tag) =>
+            tag[0] === 'preview' ? ['preview', `x ${unsupportedHash}`, ...mimeFields] : tag,
+          ),
+        },
+        key,
+      );
+      await indexPreviewVideos(directory, [entry], [], AbortSignal.timeout(3000), {
+        download: async () => unsupported,
+      });
+      expect(entry.video).toBeNull();
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('index caches verified clips, reuses frozen bytes, rejects mutations and honors latest descriptor', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'video-index-'));
   try {

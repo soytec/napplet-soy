@@ -1,3 +1,4 @@
+import { shellActivity } from './shell-ui';
 import { z } from 'zod';
 import { PrivateKeySigner } from '@contextvm/sdk/signer';
 import { ApplesauceRelayPool } from '@contextvm/sdk/relay';
@@ -113,7 +114,30 @@ export class NappletBackend {
     if (accountOptions)
       this.account = new BackendAccount(accountOptions, () => signer.getPublicKey());
   }
-  private async request(
+  private async request(...args: Parameters<NappletBackend['performRequest']>) {
+    // Fast/background reads stay quiet; one notice covers a slow service invocation.
+    let activity: ReturnType<typeof shellActivity> | undefined;
+    const timer = setTimeout(() => {
+      activity = shellActivity('Waiting for the napplet’s service…', this.lifetime.signal);
+    }, 800);
+    try {
+      const result = await this.performRequest(...args);
+      if (result && typeof result === 'object' && (result as { isError?: boolean }).isError)
+        activity?.error('The service could not complete the request. See the napplet for details.');
+      else activity?.success('Service response received.');
+      return result;
+    } catch (error) {
+      if (this.lifetime.signal.aborted) activity?.dismiss();
+      else
+        (activity ?? shellActivity('Service request')).error(
+          'The service request failed. See the napplet for details.',
+        );
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  private async performRequest(
     base: CvmConnection,
     method: string,
     params: Record<string, unknown> | undefined,

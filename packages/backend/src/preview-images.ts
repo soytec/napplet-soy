@@ -14,7 +14,7 @@ import {
 import { fetchPublicBytes, publicResourceUrl } from './blossom';
 import { manifestIcon } from '../../protocol/src/manifest';
 import { iconSources, verifyIconBytes } from '../../protocol/src/icon';
-import { manifestScreenshotSources } from '../../protocol/src/presentation';
+import { manifestScreenshotSources, type PresentationClaim } from '../../protocol/src/presentation';
 
 export function previewImageUrl(input: string) {
   if (input.length > 4096) throw new Error('Preview URL is too long');
@@ -115,6 +115,7 @@ export async function indexPreviewImages(
               descriptor,
               profile,
               url,
+              claim: null as PresentationClaim | null,
               priority:
                 descriptor.kind === 32267 &&
                 descriptor.tags.some((t) => t[0] === 'image' && t[1] === url)
@@ -126,10 +127,11 @@ export async function indexPreviewImages(
           })
           .sort((a, b) => a.priority - b.priority);
         candidates.unshift(
-          ...manifestScreenshotSources(entry.manifest).map(({ url }) => ({
+          ...manifestScreenshotSources(entry.manifest).map(({ url, ...claim }) => ({
             descriptor: entry.manifest,
             profile: undefined,
             url,
+            claim,
             priority: -1,
           })),
         );
@@ -139,10 +141,11 @@ export async function indexPreviewImages(
             descriptor: entry.manifest,
             profile: undefined,
             url,
+            claim: manifestIcon(entry.manifest),
             priority: 3,
           })),
         );
-        for (const { descriptor, profile, url } of candidates) {
+        for (const { descriptor, profile, url, claim } of candidates) {
           if (signal.aborted) break;
           try {
             const target = previewImageUrl(url);
@@ -165,12 +168,9 @@ export async function indexPreviewImages(
               entry.preview = old;
               break;
             }
-            const icon =
-              descriptor.id === entry.manifest.id
-                ? (manifestScreenshotSources(entry.manifest).find((c) => c.url === url) ??
-                  manifestIcon(entry.manifest))
-                : null;
-            const downloadKey = `${url}:${icon?.mime ?? 'preview'}`;
+            // Direct claims retain their own MIME binding even when several tags
+            // reference one hash; inferred raster checks cannot reuse legacy GIFs.
+            const downloadKey = `${url}:${claim ? `${claim.hash}:${claim.mime ?? 'inferred'}` : 'legacy'}`;
             let task = downloaded.get(downloadKey);
             if (!task) {
               if (remaining < MAX_PREVIEW_BYTES)
@@ -187,7 +187,7 @@ export async function indexPreviewImages(
                 if (signal.aborted) throw new Error('Preview refresh cancelled');
                 if (digest && (await sha256(bytes)) !== digest)
                   throw new Error('Preview hash mismatch');
-                if (icon) await verifyIconBytes(bytes, icon);
+                if (claim) await verifyIconBytes(bytes, claim);
                 const normalized = await normalizePreview(bytes);
                 const hash = await sha256(normalized.data);
                 const temporary = resolve(path, `${hash}.${crypto.randomUUID()}.tmp`);

@@ -1,3 +1,4 @@
+import { shellActivity } from './shell-ui';
 import type { InvoicePaymentBackend } from './invoice-payment-session';
 import { cvmCheckout } from './cvm-payment-dialog';
 import { LlmSession, type LlmService } from './llm-contract';
@@ -161,10 +162,14 @@ export function attachNappletHost(options: HostOptions) {
           resolve(false);
           return;
         }
+        const activity = shellActivity(
+          'This napplet needs your approval. Review the shell dialog.',
+        );
         const timer = setTimeout(() => complete(false), 25000);
         const complete = (accepted: boolean, explicit = false) => {
           if (answer !== complete) return;
           clearTimeout(timer);
+          activity.dismiss();
           actions.signal?.removeEventListener('abort', abort);
           answer = undefined;
           promptKind = undefined;
@@ -216,6 +221,7 @@ export function attachNappletHost(options: HostOptions) {
       plan: publicationPlan,
       consent: (value, signal) => consent('action', `${options.identity}\n${value}`, signal),
       onPublished: (event) => {
+        shellActivity('Publishing').success('Your approved event was published.');
         nostr.events.ingest(event);
       },
     });

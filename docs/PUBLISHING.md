@@ -303,7 +303,20 @@ uses standalone manifests even when the HTML has not changed. No history rewrite
 or republishing of other authors' events is needed. Deploy the compatible shell
 and indexer before distributing a CLI that publishes the new shape.
 
-Two optional provenance tags, `source-commit` and `source-archive`, carry the exact Git commit and content-addressed source tar URL. These are Space publishing conventions, not NIP-5D requirements. Clients may ignore them; ordinary `source`, manifest and Blossom discovery still work. There is no mandatory descriptor, branded hashtag or current-to-snapshot pointer. Fresh jobs upload the screenshot and optional clip, then put their hashes and MIME types directly on the current manifest and any explicitly requested snapshot using the optional downstream `soy.presentation/1` profile. They emit no kind-32267 descriptor or `app` reference. See [the presentation contract](PREVIEWS.md#direct-manifest-presentation--2026-10-06-source).
+Optional NIP-5D `source-commit` and `source-archive` tags carry the exact Git commit
+and source archive URL/digest/MIME at the selected `c041f84` pin. Public archives
+use the four-element HTTPS form; local HTTP development retains the legacy
+two-element form. Source remains optional for discovery and playback.
+
+Fresh jobs upload the selected PNG cover and optional clip, then put their hashes,
+MIME and available metadata directly on the current manifest and any requested
+snapshot using standard NIP-5D `screenshot`/`preview` key/value fields. They emit no
+`presentation` marker, kind-32267 descriptor or `app` reference. The authoring flow
+still selects one cover; the reader accepts up to eight standard screenshots from
+any publisher and ignores extras. MIME is optional when reading standard media:
+hash verification and supported-format decoding remain mandatory. There is no
+mandatory descriptor, branded hashtag or current-to-snapshot pointer. See
+[the presentation contract](PREVIEWS.md#nip-5d-presentation-media-and-source-fields--2026-11-02-source).
 
 Interrupted older jobs retain their frozen descriptor/signatures on `publish --resume`.
 The next ordinary publication upgrades a completed older job to direct references,

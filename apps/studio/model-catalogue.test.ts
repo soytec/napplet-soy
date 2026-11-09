@@ -294,3 +294,57 @@ test('Studio HTTP exposes model discovery and selection with authentication and 
   expect(diagnostic).not.toContain('do-not-expose');
   expect(inference).toBe(0);
 });
+
+test('DeepSeek and OpenRouter image metadata survives discovery and saved model selection', async () => {
+  const { connections } = await store();
+  const endpoint = catalogue(() =>
+    Response.json({
+      data: [
+        { id: 'deepseek-flash', name: 'Flash', input_modalities: ['text', 'image'] },
+        { id: 'text-model', input_modalities: ['text'] },
+        { id: 'unknown-vision-model' },
+        { id: 'bad', input_modalities: 'image' },
+        { id: 'empty', input_modalities: [] },
+      ],
+    }),
+  );
+  const state = await connections.save({
+    name: 'DS',
+    provider: 'deepseek',
+    endpoint,
+    key: 'fixture',
+    model: 'text-model',
+    steps: 100,
+  });
+  const current = state.connections[0];
+  const models = (await connections.models({ id: current.id, provider: 'deepseek', endpoint }))
+    .models;
+  expect(models.find((m) => m.id === 'deepseek-flash')?.images).toBe(true);
+  expect(models.find((m) => m.id === 'text-model')?.images).toBe(false);
+  for (const id of ['unknown-vision-model', 'bad', 'empty'])
+    expect(models.find((m) => m.id === id)?.images).toBeUndefined();
+  const selected = (
+    await connections.setModel({
+      id: current.id,
+      revision: current.revision,
+      model: 'deepseek-flash',
+      images: true,
+    })
+  ).connections[0];
+  const { inferenceCapabilities } =
+    await import('../../packages/runtime/src/inference-capabilities');
+  const resolved = connections.resolve(selected.id + ':' + selected.revision)!;
+  expect(inferenceCapabilities(resolved).images).toBe(true);
+  expect(connections.resolve(current.id + ':' + current.revision)).toBeUndefined();
+  const router = catalogue(() =>
+    Response.json({
+      data: [
+        { id: 'org/vision', architecture: { input_modalities: ['image', 'text'] } },
+        { id: 'org/text', architecture: { input_modalities: ['text'] } },
+      ],
+    }),
+  );
+  const result = await fetchModelCatalogue({ provider: 'openrouter', endpoint: router });
+  expect(result.models.find((m) => m.id === 'org/vision')?.images).toBe(true);
+  expect(result.models.find((m) => m.id === 'org/text')?.images).toBe(false);
+});

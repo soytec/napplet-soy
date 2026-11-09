@@ -1,3 +1,4 @@
+import { presentShellDialog } from '../../../../../packages/runtime/src/shell-ui';
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { XIcon } from 'lucide-react';
@@ -5,8 +6,60 @@ import { Dialog as DialogPrimitive } from 'radix-ui';
 
 import { Button } from '@/components/ui/button';
 
-function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />;
+const CloseShellDialog = React.createContext(() => {});
+function Dialog({
+  open,
+  defaultOpen,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root>) {
+  const [localOpen, setLocalOpen] = React.useState(defaultOpen ?? false);
+  const change = (next: boolean) => {
+    setLocalOpen(next);
+    onOpenChange?.(next);
+  };
+  return (
+    <CloseShellDialog.Provider value={() => change(false)}>
+      <DialogPrimitive.Root
+        data-slot="dialog"
+        open={open ?? localOpen}
+        onOpenChange={change}
+        {...props}
+      />
+    </CloseShellDialog.Provider>
+  );
+}
+
+/** The portal's presence mounts this only while its Radix dialog is open. */
+function ShellDialogLayer({ children }: { children: React.ReactNode }) {
+  const ref = React.useRef<HTMLDialogElement>(null);
+  const close = React.useContext(CloseShellDialog);
+  React.useLayoutEffect(() => {
+    if (ref.current) return presentShellDialog(ref.current);
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      role="presentation"
+      data-shell-layer=""
+      onCancel={(event) => {
+        event.preventDefault();
+        close();
+      }}
+      style={{
+        width: '100vw',
+        height: '100dvh',
+        maxWidth: 'none',
+        maxHeight: 'none',
+        padding: 0,
+        border: 0,
+        background: 'transparent',
+        color: 'inherit',
+      }}
+    >
+      {children}
+    </dialog>
+  );
 }
 
 function DialogTrigger({ ...props }: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
@@ -14,7 +67,12 @@ function DialogTrigger({ ...props }: React.ComponentProps<typeof DialogPrimitive
 }
 
 function DialogPortal({ ...props }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
+  const { children, ...rest } = props;
+  return (
+    <DialogPrimitive.Portal data-slot="dialog-portal" {...rest}>
+      <ShellDialogLayer>{children}</ShellDialogLayer>
+    </DialogPrimitive.Portal>
+  );
 }
 
 function DialogClose({ ...props }: React.ComponentProps<typeof DialogPrimitive.Close>) {

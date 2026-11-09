@@ -1,3 +1,4 @@
+import { hasShellDialog } from '../../../../packages/runtime/src/shell-ui';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 
 /** Fullscreen is a layer above the expanded player; neither layer moves its iframe. */
@@ -62,7 +63,7 @@ export function usePlayerPresentation(
       if (wasNative && !native) {
         // Browsers differ in the ordering of fullscreenchange and the same Escape key.
         lastNativeExit.current = performance.now();
-        wrapper.current?.focus({ preventScroll: true });
+        if (!hasShellDialog()) wrapper.current?.focus({ preventScroll: true });
         if (!expandedNow.current) {
           restoreScroll();
           returnScroll.current = null;
@@ -119,6 +120,7 @@ export function usePlayerPresentation(
     if (
       !expanded ||
       modalOpen ||
+      hasShellDialog() ||
       document.fullscreenElement ||
       performance.now() - lastNativeExit.current <= 250
     )
@@ -130,7 +132,7 @@ export function usePlayerPresentation(
   useEffect(() => {
     if (!expanded || modalOpen) return;
     const keyboard = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
+      if (event.defaultPrevented || hasShellDialog()) return;
       if (event.key === 'Escape' && escape()) event.preventDefault();
       if (event.key === 'Tab') {
         const controls = [
