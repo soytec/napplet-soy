@@ -36,6 +36,12 @@ export function Shell({ children }: { children: ReactNode }) {
   const pathname = useLocation({ select: (location) => location.pathname });
   const studio = pathname === '/studio' || pathname.startsWith('/studio/');
   const workspace = /^\/studio\/[a-f0-9-]{36}$/.test(pathname);
+  if (pathname === '/gg')
+    return (
+      <div className="site-shell gamegrid-shell">
+        <main id="main">{children}</main>
+      </div>
+    );
   return (
     <div
       className={`site-shell${studio ? ' studio-shell' : ''}${workspace ? ' studio-workspace-shell' : ''}`}
@@ -65,6 +71,9 @@ export function Shell({ children }: { children: ReactNode }) {
           </Link>
           <Link to="/manage" activeProps={{ className: 'nav-active' }}>
             Manage <WorkDot />
+          </Link>
+          <Link to="/gg" activeProps={{ className: 'nav-active' }}>
+            Gamegrid
           </Link>
           <Link to="/docs" activeProps={{ className: 'nav-active' }}>
             Docs

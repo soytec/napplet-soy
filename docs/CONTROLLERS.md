@@ -111,5 +111,6 @@ localStorage. Never assume Xbox/PlayStation lettering has identical names.
   were tested; synthetic snapshots and `soyli check` are not hardware certification.
 - Do not add `requires: ['gamepad']`, `serial` or an invented `napplet.gamepad` API.
   Browser policy may restrict native Gamepad input; keep useful fallback controls.
-  No WebHID, WebUSB, serial-port support, rumble or controller-driven shell navigation
-  is promised by this slice. Feature-detected haptics are a possible later addition.
+  No WebHID, WebUSB, serial-port support or rumble is promised by this slice.
+  Controller-driven shell navigation is available separately in [Gamegrid](GAMEGRID.md)
+  at `/gg`; it does not establish a game's controller compatibility.

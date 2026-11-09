@@ -1,0 +1,74 @@
+# Gamegrid
+
+`/gg` is the controller-oriented view of the existing shell, intended for a PC or
+Steam Deck browser, including a TV connected to that computer. It shares the
+catalog, account, wallet, verified player and permissions with the rest of the site.
+Browsing and playing do not require an account. This is local implementation work;
+it does not establish a production deployment or physical-controller certification.
+
+The grid fills the viewport with edge-to-edge previews, square corners and no
+gutters or outer padding. A compact dark glass overlay holds collections, search,
+wallet, account and exit controls. Controls and dialogs use translucent surfaces
+with backdrop blur, preserving visible previews underneath. Titles and play hints
+appear on focus or hover; there is no sidebar, page heading, card frame or
+persistent footer.
+
+## Browsing and controls
+
+- New, Most zapped, All games and Continue use the existing catalog. `#game` is
+  creator-supplied categorization, not proof that a game supports a controller.
+- Continue is device-local play history, not a cloud save. The running napplet's
+  storage follows the normal shell rules. Returning to the grid restores the tile.
+- D-pad or left stick moves focus; the bottom face button (A on Xbox) selects;
+  the right face button (B on Xbox) goes back. Arrow keys and pointer remain usable.
+- Hold View + Menu (standard buttons 8 + 9) for 600 ms to open the shell menu.
+  Resume preserves the same player. The controller must return to neutral before
+  focus returns to the game. F1 also opens the menu when keyboard focus is in the
+  shell; an opaque game's keyboard events do not bubble to the parent.
+- Search and editable shell fields offer an on-screen keyboard. In a native select,
+  left/right changes the option and up/down moves between controls. Range controls
+  also support left/right. The keyboard includes printable ASCII symbols; other
+  languages use the device's keyboard.
+- New dialogs, reconnects and focus changes require neutral input before another
+  controller action. A held A must never approve a newly opened permission prompt.
+
+The page already fills the viewport. Browser fullscreen is optional and may require
+a pointer or keyboard gesture; a synthetic gamepad click cannot bypass browser
+activation policy. Accounts and wallet tools use trusted shell dialogs above the
+player, including browser fullscreen. Their existing confirmation and recovery
+rules apply; Gamegrid adds no payment polling or implicit approvals.
+
+## Input ownership and limits
+
+During gameplay, Gamegrid handles only the deliberate shell-menu chord. It does not
+use the game's ordinary A/B/D-pad input to navigate the background grid. Its menu
+moves focus out of the game, but it cannot universally pause a napplet or consume
+native Gamepad API readings. Games using the supplied focus-aware helper become
+neutral on blur; a game reading raw native input may continue while a menu is open.
+No injected gamepad shim, new NAP grant, sandbox exception or cross-frame access is
+introduced here. Unknown controller mappings are reported rather than guessed.
+
+Only the selected tile animates its preview, subject to reduced-motion/data-saving
+preferences and the existing playback coordinator. Missing artwork does not exclude
+a game. Zap rankings use the existing verified receipts and retain their relay/cache
+coverage limits; they are not a claim to a global leaderboard.
+
+## Deployment
+
+Serve `/gg` from the same app deployment as the other routes. A branded
+`gamegrid.napplet.soy` address can issue a permanent redirect to
+`https://napplet.soy/gg`, retaining a query string if desired. It should not host a
+second app origin: that would separate browser accounts, keys and wallet storage.
+DNS and a TLS-enabled redirect require an explicit deployment; no separate backend,
+database, inference service or API is needed for this route.
+
+## Verification
+
+Input unit tests cover spatial movement, repeat, diagonal input, reconnect/focus
+boundaries, held confirmation and gameplay handoff. Browser regressions exercise
+the actual hook, shell dialogs, on-screen keyboard and an opaque iframe. Synthetic
+controllers establish these behaviors, not USB/Bluetooth or Steam Deck acceptance.
+The rendered route was also checked in Chromium at 1280 × 800 and 1920 × 1080,
+including search, the keyboard, account dialog and playable preview/menu handoff.
+Physical controller, Safari/Firefox and smart-TV browser testing remain separate;
+native smart-TV browsers are outside the first target.

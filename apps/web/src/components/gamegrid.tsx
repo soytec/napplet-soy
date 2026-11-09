@@ -1,0 +1,703 @@
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { Link } from '@tanstack/react-router';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Expand,
+  Grid2X2,
+  History,
+  Keyboard,
+  LogOut,
+  Play,
+  RotateCcw,
+  Search,
+  Sparkles,
+  Trash2,
+  UserRound,
+  Wallet,
+  X,
+  Zap,
+} from 'lucide-react';
+import type { GallerySearch } from '../../../../packages/protocol/src';
+import { matchesGallery } from '../../../../packages/protocol/src/topics';
+import { socialScope } from '../../../../packages/protocol/src/social';
+import {
+  hasPublicPreview,
+  publicPoster,
+  publicPreviewVideo,
+  type PublicNapplet,
+} from '../../../../packages/backend/src/public-model';
+import type { GalleryZapData } from '../../../../packages/client/src/gallery-social';
+import type { getBrowseGallery } from '@/lib/catalog.functions';
+import {
+  availableCatalog,
+  browseProtocol,
+  lookupProtocol,
+  queryCatalog,
+  seedCatalog,
+} from '@/lib/protocol-catalog';
+import { gallerySocial } from '@/lib/protocol-social';
+import { useProtocolRefresh } from '@/lib/use-protocol-refresh';
+import { useGamegridInput } from '@/lib/use-gamegrid-input';
+import { useNostr } from './nostr-provider';
+import { useWallet } from './wallet/wallet-provider';
+import { PopoverTrigger } from './ui/popover';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
+import { PreviewCover } from './preview-cover';
+import { Player } from './player';
+import { ZapButton } from './zap-button';
+import { GamegridKeyboard } from './gamegrid-keyboard';
+
+const WalletPanel = lazy(() =>
+  import('./wallet/wallet-panel').then((module) => ({ default: module.WalletPanel })),
+);
+export type GamegridSearch = {
+  q: string;
+  section: 'new' | 'zapped' | 'games' | 'continue';
+  page: number;
+};
+type GalleryData = Awaited<ReturnType<typeof getBrowseGallery>>;
+type RecentGame = { id: string; naddr: string | null; title: string };
+const HISTORY_KEY = 'napplet.gamegrid.recent.v1';
+const sections = [
+  { id: 'new', short: 'New', icon: Sparkles },
+  { id: 'zapped', short: 'Most zapped', icon: Zap },
+  { id: 'games', short: 'All games', icon: Grid2X2 },
+  { id: 'continue', short: 'Continue', icon: History },
+] as const;
+
+export function gamegridCatalogSearch(search: GamegridSearch): GallerySearch {
+  return {
+    q: search.q,
+    tag: 'game',
+    sort: 'new',
+    page: search.section === 'games' ? search.page : 1,
+    unavailable: false,
+  };
+}
+
+function readHistory(): RecentGame[] {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]');
+    if (!Array.isArray(value)) return [];
+    const seen = new Set<string>();
+    return value
+      .filter((item): item is RecentGame => {
+        if (
+          !item ||
+          typeof item !== 'object' ||
+          typeof item.id !== 'string' ||
+          !/^[a-f0-9]{64}$/.test(item.id) ||
+          typeof item.title !== 'string' ||
+          item.title.length > 256 ||
+          !(
+            item.naddr === null ||
+            (typeof item.naddr === 'string' &&
+              /^naddr1[a-z0-9]+$/.test(item.naddr) &&
+              item.naddr.length <= 4096)
+          ) ||
+          seen.has(item.id)
+        )
+          return false;
+        seen.add(item.id);
+        return true;
+      })
+      .slice(0, 12);
+  } catch {
+    return [];
+  }
+}
+
+function GameCard({
+  napplet,
+  index,
+  sats,
+  launch,
+}: {
+  napplet: PublicNapplet;
+  index: number;
+  sats?: number | null;
+  launch: (napplet: PublicNapplet) => void;
+}) {
+  const { ready } = useNostr();
+  const [focused, setFocused] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const playable = napplet.availability === 'ready';
+  return (
+    <button
+      type="button"
+      className="gg-card"
+      data-game-id={napplet.revisionId}
+      disabled={!ready || !playable}
+      aria-label={`${playable ? 'Play' : 'Unavailable'} ${napplet.title}`}
+      onClick={() => launch(napplet)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onPointerEnter={(event) => setHovered(event.pointerType === 'mouse')}
+      onPointerLeave={() => setHovered(false)}
+    >
+      <PreviewCover
+        revision={napplet.revisionId}
+        title={napplet.title}
+        video={publicPreviewVideo(napplet)}
+        mode="auto"
+        enabled={focused || hovered}
+      >
+        <img
+          src={publicPoster(napplet)}
+          className={!hasPublicPreview(napplet) ? 'generated-poster' : ''}
+          alt=""
+          width={720}
+          height={450}
+          loading={index < 4 ? 'eager' : 'lazy'}
+          referrerPolicy="no-referrer"
+        />
+        {sats != null && (
+          <span className="gg-card-zaps">
+            <Zap size={13} fill="currentColor" />
+            {Math.floor(sats / 1000).toLocaleString()} sats
+          </span>
+        )}
+      </PreviewCover>
+      <span className="gg-card-info">
+        <strong>{napplet.title}</strong>
+        <span className="gg-card-hint">
+          {playable ? (
+            <>
+              <kbd>A</kbd> Play <small>Hold View + Menu in game</small>
+            </>
+          ) : (
+            'Currently unavailable'
+          )}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+export function Gamegrid({
+  initial,
+  search,
+  update,
+}: {
+  initial: GalleryData;
+  search: GamegridSearch;
+  update: (patch: Partial<GamegridSearch>) => void;
+}) {
+  const root = useRef<HTMLDivElement>(null),
+    viewport = useRef<HTMLDivElement>(null),
+    searchField = useRef<HTMLInputElement>(null);
+  const returnTo = useRef<{ node: HTMLElement | null; scroll: number }>({ node: null, scroll: 0 });
+  const { pubkey, ready, connect } = useNostr();
+  const wallet = useWallet();
+  const [draft, setDraft] = useState(search.q),
+    [refreshVersion, setRefreshVersion] = useState(0);
+  const [playing, setPlaying] = useState<PublicNapplet | null>(null),
+    [menuOpen, setMenuOpen] = useState(false),
+    [walletOpen, setWalletOpen] = useState(false);
+  const [textField, setTextField] = useState<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const [recent, setRecent] = useState<RecentGame[]>([]),
+    [recentEntries, setRecentEntries] = useState<PublicNapplet[]>([]),
+    [recentLoading, setRecentLoading] = useState(false);
+  const [historyNotice, setHistoryNotice] = useState(''),
+    [playerNotice, setPlayerNotice] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [playerRevision, setPlayerRevision] = useState(0);
+  const [zaps, setZaps] = useState<GalleryZapData | null>(null),
+    [zapError, setZapError] = useState(''),
+    [zapRetry, setZapRetry] = useState(0);
+  const seeded = useRef<GalleryData | null>(null);
+  if (typeof window !== 'undefined' && seeded.current !== initial) {
+    seeded.current = initial;
+    seedCatalog([...initial.featured, ...initial.napplets]);
+  }
+  const catalogSearch = gamegridCatalogSearch(search);
+  const refresh = useProtocolRefresh(
+    'gamegrid',
+    () => queryCatalog(),
+    () => setRefreshVersion((value) => value + 1),
+  );
+  const catalog = refreshVersion ? browseProtocol(catalogSearch) : initial;
+  const currentSection = sections.find((section) => section.id === search.section)!;
+
+  useEffect(() => setDraft(search.q), [search.q]);
+  useEffect(() => setRecent(readHistory()), []);
+  useEffect(() => {
+    viewport.current?.scrollTo({ top: 0 });
+  }, [search.q, search.section, search.page]);
+
+  useEffect(() => {
+    if (search.section !== 'continue') return;
+    let active = true;
+    setRecentLoading(true);
+    const known = availableCatalog();
+    const entries: Array<PublicNapplet | undefined> = [];
+    let next = 0;
+    void Promise.all(
+      Array.from({ length: Math.min(3, recent.length) }, async () => {
+        while (next < recent.length && active) {
+          const index = next++,
+            item = recent[index];
+          try {
+            const found =
+              known.find((entry) =>
+                item.naddr ? entry.naddr === item.naddr : entry.revisionId === item.id,
+              ) ??
+              (await lookupProtocol(
+                item.naddr
+                  ? { type: 'address', naddr: item.naddr }
+                  : { type: 'snapshot', id: item.id },
+              ));
+            if (found?.topics.includes('game')) entries[index] = found;
+          } catch {
+            /* A removed or unreachable recent game remains optional history. */
+          }
+        }
+      }),
+    ).then(() => {
+      if (active) {
+        setRecentEntries(entries.filter((entry): entry is PublicNapplet => !!entry));
+        setRecentLoading(false);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [search.section, recent, refreshVersion]);
+
+  useEffect(() => {
+    if (search.section !== 'zapped') return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setZaps(null);
+    setZapError('');
+    const load = async () => {
+      try {
+        const data = await gallerySocial(
+          catalogSearch,
+          pubkey ?? undefined,
+          controller.signal,
+          (value) => {
+            if (!controller.signal.aborted) setZaps(value);
+          },
+          new Set(catalog.napplets.map((entry) => entry.revisionId)),
+        );
+        if (!controller.signal.aborted) {
+          setZaps(data);
+          setZapError('');
+        }
+      } catch {
+        if (!controller.signal.aborted) setZapError('Couldn’t refresh verified zap totals.');
+      } finally {
+        if (!controller.signal.aborted) timer = setTimeout(load, 30000);
+      }
+    };
+    void load();
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [search.section, search.q, pubkey, refreshVersion, zapRetry]);
+
+  const leaveGame = () => {
+    setMenuOpen(false);
+    setWalletOpen(false);
+    setPlaying(null);
+    setPlayerNotice('');
+    setPlayerRevision(0);
+    requestAnimationFrame(() => {
+      if (viewport.current) viewport.current.scrollTop = returnTo.current.scroll;
+      if (returnTo.current.node?.isConnected) returnTo.current.node.focus({ preventScroll: true });
+    });
+  };
+  const input = useGamegridInput({
+    root,
+    playing: !!playing,
+    onMenu: () => {
+      if (playing) setMenuOpen(true);
+    },
+    onBack: () => {
+      if (playing) setMenuOpen(true);
+      else if (search.q) update({ q: '' });
+      else if (search.section !== 'new') update({ section: 'new' });
+    },
+    onText: setTextField,
+  });
+  const resume = () => {
+    setMenuOpen(false);
+    input.resumeWhenNeutral();
+  };
+  const launch = (napplet: PublicNapplet) => {
+    returnTo.current = {
+      node: document.activeElement instanceof HTMLElement ? document.activeElement : null,
+      scroll: viewport.current?.scrollTop ?? 0,
+    };
+    const next = [
+      { id: napplet.revisionId, naddr: napplet.naddr, title: napplet.title },
+      ...recent.filter((item) =>
+        napplet.naddr ? item.naddr !== napplet.naddr : item.id !== napplet.revisionId,
+      ),
+    ].slice(0, 12);
+    setRecent(next);
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+      setHistoryNotice('');
+    } catch {
+      setHistoryNotice('Recent games could not be saved on this browser.');
+    }
+    setPlaying(napplet);
+    setMenuOpen(false);
+    setPlayerNotice('');
+    input.resumeWhenNeutral();
+  };
+  const entries =
+    search.section === 'zapped'
+      ? (zaps?.zapped ?? [])
+      : search.section === 'continue'
+        ? recentEntries.filter((entry) => matchesGallery(entry, catalogSearch))
+        : search.section === 'new'
+          ? catalog.napplets.slice(0, 12)
+          : catalog.napplets;
+  const loading =
+    search.section === 'continue'
+      ? recentLoading
+      : search.section === 'zapped'
+        ? !zaps && !zapError
+        : false;
+
+  return (
+    <div className="gamegrid" ref={root} data-playing={!!playing}>
+      <h1 className="sr-only">Gamegrid</h1>
+      <div className="gg-viewport" ref={viewport}>
+        {entries.length > 0 ? (
+          <section className="gg-grid" aria-label={`${currentSection.short} games`}>
+            {entries.map((entry, index) => (
+              <GameCard
+                key={entry.revisionId}
+                napplet={entry}
+                index={index}
+                launch={launch}
+                sats={
+                  search.section === 'zapped' ? zaps?.counts[entry.revisionId]?.msats : undefined
+                }
+              />
+            ))}
+          </section>
+        ) : (
+          <div className="gg-empty" role="status">
+            <h2>
+              {loading
+                ? 'Loading games…'
+                : search.q
+                  ? 'No games found.'
+                  : search.section === 'continue'
+                    ? 'No recent games.'
+                    : search.section === 'zapped'
+                      ? 'No verified zaps yet.'
+                      : 'No games available yet.'}
+            </h2>
+            <p>
+              {loading
+                ? 'Checking the available collection.'
+                : search.q
+                  ? 'Try another search.'
+                  : search.section === 'continue'
+                    ? 'Games you open will appear here.'
+                    : search.section === 'zapped'
+                      ? 'Explore the collection to find your next game.'
+                      : 'Available games tagged #game will appear here.'}
+            </p>
+            {!loading && (
+              <button className="gg-primary" onClick={() => update({ q: '', section: 'games' })}>
+                {search.q ? 'Clear search' : 'All games'}
+                <ArrowRight size={17} />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      <header className="gg-hud" aria-label="Gamegrid controls">
+        <div className="gg-collection-control">
+          <currentSection.icon size={17} aria-hidden="true" />
+          <select
+            aria-label="Game collection"
+            title="Left or right changes collection"
+            value={search.section}
+            onChange={(event) =>
+              update({ section: event.target.value as GamegridSearch['section'] })
+            }
+          >
+            {sections.map(({ id, short }) => (
+              <option key={id} value={id}>
+                {short}
+              </option>
+            ))}
+          </select>
+        </div>
+        <span className="gg-hud-divider" aria-hidden="true" />
+        <button
+          type="button"
+          className="gg-hud-button"
+          aria-label="Search games"
+          aria-haspopup="dialog"
+          aria-expanded={searchOpen}
+          data-active={!!search.q}
+          title={search.q ? `Search: ${search.q}` : 'Search games'}
+          onClick={() => setSearchOpen(true)}
+        >
+          <Search size={19} />
+          {search.q && <span className="gg-query">{search.q}</span>}
+        </button>
+        <button
+          type="button"
+          className="gg-hud-button"
+          aria-label="Open wallet"
+          title={wallet.runtime ? `Wallet · ${wallet.balance.toLocaleString()} sats` : 'Wallet'}
+          onClick={() => setWalletOpen(true)}
+        >
+          <Wallet size={19} />
+        </button>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            id="identity-button"
+            className="gg-hud-button"
+            disabled={!ready}
+            aria-label={pubkey ? 'Account' : 'Connect account'}
+            title={pubkey ? 'Account' : 'Connect account'}
+            data-connected={!!pubkey}
+            onClick={() => void connect()}
+          >
+            <UserRound size={19} />
+          </button>
+        </PopoverTrigger>
+        {search.section === 'continue' && recent.length > 0 && (
+          <button
+            type="button"
+            className="gg-hud-button"
+            aria-label="Clear recent games"
+            title="Clear recent games"
+            onClick={() => {
+              setRecent([]);
+              setRecentEntries([]);
+              try {
+                localStorage.removeItem(HISTORY_KEY);
+              } catch {
+                setHistoryNotice('Recent games could not be cleared from browser storage.');
+              }
+            }}
+          >
+            <Trash2 size={18} />
+          </button>
+        )}
+        <span className="gg-hud-divider" aria-hidden="true" />
+        <Link
+          to="/"
+          className="gg-hud-button"
+          aria-label="Exit Gamegrid"
+          title="Back to napplet.soy"
+        >
+          <LogOut size={18} />
+        </Link>
+        <span className="gg-hud-tip" role="status">
+          {input.status}
+        </span>
+      </header>
+      <div className="gg-alerts">
+        {refresh}
+        {historyNotice && (
+          <p className="gg-notice" role="status">
+            {historyNotice}
+          </p>
+        )}
+        {zapError && (
+          <p className="gg-notice" role="status">
+            {zapError}
+            <button onClick={() => setZapRetry((value) => value + 1)}>Retry</button>
+          </p>
+        )}
+      </div>
+      {search.section === 'games' && catalog.pages > 1 && (
+        <nav className="gg-pagination" aria-label="Game pages">
+          <button
+            aria-label="Previous game page"
+            disabled={catalog.page <= 1}
+            onClick={() => update({ page: catalog.page - 1 })}
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <span>
+            {catalog.page} / {catalog.pages}
+          </span>
+          <button
+            aria-label="Next game page"
+            disabled={catalog.page >= catalog.pages}
+            onClick={() => update({ page: catalog.page + 1 })}
+          >
+            <ArrowRight size={18} />
+          </button>
+        </nav>
+      )}
+      <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
+        <DialogContent className="gg-search-dialog">
+          <DialogTitle>Find a game</DialogTitle>
+          <DialogDescription>Search by title, description or tag.</DialogDescription>
+          <form
+            className="gg-search"
+            onSubmit={(event) => {
+              event.preventDefault();
+              update({ q: draft.trim() });
+              setSearchOpen(false);
+            }}
+          >
+            <div className="gg-search-field">
+              <Search size={20} aria-hidden="true" />
+              <input
+                ref={searchField}
+                aria-label="Search games"
+                placeholder="Search games"
+                value={draft}
+                maxLength={100}
+                onChange={(event) => setDraft(event.target.value)}
+              />
+              <button
+                type="button"
+                aria-label="Open search keyboard"
+                onClick={() => {
+                  if (searchField.current) setTextField(searchField.current);
+                }}
+              >
+                <Keyboard size={22} />
+              </button>
+            </div>
+            <div className="gg-search-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setDraft('');
+                  update({ q: '' });
+                  setSearchOpen(false);
+                }}
+              >
+                <X size={16} />
+                Clear search
+              </button>
+              <button className="gg-primary" type="submit">
+                Search
+                <ArrowRight size={17} />
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+      {playing && (
+        <Player
+          key={`${playing.revisionId}:${playerRevision}`}
+          napplet={playing}
+          autoPlay
+          immersive
+          returnLabel="Back to Gamegrid"
+          onExit={leaveGame}
+          onStop={leaveGame}
+          onLoadError={(error) => {
+            setPlayerNotice(error.message);
+            setMenuOpen(true);
+          }}
+        />
+      )}
+      {playing && (
+        <Dialog
+          open={menuOpen}
+          onOpenChange={(open) => {
+            if (open) setMenuOpen(true);
+            else resume();
+          }}
+        >
+          <DialogContent className="gg-menu-dialog">
+            <span className="gg-eyebrow">TAKE A BREATHER</span>
+            <DialogTitle>{playing.title}</DialogTitle>
+            <DialogDescription>
+              Gamegrid menu · some games may keep running while this is open.
+            </DialogDescription>
+            {playerNotice && (
+              <p role="alert" className="gg-notice">
+                {playerNotice}
+              </p>
+            )}
+            <div className="gg-menu-actions">
+              <button className="gg-primary" onClick={resume}>
+                <Play size={20} fill="currentColor" />
+                Resume game
+              </button>
+              <button
+                onClick={() => {
+                  setPlayerRevision((value) => value + 1);
+                  setPlayerNotice('');
+                  resume();
+                }}
+              >
+                <RotateCcw size={20} />
+                Restart game
+              </button>
+              <ZapButton
+                data={{
+                  manifest: playing.manifest,
+                  scope: socialScope(playing.manifest),
+                  relays: playing.relays,
+                }}
+                reference={playing.naddr ?? playing.revisionId}
+                trigger={
+                  <button>
+                    <Zap size={20} />
+                    Zap the creator
+                  </button>
+                }
+              />
+              <button onClick={() => setWalletOpen(true)}>
+                <Wallet size={20} />
+                Wallet
+              </button>
+              <button
+                onClick={() => {
+                  const wrapper = root.current?.querySelector<HTMLElement>('.player-wrap');
+                  try {
+                    void wrapper
+                      ?.requestFullscreen()
+                      .catch(() =>
+                        setPlayerNotice(
+                          'Browser fullscreen is unavailable. The game already fills this window.',
+                        ),
+                      );
+                  } catch {
+                    setPlayerNotice('The game already fills this window.');
+                  }
+                }}
+              >
+                <Expand size={20} />
+                Browser fullscreen
+              </button>
+              <button onClick={leaveGame}>
+                <Grid2X2 size={20} />
+                Back to Gamegrid
+              </button>
+            </div>
+            <p className="gg-menu-hint">
+              Hold View + Menu together to open this menu. Release the buttons before returning to
+              play.
+            </p>
+          </DialogContent>
+        </Dialog>
+      )}
+      <Dialog open={walletOpen} onOpenChange={setWalletOpen}>
+        <DialogContent className="gg-wallet-dialog">
+          <DialogTitle>Your wallet</DialogTitle>
+          <DialogDescription>The same wallet you use across napplet.soy.</DialogDescription>
+          <Suspense fallback={<p role="status">Opening wallet tools…</p>}>
+            <WalletPanel full />
+          </Suspense>
+        </DialogContent>
+      </Dialog>
+      {textField && <GamegridKeyboard field={textField} close={() => setTextField(null)} />}
+    </div>
+  );
+}

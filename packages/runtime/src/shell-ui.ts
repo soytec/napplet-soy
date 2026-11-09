@@ -6,6 +6,11 @@ export function hasShellDialog() {
   return typeof document !== 'undefined' && !!document.querySelector('dialog:modal');
 }
 
+/** Most recently presented trusted dialog, including dialogs promoted for fullscreen. */
+export function activeShellDialog() {
+  return [...dialogs].reverse().find((dialog) => dialog.isConnected && dialog.open) ?? null;
+}
+
 /** Native top-layer dialogs stay above both an expanded player and browser fullscreen. */
 export function presentShellDialog(dialog: HTMLDialogElement) {
   const previous = document.activeElement;
