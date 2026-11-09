@@ -1,11 +1,11 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The current published version is **0.31.4**. The repository has transferred to
+The current published version is **0.32.0**. The repository has transferred to
 [`soytec/napplet-soy`](https://github.com/soytec/napplet-soy), including its history,
 issues, pull requests and releases.
 
-**0.32.0 — release candidate; not yet published**
+**0.32.0 — standard media and preview compatibility**
 
 Fresh publications use the selected NIP-5D proposal's `screenshot` and `preview`
 fields, plus hash-bound HTTPS source archives. Readers retain legacy media and
@@ -33,11 +33,39 @@ this does not invent upstream Git history or enable proposals without Git source
 After upgrading, restart previews and run `soyli skills update` in existing
 projects, reviewing preserved-file conflicts before changing application code.
 
-This candidate continues the `soytec/napplet-soy` release/update channel. The
-standalone source port in [`soytec/soyli` PR #1](https://github.com/soytec/soyli/pull/1)
-does not move that channel. Deploy compatible shell readers first, then complete
-the four-platform release checks and public archive/install/upgrade verification.
-Do not activate the website's 0.32.0 installer until those assets are public.
+This release continues the `soytec/napplet-soy` release/update channel. The
+merged standalone source port in
+[`soytec/soyli` PR #1](https://github.com/soytec/soyli/pull/1) does not move that
+channel.
+
+Published **2026-11-09 (Europe/Vienna)** from
+`c8e9a7b5aaa80f590bd3e5c5453684fd1a56ba79`, after deploying compatible shell
+readers and the hosted worker.
+[Release](https://github.com/soytec/napplet-soy/releases/tag/soyli-v0.32.0),
+[four-platform release CI](https://github.com/soytec/napplet-soy/actions/runs/42615221873),
+[Nix package/VM CI](https://github.com/soytec/napplet-soy/actions/runs/42612935802)
+and [Studio integration CI](https://github.com/soytec/napplet-soy/actions/runs/42612935774)
+passed for the released source. The first Intel Mac attempt stopped on npm download
+timeouts and a DNS failure; the failed job passed on retry with the tag unchanged.
+
+All 11 public assets match their checksums and GitHub digests; all four archives'
+platform/version metadata match the release manifest, which identifies the tagged
+source. An isolated macOS ARM64 fresh install from the public installer passed
+`doctor`.
+A real **0.31.4 → 0.32.0** update and current-version recheck passed, preserving
+the prior release, account/project markers and legacy command. The user's normal
+CLI installation and shell configuration were unchanged by these isolated checks.
+The website installer was activated by the normal application deployment only
+after these checks and matches the official release asset byte for byte. See the
+[deployment record](DEPLOYMENT.md).
+
+Merged creator-guidance follow-ups
+([shell PR #54](https://github.com/soytec/napplet-soy/pull/54),
+[standalone PR #2](https://github.com/soytec/soyli/pull/2)) require complete napplet
+navigation when controller support is chosen; controller support remains optional.
+These source changes are for a future CLI release. They are not included in the
+immutable 0.32.0 binaries or their bundled guides, or the currently deployed
+application and worker.
 
 **0.31.4 — compliance corrections**
 
