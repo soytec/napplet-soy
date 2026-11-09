@@ -52,7 +52,8 @@ test('hash-addressed screenshots infer supported format but keep declared MIME a
     await expect(verifyIconBytes(bytes, { hash, mime: mismatch })).rejects.toThrow();
   }
   for (const bytes of [
-    await image().gif().toBuffer(),
+    // Valid 1x1 GIF; rejection must not depend on an optional GIF encoder.
+    Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64'),
     new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"></svg>'),
     new TextEncoder().encode('<html>not an image</html>'),
   ])
