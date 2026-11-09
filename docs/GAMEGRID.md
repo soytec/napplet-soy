@@ -26,6 +26,9 @@ instead of substituting unrelated games.
   creator-supplied categorization, not proof that a game supports a controller.
 - Continue is device-local play history, not a cloud save. The running napplet's
   storage follows the normal shell rules. Returning to the grid restores the tile.
+- An active search shows one grid of matching games with pagination, without
+  featured or ranking sections. Clearing search restores the selected collection;
+  choosing a collection clears search.
 - D-pad or left stick moves focus; the bottom face button (A on Xbox) selects;
   the right face button (B on Xbox) goes back one level. Up from the grid's first
   row reaches the toolbar; Down returns to the last tile. Horizontal movement
