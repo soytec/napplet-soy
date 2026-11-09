@@ -5,6 +5,40 @@ The current published version is **0.31.4**. The repository has transferred to
 [`soytec/napplet-soy`](https://github.com/soytec/napplet-soy), including its history,
 issues, pull requests and releases.
 
+**0.32.0 — release candidate; not yet published**
+
+Fresh publications use the selected NIP-5D proposal's `screenshot` and `preview`
+fields, plus hash-bound HTTPS source archives. Readers retain legacy media and
+archives, accept optional media MIME fields and use the first eight usable
+screenshots. Resuming an older frozen publication keeps its original tags and
+signatures. Source archive reuse is bound to the signed digest. See
+[presentation compatibility](PREVIEWS.md) and [source handling](REMIXING.md).
+
+The shared preview adopts NIP-5D's private, port-bound transport and revokes a
+napplet on window-level traffic, a second hello, reload or port failure. Old
+bundled shims that send window-level messages must be updated and republished;
+optional presentation metadata still never gates playback. The startup checks
+exercise these restrictions. See [protocol pins and limits](PROTOCOL.md).
+
+Optional, experimental [NAP-LLM](LLM.md) support adds shell-owned connections and
+per-request disclosure consent to the local preview. Provider credentials remain
+outside napplets. The draft includes structured content and application-owned
+tool calls; it is not an accepted NAP or a certification of every provider/model.
+[Native CVM checkout](LLM-CVM.md) retains invoice QR fallback and explicit payment
+recovery without background wallet polling. No VALUE amendment is introduced.
+Fullscreen shell prompts and activity feedback remain visible above the creation.
+
+Standalone HTML remixes can initialize and pass setup without a package lockfile;
+this does not invent upstream Git history or enable proposals without Git source.
+After upgrading, restart previews and run `soyli skills update` in existing
+projects, reviewing preserved-file conflicts before changing application code.
+
+This candidate continues the `soytec/napplet-soy` release/update channel. The
+standalone source port in [`soytec/soyli` PR #1](https://github.com/soytec/soyli/pull/1)
+does not move that channel. Deploy compatible shell readers first, then complete
+the four-platform release checks and public archive/install/upgrade verification.
+Do not activate the website's 0.32.0 installer until those assets are public.
+
 **0.31.4 — compliance corrections**
 
 The shared sandbox accepts domain calls before SHELL readiness and coordinates
