@@ -83,7 +83,7 @@ export function gamegridCatalogSearch(search: GamegridSearch): GallerySearch {
     q: search.q,
     tag: 'game',
     sort: 'new',
-    page: search.section === 'games' ? search.page : 1,
+    page: search.q || search.section === 'games' ? search.page : 1,
     unavailable: false,
   };
 }
@@ -236,6 +236,7 @@ export function Gamegrid({
   );
   const catalog = refreshVersion ? browseProtocol(catalogSearch) : initial;
   const currentSection = sections.find((section) => section.id === search.section)!;
+  const searching = !!search.q;
 
   useEffect(() => setDraft(search.q), [search.q]);
   useEffect(() => setRecent(readHistory()), []);
@@ -248,6 +249,7 @@ export function Gamegrid({
   useEffect(() => {
     let active = true;
     setRankingEntries(null);
+    if (searching) return;
     void galleryEntries(catalogSearch)
       .then((entries) => {
         if (active) setRankingEntries(entries);
@@ -264,7 +266,7 @@ export function Gamegrid({
   }, [search.q, search.section, search.page]);
 
   useEffect(() => {
-    if (search.section !== 'continue') return;
+    if (searching || search.section !== 'continue') return;
     let active = true;
     setRecentLoading(true);
     const known = availableCatalog();
@@ -300,10 +302,10 @@ export function Gamegrid({
     return () => {
       active = false;
     };
-  }, [search.section, recent, refreshVersion]);
+  }, [searching, search.section, recent, refreshVersion]);
 
   useEffect(() => {
-    if (search.section !== 'zapped' && search.section !== 'discover') return;
+    if (searching || (search.section !== 'zapped' && search.section !== 'discover')) return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     setZaps(null);
@@ -361,7 +363,10 @@ export function Gamegrid({
     onSelect: setSelectField,
     onSection: (direction) => {
       const index = sections.findIndex((section) => section.id === search.section);
-      update({ section: sections[(index + direction + sections.length) % sections.length].id });
+      update({
+        q: '',
+        section: sections[(index + direction + sections.length) % sections.length].id,
+      });
     },
     onSearch: () => setSearchOpen(true),
   });
@@ -452,6 +457,15 @@ export function Gamegrid({
       empty: 'No games found.',
     },
     {
+      id: 'search',
+      title: 'Search results',
+      icon: Search,
+      layout: 'equal',
+      entries: catalog.napplets,
+      loading: false,
+      empty: 'No games found.',
+    },
+    {
       id: 'continue',
       title: 'Continue playing',
       icon: History,
@@ -461,8 +475,9 @@ export function Gamegrid({
       empty: 'Games you open will appear here.',
     },
   ];
-  const visibleCollections =
-    search.section === 'discover'
+  const visibleCollections = searching
+    ? collections.filter((collection) => collection.id === 'search')
+    : search.section === 'discover'
       ? collections.slice(0, 5)
       : collections.filter((collection) => collection.id === search.section);
   const toggleFullscreen = async () => {
@@ -487,7 +502,7 @@ export function Gamegrid({
           <div className="gg-empty" role="status">
             <h2>No games found.</h2>
             <p>Try a different title or tag.</p>
-            <button className="gg-primary" onClick={() => update({ q: '', section: 'discover' })}>
+            <button className="gg-primary" onClick={() => update({ q: '' })}>
               Clear search
               <ArrowRight size={17} />
             </button>
@@ -495,12 +510,12 @@ export function Gamegrid({
         ) : (
           visibleCollections.map((collection) => {
             const entries =
-              search.section === 'discover'
+              !searching && search.section === 'discover'
                 ? collection.entries.slice(0, collection.layout === 'equal' ? 8 : 7)
                 : collection.entries;
             return (
               <section className="gg-section" key={collection.id} aria-label={collection.title}>
-                <h2 className="gg-section-title">
+                <h2 className={searching ? 'sr-only' : 'gg-section-title'}>
                   <collection.icon size={15} />
                   {collection.title}
                 </h2>
@@ -555,7 +570,7 @@ export function Gamegrid({
             title="A chooses a collection · LB / RB switches collection"
             value={search.section}
             onChange={(event) =>
-              update({ section: event.target.value as GamegridSearch['section'] })
+              update({ q: '', section: event.target.value as GamegridSearch['section'] })
             }
           >
             {sections.map(({ id, short }) => (
@@ -602,7 +617,7 @@ export function Gamegrid({
             <UserRound size={19} />
           </button>
         </PopoverTrigger>
-        {search.section === 'continue' && recent.length > 0 && (
+        {!searching && search.section === 'continue' && recent.length > 0 && (
           <button
             type="button"
             className="gg-hud-button"
@@ -650,14 +665,14 @@ export function Gamegrid({
             {historyNotice}
           </p>
         )}
-        {zapError && (
+        {!searching && zapError && (
           <p className="gg-notice" role="status">
             {zapError}
             <button onClick={() => setZapRetry((value) => value + 1)}>Retry</button>
           </p>
         )}
       </div>
-      {search.section === 'games' && catalog.pages > 1 && (
+      {(searching || search.section === 'games') && catalog.pages > 1 && (
         <nav className="gg-pagination" data-gamegrid-nav="footer" aria-label="Game pages">
           <button
             aria-label="Previous game page"
