@@ -92,9 +92,117 @@ test('Gamegrid controller scopes preserve the game, guard dialogs and edit ordin
     const menu = page.getByRole('dialog', { name: 'Game menu', exact: true });
     const openMenu = async () => {
       await buttons([]);
-      await buttons([8, 9]);
+      await buttons([9]);
       await menu.waitFor();
     };
+    // Navigation crosses grid/toolbar/footer boundaries only in their intended directions.
+    await page.getByRole('button', { name: 'Game one', exact: true }).focus();
+    await settle();
+    await tap(12);
+    expect(
+      await page.evaluate(
+        () =>
+          document.activeElement?.closest<HTMLElement>('[data-gamegrid-nav]')?.dataset.gamegridNav,
+      ),
+    ).toBe('toolbar');
+    await page.getByRole('combobox', { name: 'Game collection' }).focus();
+    await tap(15);
+    expect(
+      await page
+        .getByLabel('Search games', { exact: true })
+        .evaluate((node) => node === document.activeElement),
+    ).toBe(true);
+    await tap(13);
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe('tile-one');
+
+    // A glass toolbar can overlap tiles. A nearer overlaid control must not steal Right.
+    await page.getByRole('combobox', { name: 'Game collection' }).evaluate((node) => {
+      const tile = document.getElementById('tile-one')!.getBoundingClientRect();
+      Object.assign(node.style, {
+        position: 'fixed',
+        left: `${tile.left + tile.width / 2 + 20}px`,
+        top: `${tile.top + tile.height / 2 - 10}px`,
+        width: '40px',
+        height: '20px',
+        padding: '0px',
+      });
+    });
+    await tap(15);
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe('tile-two');
+    await page
+      .getByRole('combobox', { name: 'Game collection' })
+      .evaluate((node) => node.removeAttribute('style'));
+    await tap(13);
+    expect(
+      await page.evaluate(
+        () =>
+          document.activeElement?.closest<HTMLElement>('[data-gamegrid-nav]')?.dataset.gamegridNav,
+      ),
+    ).toBe('footer');
+    await tap(12);
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe('tile-two');
+    // Merely focusing a select must not capture horizontal navigation forever.
+    const collection = page.getByRole('combobox', { name: 'Game collection' });
+    await collection.focus();
+    await settle();
+    await tap(15);
+    expect(await collection.inputValue()).toBe('new');
+    expect(
+      await page
+        .getByLabel('Search games', { exact: true })
+        .evaluate((node) => node === document.activeElement),
+    ).toBe(true);
+    await tap(14);
+    expect(await collection.evaluate((node) => node === document.activeElement)).toBe(true);
+    await tap(0);
+    const choices = page.locator('.gg-select-dialog');
+    await choices.waitFor();
+    await choices.getByRole('button', { name: 'Most zapped', exact: true }).focus();
+    await tap(1);
+    await choices.waitFor({ state: 'detached' });
+    expect(await collection.inputValue()).toBe('new');
+    expect(await collection.evaluate((node) => node === document.activeElement)).toBe(true);
+    await tap(0);
+    await choices.waitFor();
+    await choices.getByRole('button', { name: 'Most zapped', exact: true }).focus();
+    await tap(0);
+    await choices.waitFor({ state: 'detached' });
+    expect(await collection.inputValue()).toBe('zapped');
+    expect(await collection.evaluate((node) => node === document.activeElement)).toBe(true);
+    await tap(15);
+    expect(
+      await page
+        .getByLabel('Search games', { exact: true })
+        .evaluate((node) => node === document.activeElement),
+    ).toBe(true);
+
+    // Menu entry works before launching a game, and B closes one scope at a time.
+    await tap(8);
+    await menu.waitFor();
+    await menu.getByRole('button', { name: 'Wallet', exact: true }).focus();
+    await tap(0);
+    const wallet = page.getByRole('dialog', { name: 'Wallet', exact: true });
+    await wallet.waitFor();
+    await wallet.getByRole('button', { name: 'Send payment', exact: true }).focus();
+    await tap(0);
+    await wallet.getByText('Payment form', { exact: true }).waitFor();
+    await tap(1);
+    expect(await wallet.getByRole('button', { name: 'Send payment', exact: true }).count()).toBe(1);
+    expect(await wallet.count()).toBe(1);
+    await tap(1);
+    await wallet.waitFor({ state: 'detached' });
+    expect(await menu.count()).toBe(1);
+    await tap(1);
+    await menu.waitFor({ state: 'detached' });
+    expect((await counts()).backs).toBe(0);
+    await tap(1);
+    expect((await counts()).backs).toBe(1);
+    await tap(4);
+    expect((await counts()).sections).toBe(-1);
+    await tap(5);
+    expect((await counts()).sections).toBe(0);
+    await tap(3);
+    expect((await counts()).searches).toBe(1);
     await page.getByRole('button', { name: 'Game one', exact: true }).focus();
     await settle();
     await tap(15);
@@ -112,13 +220,15 @@ test('Gamegrid controller scopes preserve the game, guard dialogs and edit ordin
     await tap(0);
     await tap(1);
     await tap(15);
+    await tap(4);
+    await tap(5);
+    await tap(3);
     expect(await counts()).toEqual(afterLaunch);
     expect(await page.locator('dialog:modal').count()).toBe(0);
     expect(await sameFrame()).toBe(true);
 
-    // View+Menu must be held, and the same held input cannot act inside the new menu.
-    await buttons([8, 9]);
-    expect(await menu.count()).toBe(0);
+    // A single Start opens the menu, and the held input cannot activate its contents.
+    await buttons([9]);
     await menu.waitFor();
     expect(await sameFrame()).toBe(true);
     await buttons([]);

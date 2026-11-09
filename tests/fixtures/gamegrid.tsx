@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { createPortal } from 'react-dom';
 import { useGamegridInput } from '../../apps/web/src/lib/use-gamegrid-input';
 import { GamegridKeyboard } from '../../apps/web/src/components/gamegrid-keyboard';
+import { GamegridSelect } from '../../apps/web/src/components/gamegrid-select';
 import {
   Dialog,
   DialogContent,
@@ -39,12 +40,18 @@ function App() {
   const [review, setReview] = useState(false);
   const [settings, setSettings] = useState(false);
   const [field, setField] = useState<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const [select, setSelect] = useState<HTMLSelectElement | null>(null);
+  const [wallet, setWallet] = useState(false);
+  const [walletPayment, setWalletPayment] = useState(false);
   const [search, setSearch] = useState('');
+  const [collection, setCollection] = useState('new');
   const [secret, setSecret] = useState('');
   const [volume, setVolume] = useState(2);
   const [approvals, setApprovals] = useState(0);
   const [launches, setLaunches] = useState(0);
   const [backs, setBacks] = useState(0);
+  const [sections, setSections] = useState(0);
+  const [searches, setSearches] = useState(0);
   useEffect(() => {
     const request = (event: MessageEvent) => {
       if (
@@ -62,6 +69,9 @@ function App() {
     onMenu: () => setMenu(true),
     onBack: () => setBacks((count) => count + 1),
     onText: setField,
+    onSelect: setSelect,
+    onSection: (direction) => setSections((count) => count + direction),
+    onSearch: () => setSearches((count) => count + 1),
   });
   const resume = () => {
     setMenu(false);
@@ -75,12 +85,24 @@ function App() {
   return (
     <div ref={root} data-mode={playing ? 'game' : 'browse'}>
       <output data-controller>{input.status}</output>
-      <output data-counts>{JSON.stringify({ approvals, launches, backs })}</output>
+      <output data-counts>
+        {JSON.stringify({ approvals, launches, backs, sections, searches })}
+      </output>
       <output data-search>{search}</output>
       <output data-secret-length>{secret.length}</output>
       <output data-volume>{volume}</output>
       <section hidden={playing !== null} aria-label="Browse games">
-        <header>
+        <header data-gamegrid-nav="toolbar">
+          <select
+            aria-label="Game collection"
+            value={collection}
+            onChange={(event) => setCollection(event.target.value)}
+          >
+            <option value="new">New</option>
+            <option value="zapped">Most zapped</option>
+            <option value="games">All games</option>
+            <option value="continue">Continue</option>
+          </select>
           <input
             aria-label="Search games"
             maxLength={4}
@@ -88,11 +110,13 @@ function App() {
             onChange={(event) => setSearch(event.target.value)}
           />
           <button onClick={() => setSettings(true)}>Account settings</button>
+          <button onClick={() => setWallet(true)}>Wallet</button>
         </header>
-        <div className="tiles">
+        <div className="tiles" data-gamegrid-nav="grid">
           {['one', 'two', 'three'].map((id) => (
             <button
               id={`tile-${id}`}
+              data-game-id={id}
               key={id}
               onClick={() => {
                 lastTile.current = `tile-${id}`;
@@ -104,6 +128,10 @@ function App() {
             </button>
           ))}
         </div>
+        <footer data-gamegrid-nav="footer">
+          <button>Previous page</button>
+          <button>Next page</button>
+        </footer>
       </section>
       {playing && (
         <div className="player-stage">
@@ -121,7 +149,25 @@ function App() {
           <DialogDescription>Trusted controller menu fixture</DialogDescription>
           <button onClick={resume}>Resume game</button>
           <button onClick={() => setReview(true)}>Review action</button>
+          <button onClick={() => setSettings(true)}>Account settings</button>
+          <button onClick={() => setWallet(true)}>Wallet</button>
           <button onClick={leave}>Back to grid</button>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={wallet} onOpenChange={setWallet}>
+        <DialogContent showCloseButton={false}>
+          <DialogTitle>Wallet</DialogTitle>
+          <DialogDescription>Wallet back-navigation fixture</DialogDescription>
+          {walletPayment ? (
+            <>
+              <p>Payment form</p>
+              <button data-gamegrid-back onClick={() => setWalletPayment(false)}>
+                Back to wallet
+              </button>
+            </>
+          ) : (
+            <button onClick={() => setWalletPayment(true)}>Send payment</button>
+          )}
         </DialogContent>
       </Dialog>
       <Dialog open={settings} onOpenChange={setSettings}>
@@ -156,6 +202,7 @@ function App() {
         />
       )}
       {field && <GamegridKeyboard field={field} close={() => setField(null)} />}
+      {select && <GamegridSelect field={select} close={() => setSelect(null)} />}
     </div>
   );
 }

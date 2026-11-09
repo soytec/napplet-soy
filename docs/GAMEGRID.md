@@ -20,14 +20,24 @@ persistent footer.
 - Continue is device-local play history, not a cloud save. The running napplet's
   storage follows the normal shell rules. Returning to the grid restores the tile.
 - D-pad or left stick moves focus; the bottom face button (A on Xbox) selects;
-  the right face button (B on Xbox) goes back. Arrow keys and pointer remain usable.
-- Hold View + Menu (standard buttons 8 + 9) for 600 ms to open the shell menu.
+  the right face button (B on Xbox) goes back one level. Up from the grid's first
+  row reaches the toolbar; Down returns to the last tile. Horizontal movement
+  stays within the grid or toolbar. Arrow keys and pointer remain usable.
+- Either Select/View or Start/Menu (standard button 8 or 9) opens the shell menu
+  from browsing or gameplay. Pressing either again closes the Gamegrid menu;
+  other approval and payment dialogs keep priority. The menu includes collections,
+  search, wallet, account and exit, with resume/restart actions during play.
   Resume preserves the same player. The controller must return to neutral before
   focus returns to the game. F1 also opens the menu when keyboard focus is in the
   shell; an opaque game's keyboard events do not bubble to the parent.
-- Search and editable shell fields offer an on-screen keyboard. In a native select,
-  left/right changes the option and up/down moves between controls. Range controls
-  also support left/right. The keyboard includes printable ASCII symbols; other
+- LB/RB cycles collections and Y opens search while browsing. These shortcuts
+  do not act behind dialogs or during gameplay. B cancels a choice or keyboard,
+  returns from wallet details/sign-in forms, then closes the enclosing dialog.
+  On the grid it clears search, returns to New, then opens the menu.
+- Search and editable shell fields offer an on-screen keyboard. A on a select
+  opens a choice dialog: D-pad moves, A confirms, B cancels without changing it.
+  Simply focusing a select does not change its value or trap horizontal movement.
+  Range controls support left/right. The keyboard includes printable ASCII symbols; other
   languages use the device's keyboard.
 - New dialogs, reconnects and focus changes require neutral input before another
   controller action. A held A must never approve a newly opened permission prompt.
@@ -40,7 +50,7 @@ rules apply; Gamegrid adds no payment polling or implicit approvals.
 
 ## Input ownership and limits
 
-During gameplay, Gamegrid handles only the deliberate shell-menu chord. It does not
+During gameplay, Gamegrid reserves Start/Select for the shell menu. It does not
 use the game's ordinary A/B/D-pad input to navigate the background grid. Its menu
 moves focus out of the game, but it cannot universally pause a napplet or consume
 native Gamepad API readings. Games using the supplied focus-aware helper become

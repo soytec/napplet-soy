@@ -187,7 +187,11 @@ export function IdentityMenu({
           )}
           {identity.method === 'key' && !identity.reconnect && (
             <>
-              <Button variant="outline" onClick={() => setShowBackup(!showBackup)}>
+              <Button
+                variant="outline"
+                data-gamegrid-back={gamegrid && showBackup ? '' : undefined}
+                onClick={() => setShowBackup(!showBackup)}
+              >
                 {showBackup ? 'Close backup' : 'Back up private key'}
               </Button>
               {open && showBackup && (
@@ -301,6 +305,18 @@ export function IdentityMenu({
           </Button>
         ))}
       </div>
+      {gamegrid && method && (
+        <Button
+          variant="ghost"
+          data-gamegrid-back
+          onClick={() => {
+            cancel();
+            setMethod(null);
+          }}
+        >
+          ← Back to account
+        </Button>
+      )}
       {method && (
         <label className="identity-consent">
           <input

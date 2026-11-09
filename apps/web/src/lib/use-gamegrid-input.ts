@@ -36,6 +36,9 @@ export function useGamegridInput(options: {
   onMenu: () => void;
   onBack: () => void;
   onText: (element: HTMLInputElement | HTMLTextAreaElement) => void;
+  onSelect: (element: HTMLSelectElement) => void;
+  onSection?: (direction: -1 | 1) => void;
+  onSearch?: () => void;
 }) {
   const current = useRef(options);
   current.current = options;
@@ -50,6 +53,7 @@ export function useGamegridInput(options: {
     let raf = 0,
       lastStatus = '',
       lastScope: HTMLElement | null = null;
+    let lastTile: HTMLElement | null = null;
     const scope = () =>
       activeShellDialog() ??
       [
@@ -59,18 +63,32 @@ export function useGamegridInput(options: {
       ].at(-1) ??
       current.current.root.current;
     const act = (action: GridAction, owner: HTMLElement) => {
-      const { root, playing, onMenu, onBack, onText } = current.current;
+      const { root, playing, onMenu, onBack, onText, onSelect, onSection, onSearch } =
+        current.current;
       const modal = owner !== root.current;
       if (action === 'menu') {
         if (!modal) onMenu();
+        else if (owner.matches('.gg-menu-dialog') || owner.querySelector('.gg-menu-dialog'))
+          dismissGridScope(owner);
         return;
       }
       if (action === 'back') {
-        if (modal) dismissGridScope(owner);
+        const back =
+          modal &&
+          gridControls(owner).find((control) => control.hasAttribute('data-gamegrid-back'));
+        if (back) back.click();
+        else if (modal) dismissGridScope(owner);
         else onBack();
         return;
       }
       if (playing && !modal) return;
+      if (action === 'previous-section' || action === 'next-section' || action === 'search') {
+        if (!modal && !playing) {
+          if (action === 'search') onSearch?.();
+          else onSection?.(action === 'previous-section' ? -1 : 1);
+        }
+        return;
+      }
       const controls = gridControls(owner);
       const selected =
         document.activeElement instanceof HTMLElement && controls.includes(document.activeElement)
@@ -86,20 +104,8 @@ export function useGamegridInput(options: {
         )
           onText(selected);
         else if (selected instanceof HTMLSelectElement) {
-          // Use directions to change a select without relying on an OS-owned popup.
-          selected.focus();
+          onSelect(selected);
         } else selected.click();
-        return;
-      }
-      if (selected instanceof HTMLSelectElement && (action === 'left' || action === 'right')) {
-        const choices = [...selected.options].filter((option) => !option.disabled);
-        const index = choices.findIndex((option) => option.selected);
-        const next =
-          choices[Math.max(0, Math.min(choices.length - 1, index + (action === 'left' ? -1 : 1)))];
-        if (next) {
-          selected.value = next.value;
-          selected.dispatchEvent(new Event('change', { bubbles: true }));
-        }
         return;
       }
       if (
@@ -123,13 +129,41 @@ export function useGamegridInput(options: {
         selected.dispatchEvent(new Event('change', { bubbles: true }));
         return;
       }
-      const next = nextGridControl(
-        controls.map((control) => control.getBoundingClientRect()),
-        controls.indexOf(selected),
-        action,
-      );
-      controls[next]?.focus({ preventScroll: true });
-      controls[next]?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+      const nearest = (candidates: HTMLElement[]) => {
+        const list = [selected, ...candidates.filter((node) => node !== selected)];
+        return list[
+          nextGridControl(
+            list.map((control) => control.getBoundingClientRect()),
+            0,
+            action,
+          )
+        ];
+      };
+      let target: HTMLElement | undefined;
+      const group = !modal && selected.closest<HTMLElement>('[data-gamegrid-nav]');
+      if (group) {
+        const name = group.dataset.gamegridNav;
+        // The toolbar overlays the first row. It must not steal horizontal
+        // movement between tiles merely because its centre is closer.
+        target = nearest(gridControls(group));
+        if (name === 'grid' && target === selected && (action === 'up' || action === 'down')) {
+          const bar = owner.querySelector<HTMLElement>(
+            `[data-gamegrid-nav="${action === 'up' ? 'toolbar' : 'footer'}"]`,
+          );
+          if (bar) target = nearest(gridControls(bar));
+        } else if (
+          (name === 'toolbar' && action === 'down') ||
+          (name === 'footer' && action === 'up')
+        ) {
+          const tiles = owner.querySelector<HTMLElement>('[data-gamegrid-nav="grid"]');
+          if (tiles) {
+            const candidates = gridControls(tiles);
+            target = lastTile && candidates.includes(lastTile) ? lastTile : nearest(candidates);
+          }
+        }
+      } else target = nearest(controls);
+      target?.focus({ preventScroll: true });
+      target?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
     };
     const tick = (now: number) => {
       const frame = native.poll();
@@ -155,11 +189,13 @@ export function useGamegridInput(options: {
           if (owner === current.current.root.current) {
             // The grid is the primary surface. Wait for its first enabled tile
             // instead of pulling initial focus to account or navigation chrome.
-            if (document.activeElement === document.body)
-              gridControls(owner)
-                .find((node) => node.hasAttribute('data-game-id'))
-                ?.focus({ preventScroll: true });
-          } else if (owner !== lastScope) {
+            if (document.activeElement === document.body) {
+              const controls = gridControls(owner);
+              (controls.find((node) => node.hasAttribute('data-game-id')) ?? controls[0])?.focus({
+                preventScroll: true,
+              });
+            }
+          } else {
             const controls = gridControls(owner);
             if (!controls.some((node) => node === document.activeElement))
               controls[0]?.focus({ preventScroll: true });
@@ -193,11 +229,17 @@ export function useGamegridInput(options: {
       if (event.defaultPrevented) return;
       const owner = scope();
       if (!owner) return;
+      if (event.key === 'F1') {
+        event.preventDefault();
+        act('menu', owner);
+        return;
+      }
       if (current.current.playing && owner === current.current.root.current) {
-        if (event.key === 'F1') {
-          event.preventDefault();
-          current.current.onMenu();
-        }
+        return;
+      }
+      if (event.key === 'Escape' && owner === current.current.root.current) {
+        event.preventDefault();
+        act('back', owner);
         return;
       }
       if (
@@ -217,6 +259,8 @@ export function useGamegridInput(options: {
     // Dialog cleanup restores its previous focus synchronously. Keep that restore
     // from sending a still-held confirmation into the game before the next poll.
     const focus = (event: FocusEvent) => {
+      if (event.target instanceof HTMLElement && event.target.closest('[data-gamegrid-nav="grid"]'))
+        lastTile = event.target;
       if (!current.current.playing || !(event.target instanceof HTMLIFrameElement)) return;
       const root = current.current.root.current;
       // A host permission prompt can open directly from the game, without our

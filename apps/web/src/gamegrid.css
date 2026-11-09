@@ -474,13 +474,15 @@ body:has(.gamegrid) [data-slot='dialog-content'] textarea:focus {
 .gg-menu-dialog,
 .gg-wallet-dialog,
 .gg-keyboard,
+.gg-select-dialog,
 .gg-search-dialog {
   font-family: var(--font-body);
   padding: 28px;
   max-height: calc(100dvh - 48px);
   overflow-y: auto;
 }
-.gg-menu-dialog {
+.gg-menu-dialog,
+.gg-select-dialog {
   width: min(480px, calc(100vw - 40px));
   max-width: none;
 }
@@ -502,7 +504,8 @@ body:has(.gamegrid) [data-slot='dialog-content'] textarea:focus {
   gap: 7px;
   margin-top: 4px;
 }
-.gg-menu-actions button {
+.gg-menu-actions button,
+.gg-menu-actions > a {
   display: flex;
   align-items: center;
   justify-content: flex-start;

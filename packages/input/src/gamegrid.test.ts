@@ -68,15 +68,39 @@ test('held confirmation never crosses dialog, reconnect, or focus boundaries', (
   f.active(true);
   expect(f.poll(120)).toEqual([]);
 });
-test('gameplay only yields a deliberate menu chord; unmapped controllers do nothing', () => {
+test('Select or Start opens the menu once from browsing and gameplay', () => {
+  for (const playing of [false, true]) {
+    for (const button of [8, 9]) {
+      const f = fixture();
+      const scope = playing ? 'game' : 'browse';
+      f.poll(0, scope, playing);
+      f.press(button);
+      expect(f.poll(10, scope, playing)).toEqual(['menu']);
+      expect(f.poll(1000, scope, playing)).toEqual([]);
+      f.press();
+      f.poll(1010, scope, playing);
+      f.press(button);
+      expect(f.poll(1020, scope, playing)).toEqual(['menu']);
+    }
+  }
+});
+test('menu presses cannot cross a newly opened scope or repeat while held', () => {
+  const f = fixture();
+  f.poll(0);
+  f.press(8, 9);
+  expect(f.poll(10)).toEqual(['menu']);
+  expect(f.poll(20, 'menu')).toEqual([]);
+  expect(f.poll(1000, 'menu')).toEqual([]);
+  f.press();
+  f.poll(1010, 'menu');
+  f.press(9);
+  expect(f.poll(1020, 'menu')).toEqual(['menu']);
+});
+test('gameplay retains ordinary controls; unmapped controllers do nothing', () => {
   const f = fixture();
   f.poll(0, 'game', true);
   f.press(0, 1, 15);
   expect(f.poll(10, 'game', true)).toEqual([]);
-  f.press(8, 9);
-  expect(f.poll(20, 'game', true)).toEqual([]);
-  expect(f.poll(620, 'game', true)).toEqual(['menu']);
-  expect(f.poll(900, 'game', true)).toEqual([]);
   f.pad.mapping = '';
   f.press();
   f.poll(1000);
@@ -94,4 +118,14 @@ test('spatial navigation respects a grid and does not wrap into unrelated contro
   expect(nextGridControl(boxes, 4, 'left')).toBe(3);
   expect(nextGridControl(boxes, 0, 'left')).toBe(0);
   expect(nextGridControl(boxes, -1, 'right')).toBe(0);
+});
+test('down from an account close control reaches the nearby sign-in row before a wide lower action', () => {
+  const boxes = [
+    { x: 977, y: 263, width: 24, height: 42 },
+    { x: 439, y: 375, width: 122, height: 42 },
+    { x: 567, y: 375, width: 156, height: 42 },
+    { x: 729, y: 375, width: 130, height: 42 },
+    { x: 439, y: 543, width: 562, height: 42 },
+  ];
+  expect(nextGridControl(boxes, 0, 'down')).toBe(3);
 });

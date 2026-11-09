@@ -1,6 +1,16 @@
 import type { ControllerFrame } from '../../../../packages/input/src/gamepad';
 
-export type GridAction = 'left' | 'right' | 'up' | 'down' | 'confirm' | 'back' | 'menu';
+export type GridAction =
+  | 'left'
+  | 'right'
+  | 'up'
+  | 'down'
+  | 'confirm'
+  | 'back'
+  | 'menu'
+  | 'previous-section'
+  | 'next-section'
+  | 'search';
 export const gridBindings = {
   x: [{ axis: 0 }, { button: 14, scale: -1 }, { button: 15 }],
   y: [{ axis: 1 }, { button: 12, scale: -1 }, { button: 13 }],
@@ -8,6 +18,9 @@ export const gridBindings = {
   back: [{ button: 1 }],
   select: [{ button: 8 }],
   start: [{ button: 9 }],
+  previous: [{ button: 4 }],
+  next: [{ button: 5 }],
+  search: [{ button: 3 }],
 } as const;
 
 /** Menu input only. A new focus scope must observe neutral input before it can act. */
@@ -16,11 +29,13 @@ export function createGridInput() {
     controller = '',
     armed = false;
   let direction = '',
-    repeatAt = 0,
-    chordAt: number | null = null,
-    chordSent = false;
+    repeatAt = 0;
   let confirm = false,
-    back = false;
+    back = false,
+    menu = false,
+    previous = false,
+    nextSection = false,
+    search = false;
   return {
     poll(frame: ControllerFrame, nextScope: unknown, now: number, playing = false): GridAction[] {
       const pad = frame.players.find((p) => p.mapped);
@@ -30,9 +45,8 @@ export function createGridInput() {
         controller = key;
         armed = false;
         direction = '';
-        chordAt = null;
-        chordSent = false;
         confirm = back = false;
+        menu = previous = nextSection = search = false;
       }
       if (!pad || frame.status !== 'ready') return [];
       const neutral = pad.buttons.every((b) => b < 0.5) && pad.axes.every((a) => Math.abs(a) < 0.4);
@@ -41,20 +55,19 @@ export function createGridInput() {
         return [];
       }
       const down = (name: string) => !!pad.actions[name]?.down;
-      const chord = down('select') && down('start');
-      if (chord) {
-        chordAt ??= now;
-        if (!chordSent && now - chordAt >= 600) {
-          chordSent = true;
-          return ['menu'];
-        }
-      } else {
-        chordAt = null;
-        chordSent = false;
-      }
+      const menuDown = down('select') || down('start');
+      const menuPressed = menuDown && !menu;
+      menu = menuDown;
+      if (menuPressed) return ['menu'];
       // Gameplay owns ordinary input. Neither A nor B can navigate the shell behind it.
-      if (playing || chord) return [];
+      if (playing || menuDown) return [];
       const actions: GridAction[] = [];
+      if (down('previous') && !previous) actions.push('previous-section');
+      if (down('next') && !nextSection) actions.push('next-section');
+      if (down('search') && !search) actions.push('search');
+      previous = down('previous');
+      nextSection = down('next');
+      search = down('search');
       if (down('confirm') && !confirm) actions.push('confirm');
       if (down('back') && !back) actions.push('back');
       confirm = down('confirm');
@@ -100,7 +113,10 @@ export function nextGridControl(boxes: FocusBox[], current: number, direction: G
     if (forward <= 2) return;
     const aligned =
       sideways < (horizontal ? (box.height + source.height) / 2 : (box.width + source.width) / 2);
-    const score = forward + sideways * (aligned ? 0.25 : 4) + (aligned ? 0 : 1000);
+    // Alignment is a preference, not an absolute lane. A small corner button
+    // must be able to reach the nearby row instead of skipping it for a wide
+    // control far down the dialog.
+    const score = forward + sideways * (aligned ? 0.25 : 1);
     if (score < best) {
       best = score;
       selected = index;

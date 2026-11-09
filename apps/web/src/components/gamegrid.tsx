@@ -8,6 +8,7 @@ import {
   History,
   Keyboard,
   LogOut,
+  Menu,
   Play,
   RotateCcw,
   Search,
@@ -47,6 +48,7 @@ import { PreviewCover } from './preview-cover';
 import { Player } from './player';
 import { ZapButton } from './zap-button';
 import { GamegridKeyboard } from './gamegrid-keyboard';
+import { GamegridSelect } from './gamegrid-select';
 
 const WalletPanel = lazy(() =>
   import('./wallet/wallet-panel').then((module) => ({ default: module.WalletPanel })),
@@ -164,7 +166,7 @@ function GameCard({
         <span className="gg-card-hint">
           {playable ? (
             <>
-              <kbd>A</kbd> Play <small>Hold View + Menu in game</small>
+              <kbd>A</kbd> Play <small>Start / Select · Menu</small>
             </>
           ) : (
             'Currently unavailable'
@@ -186,6 +188,7 @@ export function Gamegrid({
 }) {
   const root = useRef<HTMLDivElement>(null),
     viewport = useRef<HTMLDivElement>(null),
+    collectionField = useRef<HTMLSelectElement>(null),
     searchField = useRef<HTMLInputElement>(null);
   const returnTo = useRef<{ node: HTMLElement | null; scroll: number }>({ node: null, scroll: 0 });
   const { pubkey, ready, connect } = useNostr();
@@ -196,6 +199,7 @@ export function Gamegrid({
     [menuOpen, setMenuOpen] = useState(false),
     [walletOpen, setWalletOpen] = useState(false);
   const [textField, setTextField] = useState<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const [selectField, setSelectField] = useState<HTMLSelectElement | null>(null);
   const [recent, setRecent] = useState<RecentGame[]>([]),
     [recentEntries, setRecentEntries] = useState<PublicNapplet[]>([]),
     [recentLoading, setRecentLoading] = useState(false);
@@ -313,19 +317,24 @@ export function Gamegrid({
   const input = useGamegridInput({
     root,
     playing: !!playing,
-    onMenu: () => {
-      if (playing) setMenuOpen(true);
-    },
+    onMenu: () => setMenuOpen(true),
     onBack: () => {
       if (playing) setMenuOpen(true);
       else if (search.q) update({ q: '' });
       else if (search.section !== 'new') update({ section: 'new' });
+      else setMenuOpen(true);
     },
     onText: setTextField,
+    onSelect: setSelectField,
+    onSection: (direction) => {
+      const index = sections.findIndex((section) => section.id === search.section);
+      update({ section: sections[(index + direction + sections.length) % sections.length].id });
+    },
+    onSearch: () => setSearchOpen(true),
   });
   const resume = () => {
     setMenuOpen(false);
-    input.resumeWhenNeutral();
+    if (playing) input.resumeWhenNeutral();
   };
   const launch = (napplet: PublicNapplet) => {
     returnTo.current = {
@@ -370,7 +379,11 @@ export function Gamegrid({
       <h1 className="sr-only">Gamegrid</h1>
       <div className="gg-viewport" ref={viewport}>
         {entries.length > 0 ? (
-          <section className="gg-grid" aria-label={`${currentSection.short} games`}>
+          <section
+            className="gg-grid"
+            data-gamegrid-nav="grid"
+            aria-label={`${currentSection.short} games`}
+          >
             {entries.map((entry, index) => (
               <GameCard
                 key={entry.revisionId}
@@ -384,7 +397,7 @@ export function Gamegrid({
             ))}
           </section>
         ) : (
-          <div className="gg-empty" role="status">
+          <div className="gg-empty" data-gamegrid-nav="grid" role="status">
             <h2>
               {loading
                 ? 'Loading games…'
@@ -416,12 +429,13 @@ export function Gamegrid({
           </div>
         )}
       </div>
-      <header className="gg-hud" aria-label="Gamegrid controls">
+      <header className="gg-hud" data-gamegrid-nav="toolbar" aria-label="Gamegrid controls">
         <div className="gg-collection-control">
           <currentSection.icon size={17} aria-hidden="true" />
           <select
+            ref={collectionField}
             aria-label="Game collection"
-            title="Left or right changes collection"
+            title="A chooses a collection · LB / RB switches collection"
             value={search.section}
             onChange={(event) =>
               update({ section: event.target.value as GamegridSearch['section'] })
@@ -491,6 +505,15 @@ export function Gamegrid({
           </button>
         )}
         <span className="gg-hud-divider" aria-hidden="true" />
+        <button
+          type="button"
+          className="gg-hud-button"
+          aria-label="Open Gamegrid menu"
+          title="Start / Select · Menu"
+          onClick={() => setMenuOpen(true)}
+        >
+          <Menu size={19} />
+        </button>
         <Link
           to="/"
           className="gg-hud-button"
@@ -518,7 +541,7 @@ export function Gamegrid({
         )}
       </div>
       {search.section === 'games' && catalog.pages > 1 && (
-        <nav className="gg-pagination" aria-label="Game pages">
+        <nav className="gg-pagination" data-gamegrid-nav="footer" aria-label="Game pages">
           <button
             aria-label="Previous game page"
             disabled={catalog.page <= 1}
@@ -605,89 +628,129 @@ export function Gamegrid({
           }}
         />
       )}
-      {playing && (
-        <Dialog
-          open={menuOpen}
-          onOpenChange={(open) => {
-            if (open) setMenuOpen(true);
-            else resume();
-          }}
-        >
-          <DialogContent className="gg-menu-dialog">
-            <span className="gg-eyebrow">TAKE A BREATHER</span>
-            <DialogTitle>{playing.title}</DialogTitle>
-            <DialogDescription>
-              Gamegrid menu · some games may keep running while this is open.
-            </DialogDescription>
-            {playerNotice && (
-              <p role="alert" className="gg-notice">
-                {playerNotice}
-              </p>
+      <Dialog
+        open={menuOpen}
+        onOpenChange={(open) => {
+          if (open) setMenuOpen(true);
+          else resume();
+        }}
+      >
+        <DialogContent className="gg-menu-dialog">
+          <span className="gg-eyebrow">GAMEGRID</span>
+          <DialogTitle>{playing?.title ?? 'Gamegrid menu'}</DialogTitle>
+          <DialogDescription>
+            {playing
+              ? 'Some games may keep running while this is open.'
+              : 'Your games, account and wallet.'}
+          </DialogDescription>
+          {playerNotice && (
+            <p role="alert" className="gg-notice">
+              {playerNotice}
+            </p>
+          )}
+          <div className="gg-menu-actions">
+            <button className="gg-primary" onClick={resume}>
+              {playing ? <Play size={20} fill="currentColor" /> : <Grid2X2 size={20} />}
+              {playing ? 'Resume game' : 'Back to games'}
+            </button>
+            {playing && (
+              <>
+                <button
+                  onClick={() => {
+                    setPlayerRevision((value) => value + 1);
+                    setPlayerNotice('');
+                    resume();
+                  }}
+                >
+                  <RotateCcw size={20} />
+                  Restart game
+                </button>
+                <ZapButton
+                  data={{
+                    manifest: playing.manifest,
+                    scope: socialScope(playing.manifest),
+                    relays: playing.relays,
+                  }}
+                  reference={playing.naddr ?? playing.revisionId}
+                  trigger={
+                    <button>
+                      <Zap size={20} />
+                      Zap the creator
+                    </button>
+                  }
+                />
+              </>
             )}
-            <div className="gg-menu-actions">
-              <button className="gg-primary" onClick={resume}>
-                <Play size={20} fill="currentColor" />
-                Resume game
-              </button>
-              <button
-                onClick={() => {
-                  setPlayerRevision((value) => value + 1);
-                  setPlayerNotice('');
-                  resume();
-                }}
-              >
-                <RotateCcw size={20} />
-                Restart game
-              </button>
-              <ZapButton
-                data={{
-                  manifest: playing.manifest,
-                  scope: socialScope(playing.manifest),
-                  relays: playing.relays,
-                }}
-                reference={playing.naddr ?? playing.revisionId}
-                trigger={
-                  <button>
-                    <Zap size={20} />
-                    Zap the creator
-                  </button>
-                }
-              />
-              <button onClick={() => setWalletOpen(true)}>
-                <Wallet size={20} />
-                Wallet
-              </button>
-              <button
-                onClick={() => {
-                  const wrapper = root.current?.querySelector<HTMLElement>('.player-wrap');
-                  try {
+            {!playing && (
+              <>
+                <button
+                  onClick={() => {
+                    if (collectionField.current) setSelectField(collectionField.current);
+                  }}
+                >
+                  <Grid2X2 size={20} />
+                  Collections · {currentSection.short}
+                </button>
+                <button onClick={() => setSearchOpen(true)}>
+                  <Search size={20} />
+                  Search games
+                </button>
+              </>
+            )}
+            <button onClick={() => setWalletOpen(true)}>
+              <Wallet size={20} />
+              Wallet
+            </button>
+            <button disabled={!ready} onClick={() => void connect()}>
+              <UserRound size={20} />
+              {pubkey ? 'Account & settings' : 'Connect account'}
+            </button>
+            <button
+              onClick={() => {
+                const wrapper =
+                  (playing && root.current?.querySelector<HTMLElement>('.player-wrap')) ||
+                  root.current;
+                try {
+                  if (document.fullscreenElement) void document.exitFullscreen();
+                  else
                     void wrapper
                       ?.requestFullscreen()
                       .catch(() =>
                         setPlayerNotice(
-                          'Browser fullscreen is unavailable. The game already fills this window.',
+                          'Use your browser’s fullscreen shortcut. Gamegrid already fills this window.',
                         ),
                       );
-                  } catch {
-                    setPlayerNotice('The game already fills this window.');
-                  }
-                }}
-              >
-                <Expand size={20} />
-                Browser fullscreen
-              </button>
+                } catch {
+                  setPlayerNotice('Gamegrid already fills this window.');
+                }
+              }}
+            >
+              <Expand size={20} />
+              Browser fullscreen
+            </button>
+            {playing ? (
               <button onClick={leaveGame}>
                 <Grid2X2 size={20} />
                 Back to Gamegrid
               </button>
-            </div>
-            <p className="gg-menu-hint">
-              Hold View + Menu together to open this menu. Release the buttons before returning to
-              play.
-            </p>
-          </DialogContent>
-        </Dialog>
-      )}
+            ) : (
+              <Link to="/">
+                <LogOut size={20} />
+                Exit to napplet.soy
+              </Link>
+            )}
+          </div>
+          <p className="gg-menu-hint">
+            A select · B back · Start / Select menu
+            {!playing && (
+              <>
+                <br />
+                LB / RB collections · Y search
+              </>
+            )}
+          </p>
+        </DialogContent>
+      </Dialog>
       <Dialog open={walletOpen} onOpenChange={setWalletOpen}>
         <DialogContent className="gg-wallet-dialog">
           <DialogTitle>Your wallet</DialogTitle>
@@ -698,6 +761,7 @@ export function Gamegrid({
         </DialogContent>
       </Dialog>
       {textField && <GamegridKeyboard field={textField} close={() => setTextField(null)} />}
+      {selectField && <GamegridSelect field={selectField} close={() => setSelectField(null)} />}
     </div>
   );
 }
