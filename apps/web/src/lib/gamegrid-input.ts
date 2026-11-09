@@ -1,4 +1,4 @@
-import type { ControllerFrame } from '../../../../packages/input/src/gamepad';
+import type { Controller, ControllerFrame } from '../../../../packages/input/src/gamepad';
 
 export type GridAction =
   | 'left'
@@ -14,6 +14,7 @@ export type GridAction =
 export const gridBindings = {
   x: [{ axis: 0 }, { button: 14, scale: -1 }, { button: 15 }],
   y: [{ axis: 1 }, { button: 12, scale: -1 }, { button: 13 }],
+  scroll: [{ axis: 3 }],
   confirm: [{ button: 0 }],
   back: [{ button: 1 }],
   select: [{ button: 8 }],
@@ -23,6 +24,17 @@ export const gridBindings = {
   search: [{ button: 3 }],
 } as const;
 
+const scrollDeadZone = 0.25;
+
+/** Raw axes and mapped scroll must both be neutral before entering another surface. */
+export function isGridInputNeutral(pad: Pick<Controller, 'buttons' | 'axes' | 'actions'>) {
+  return (
+    pad.buttons.every((button) => button < 0.5) &&
+    pad.axes.every((axis) => Math.abs(axis) < 0.4) &&
+    Math.abs(pad.actions.scroll?.value ?? 0) <= scrollDeadZone
+  );
+}
+
 /** Menu input only. A new focus scope must observe neutral input before it can act. */
 export function createGridInput() {
   let scope: unknown,
@@ -30,6 +42,8 @@ export function createGridInput() {
     armed = false;
   let direction = '',
     repeatAt = 0;
+  let lastPoll: number | undefined,
+    scrollPixels = 0;
   let confirm = false,
     back = false,
     menu = false,
@@ -37,7 +51,13 @@ export function createGridInput() {
     nextSection = false,
     search = false;
   return {
+    get scrollPixels() {
+      return scrollPixels;
+    },
     poll(frame: ControllerFrame, nextScope: unknown, now: number, playing = false): GridAction[] {
+      const elapsed = lastPoll === undefined ? 0 : Math.max(0, Math.min(50, now - lastPoll));
+      lastPoll = now;
+      scrollPixels = 0;
       const pad = frame.players.find((p) => p.mapped);
       const key = pad ? `${pad.index}:${pad.id}:${pad.mapping}` : '';
       if (scope !== nextScope || key !== controller || frame.status !== 'ready') {
@@ -49,7 +69,7 @@ export function createGridInput() {
         menu = previous = nextSection = search = false;
       }
       if (!pad || frame.status !== 'ready') return [];
-      const neutral = pad.buttons.every((b) => b < 0.5) && pad.axes.every((a) => Math.abs(a) < 0.4);
+      const neutral = isGridInputNeutral(pad);
       if (!armed) {
         armed = neutral;
         return [];
@@ -61,6 +81,16 @@ export function createGridInput() {
       if (menuPressed) return ['menu'];
       // Gameplay owns ordinary input. Neither A nor B can navigate the shell behind it.
       if (playing || menuDown) return [];
+      const scroll = pad.actions.scroll?.value ?? 0;
+      // Continuous motion has the same scope/reconnect neutral gate as clicks.
+      // Integrate frame time, with a drift dead zone and no jump after a stalled frame.
+      if (Math.abs(scroll) > scrollDeadZone)
+        scrollPixels =
+          (Math.sign(scroll) *
+            Math.pow((Math.abs(scroll) - scrollDeadZone) / (1 - scrollDeadZone), 1.5) *
+            900 *
+            elapsed) /
+          1000;
       const actions: GridAction[] = [];
       if (down('previous') && !previous) actions.push('previous-section');
       if (down('next') && !nextSection) actions.push('next-section');

@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { createGamepadInput } from '../../../../packages/input/src/gamepad';
 import { activeShellDialog } from '../../../../packages/runtime/src/shell-ui';
-import { createGridInput, gridBindings, nextGridControl, type GridAction } from './gamegrid-input';
+import {
+  createGridInput,
+  gridBindings,
+  isGridInputNeutral,
+  nextGridControl,
+  type GridAction,
+} from './gamegrid-input';
 
 export function gridControls(scope: HTMLElement) {
   return [
@@ -27,6 +33,65 @@ export function dismissGridScope(scope: HTMLElement) {
       new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
     );
   }
+}
+
+/** Keep continuous scrolling inside the active shell surface, never the game frame. */
+function scrollGridScope(owner: HTMLElement, root: HTMLElement | null, delta: number) {
+  const canScroll = (node: HTMLElement) => {
+    const style = getComputedStyle(node);
+    return (
+      /auto|scroll/.test(style.overflowY) &&
+      node.scrollHeight > node.clientHeight + 1 &&
+      (delta < 0 ? node.scrollTop > 0 : node.scrollTop + node.clientHeight < node.scrollHeight - 1)
+    );
+  };
+  let target: HTMLElement | undefined;
+  const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  if (owner === root) {
+    target = [...owner.querySelectorAll<HTMLElement>('.gg-viewport, [data-gamegrid-scroll]')].find(
+      (node) =>
+        node.getClientRects().length > 0 && !node.closest('[hidden], [inert]') && canScroll(node),
+    );
+  } else {
+    // Prefer the focused field/panel; at its edge, scroll an enclosing dialog.
+    let node = focused && owner.contains(focused) ? focused : null;
+    while (node && owner.contains(node)) {
+      if (canScroll(node)) {
+        target = node;
+        break;
+      }
+      if (node === owner) break;
+      node = node.parentElement;
+    }
+    target ??= [
+      owner,
+      ...owner.querySelectorAll<HTMLElement>(
+        '[data-gamegrid-scroll], [data-slot="dialog-content"]',
+      ),
+    ].find(canScroll);
+  }
+  if (!target) return;
+  target.scrollBy({ top: delta, behavior: 'instant' });
+  if (owner !== root || !focused?.closest('[data-gamegrid-nav="grid"]')) return;
+
+  // Scrolling should not leave A attached to a tile that is no longer on screen.
+  // Preserve the column and select the closest visible tile without scrolling back.
+  const viewport = target.getBoundingClientRect();
+  const top = Math.max(0, viewport.top),
+    bottom = Math.min(innerHeight, viewport.bottom);
+  const current = focused.getBoundingClientRect();
+  if (current.bottom > top && current.top < bottom) return;
+  const visible = gridControls(target)
+    .filter((node) => node.closest('[data-gamegrid-nav="grid"]'))
+    .map((node) => ({ node, rect: node.getBoundingClientRect() }))
+    .filter(({ rect }) => rect.bottom > top && rect.top < bottom);
+  visible.sort((a, b) => {
+    const distance = (rect: DOMRect) =>
+      Math.abs(rect.x + rect.width / 2 - current.x - current.width / 2) * 2 +
+      Math.abs(rect.y + rect.height / 2 - current.y - current.height / 2);
+    return distance(a.rect) - distance(b.rect);
+  });
+  visible[0]?.node.focus({ preventScroll: true });
 }
 
 /** Controller navigation belongs to trusted shell UI; games retain native input. */
@@ -204,6 +269,8 @@ export function useGamegridInput(options: {
         const actions = input.poll(frame, game ? 'game' : owner, now, game);
         // A click can open a new scope. Never carry another action into it this frame.
         if (actions[0]) act(actions[0], owner);
+        else if (!game && input.scrollPixels)
+          scrollGridScope(owner, current.current.root.current, input.scrollPixels);
         lastScope = owner;
         if (
           game &&
@@ -211,9 +278,7 @@ export function useGamegridInput(options: {
           (frame.status === 'ready' ||
             frame.status === 'waiting' ||
             frame.status === 'unavailable') &&
-          frame.players.every(
-            (pad) => pad.buttons.every((b) => b < 0.5) && pad.axes.every((a) => Math.abs(a) < 0.4),
-          )
+          frame.players.every(isGridInputNeutral)
         ) {
           const frame =
             current.current.root.current?.querySelector<HTMLIFrameElement>('.player-stage iframe');

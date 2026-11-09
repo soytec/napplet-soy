@@ -6,13 +6,15 @@ import { siteHead } from '@/lib/site-head';
 
 const searchSchema = z.object({
   q: z.string().trim().max(100).catch(''),
-  section: z.enum(['new', 'zapped', 'games', 'continue']).catch('new'),
+  section: z
+    .enum(['discover', 'featured', 'liked', 'zapped', 'commented', 'new', 'games', 'continue'])
+    .catch('discover'),
   page: z.coerce.number().int().min(1).max(10000).catch(1),
 });
 
 export const Route = createFileRoute('/gg')({
   validateSearch: (input: SearchSchemaInput & Partial<GamegridSearch>) => searchSchema.parse(input),
-  search: { middlewares: [stripSearchParams({ q: '', section: 'new', page: 1 })] },
+  search: { middlewares: [stripSearchParams({ q: '', section: 'discover', page: 1 })] },
   loaderDeps: ({ search }) => search,
   loader: ({ deps }) => getBrowseGallery({ data: gamegridCatalogSearch(deps) }),
   head: ({ match }) =>

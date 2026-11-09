@@ -52,6 +52,8 @@ function App() {
   const [backs, setBacks] = useState(0);
   const [sections, setSections] = useState(0);
   const [searches, setSearches] = useState(0);
+  const [longCatalog, setLongCatalog] = useState(false);
+  const [longSettings, setLongSettings] = useState(false);
   useEffect(() => {
     const request = (event: MessageEvent) => {
       if (
@@ -111,22 +113,30 @@ function App() {
           />
           <button onClick={() => setSettings(true)}>Account settings</button>
           <button onClick={() => setWallet(true)}>Wallet</button>
+          <button onClick={() => setLongCatalog((value) => !value)}>Long catalog</button>
         </header>
-        <div className="tiles" data-gamegrid-nav="grid">
-          {['one', 'two', 'three'].map((id) => (
-            <button
-              id={`tile-${id}`}
-              data-game-id={id}
-              key={id}
-              onClick={() => {
-                lastTile.current = `tile-${id}`;
-                setPlaying(id);
-                setLaunches((count) => count + 1);
-              }}
-            >
-              Game {id}
-            </button>
-          ))}
+        <div className="catalog-scroll" data-gamegrid-scroll>
+          <div className="tiles" data-gamegrid-nav="grid">
+            {[
+              'one',
+              'two',
+              'three',
+              ...(longCatalog ? Array.from({ length: 30 }, (_, index) => `extra-${index}`) : []),
+            ].map((id) => (
+              <button
+                id={`tile-${id}`}
+                data-game-id={id}
+                key={id}
+                onClick={() => {
+                  lastTile.current = `tile-${id}`;
+                  setPlaying(id);
+                  setLaunches((count) => count + 1);
+                }}
+              >
+                Game {id}
+              </button>
+            ))}
+          </div>
         </div>
         <footer data-gamegrid-nav="footer">
           <button>Previous page</button>
@@ -174,6 +184,7 @@ function App() {
         <DialogContent showCloseButton={false}>
           <DialogTitle>Account settings</DialogTitle>
           <DialogDescription>Ordinary shell text entry fixture</DialogDescription>
+          <button onClick={() => setLongSettings((value) => !value)}>Show all settings</button>
           <input
             aria-label="Connection password"
             type="password"
@@ -190,6 +201,10 @@ function App() {
             onChange={(event) => setVolume(Number(event.target.value))}
           />
           <button onClick={() => setSettings(false)}>Close settings</button>
+          {longSettings &&
+            Array.from({ length: 30 }, (_, index) => (
+              <button key={index}>Extra setting {index}</button>
+            ))}
         </DialogContent>
       </Dialog>
       {review && (

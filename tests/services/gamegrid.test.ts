@@ -20,7 +20,7 @@ test('Gamegrid controller scopes preserve the game, guard dialogs and edit ordin
     ],
   });
   if (!bundle.success) throw Error(String(bundle.logs));
-  const css = `*{box-sizing:border-box}body{font:16px system-ui;margin:30px}button,input{padding:12px}header,.tiles{display:flex;gap:24px;margin:24px}.tiles button{width:160px;height:100px}.player-stage iframe{width:600px;height:300px}output{display:block}[data-slot=dialog-overlay]{position:fixed;inset:0;background:#0006}[data-slot=dialog-content]{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:24px;display:flex;flex-direction:column;gap:12px;max-height:90vh;overflow:auto}.gg-keyboard{width:740px}.gg-keyboard-keys{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}.gg-keyboard-actions{display:flex;gap:8px}dialog:not([data-shell-layer]){padding:24px}button:focus,input:focus{outline:3px solid purple}`;
+  const css = `*{box-sizing:border-box}body{font:16px system-ui;margin:30px}button,input{padding:12px}header,.tiles{display:flex;gap:24px;margin:24px}.catalog-scroll{height:160px;overflow-y:auto}.tiles{display:grid;grid-template-columns:repeat(3,160px)}.tiles button{width:160px;height:100px}.player-stage iframe{width:600px;height:300px}output{display:block}[data-slot=dialog-overlay]{position:fixed;inset:0;background:#0006}[data-slot=dialog-content]{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:24px;display:flex;flex-direction:column;gap:12px;max-height:90vh;overflow:auto}.gg-keyboard{width:740px}.gg-keyboard-keys{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}.gg-keyboard-actions{display:flex;gap:8px}dialog:not([data-shell-layer]){padding:24px}button:focus,input:focus{outline:3px solid purple}`;
   const server = Bun.serve({
     hostname: '127.0.0.1',
     port: 0,
@@ -39,7 +39,13 @@ test('Gamegrid controller scopes preserve the game, guard dialogs and edit ordin
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.addInitScript(() => {
-      const state = { connected: true, active: true, buttons: [] as number[], mapping: 'standard' };
+      const state = {
+        connected: true,
+        active: true,
+        buttons: [] as number[],
+        axes: [0, 0, 0, 0],
+        mapping: 'standard',
+      };
       Object.assign(window, { controllerFixture: state });
       const hasFocus = document.hasFocus.bind(document);
       Object.defineProperty(document, 'hasFocus', {
@@ -56,7 +62,7 @@ test('Gamegrid controller scopes preserve the game, guard dialogs and edit ordin
                   id: 'Synthetic standard-layout controller',
                   mapping: state.mapping,
                   connected: true,
-                  axes: [0, 0, 0, 0],
+                  axes: state.axes,
                   buttons: Array.from({ length: 17 }, (_, index) => ({
                     value: state.buttons.includes(index) ? 1 : 0,
                     pressed: state.buttons.includes(index),
@@ -87,6 +93,12 @@ test('Gamegrid controller scopes preserve the game, guard dialogs and edit ordin
       await buttons([]);
       await buttons([button]);
       await buttons([]);
+    };
+    const rightStick = async (value: number, frames = 4) => {
+      await page.evaluate((axis) => {
+        (window as any).controllerFixture.axes[3] = axis;
+      }, value);
+      await settle(frames);
     };
     const counts = async () => JSON.parse(await page.locator('[data-counts]').innerText());
     const menu = page.getByRole('dialog', { name: 'Game menu', exact: true });
@@ -203,6 +215,47 @@ test('Gamegrid controller scopes preserve the game, guard dialogs and edit ordin
     expect((await counts()).sections).toBe(0);
     await tap(3);
     expect((await counts()).searches).toBe(1);
+    // The right stick scrolls a long catalog continuously without moving focus offscreen.
+    await page.getByRole('button', { name: 'Long catalog', exact: true }).click();
+    const catalog = page.locator('[data-gamegrid-scroll]');
+    await page.getByRole('button', { name: 'Game one', exact: true }).focus();
+    await rightStick(1, 18);
+    expect(await catalog.evaluate((node) => node.scrollTop)).toBeGreaterThan(80);
+    expect(
+      await catalog.evaluate((node) => {
+        const view = node.getBoundingClientRect();
+        const focused = document.activeElement?.getBoundingClientRect();
+        return !!focused && focused.bottom > view.top && focused.top < view.bottom;
+      }),
+    ).toBe(true);
+    const scrolled = await catalog.evaluate((node) => node.scrollTop);
+    await rightStick(0);
+    await settle(8);
+    expect(await catalog.evaluate((node) => node.scrollTop)).toBe(scrolled);
+
+    // A held scrolling stick cannot carry into a newly opened modal scope.
+    await rightStick(1, 4);
+    await buttons([9]);
+    await menu.waitFor();
+    const backgroundAtMenu = await catalog.evaluate((node) => node.scrollTop);
+    await menu.getByRole('button', { name: 'Account settings', exact: true }).click();
+    const scrollSettings = page.getByRole('dialog', { name: 'Account settings', exact: true });
+    await scrollSettings.getByRole('button', { name: 'Show all settings', exact: true }).click();
+    await settle(8);
+    expect(await scrollSettings.evaluate((node) => node.scrollTop)).toBe(0);
+    expect(await catalog.evaluate((node) => node.scrollTop)).toBe(backgroundAtMenu);
+    await rightStick(0);
+    await buttons([]);
+    await scrollSettings.getByLabel('Connection password', { exact: true }).focus();
+    await rightStick(1, 18);
+    expect(await scrollSettings.evaluate((node) => node.scrollTop)).toBeGreaterThan(80);
+    expect(await catalog.evaluate((node) => node.scrollTop)).toBe(backgroundAtMenu);
+    await rightStick(0);
+    await tap(1);
+    await scrollSettings.waitFor({ state: 'detached' });
+    await tap(1);
+    await menu.waitFor({ state: 'detached' });
+    await page.getByRole('button', { name: 'Long catalog', exact: true }).click();
     await page.getByRole('button', { name: 'Game one', exact: true }).focus();
     await settle();
     await tap(15);
@@ -223,6 +276,10 @@ test('Gamegrid controller scopes preserve the game, guard dialogs and edit ordin
     await tap(4);
     await tap(5);
     await tap(3);
+    const gameScroll = await page.evaluate(() => scrollY);
+    await rightStick(1, 12);
+    expect(await page.evaluate(() => scrollY)).toBe(gameScroll);
+    await rightStick(0);
     expect(await counts()).toEqual(afterLaunch);
     expect(await page.locator('dialog:modal').count()).toBe(0);
     expect(await sameFrame()).toBe(true);
@@ -262,7 +319,12 @@ test('Gamegrid controller scopes preserve the game, guard dialogs and edit ordin
     });
     await settle();
     expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe('IFRAME');
+    // A slight deflection can still scroll after axis dead-zone normalization.
+    // It must not qualify as neutral and leak held input into the resumed game.
+    await rightStick(0.39);
     await buttons([]);
+    expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe('IFRAME');
+    await rightStick(0);
     await page.waitForFunction(() => document.activeElement?.tagName === 'IFRAME');
     expect(await sameFrame()).toBe(true);
     expect(await frame.getByRole('button', { name: '1', exact: true }).count()).toBe(1);

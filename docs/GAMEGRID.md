@@ -11,11 +11,17 @@ gutters or outer padding. A compact dark glass overlay holds collections, search
 wallet, account and exit controls. Controls and dialogs use translucent surfaces
 with backdrop blur, preserving visible previews underneath. Titles and play hints
 appear on focus or hover; there is no sidebar, page heading, card frame or
-persistent footer.
+persistent footer. Discover is a vertically scrolling wall of Featured, Most liked,
+Most zapped, Most commented and New arrivals. Section names sit on small glass
+overlays. Featured and discussion sections use a larger lead tile beside six
+smaller previews; the likes section mirrors that arrangement, and zap/new sections
+use even rows. Narrow screens collapse to two columns. Empty rankings are labeled
+instead of substituting unrelated games.
 
 ## Browsing and controls
 
-- New, Most zapped, All games and Continue use the existing catalog. `#game` is
+- Discover, Featured, Most liked, Most zapped, Most commented, New, All games and
+  Continue use the existing catalog. `#game` is
   creator-supplied categorization, not proof that a game supports a controller.
 - Continue is device-local play history, not a cloud save. The running napplet's
   storage follows the normal shell rules. Returning to the grid restores the tile.
@@ -23,6 +29,10 @@ persistent footer.
   the right face button (B on Xbox) goes back one level. Up from the grid's first
   row reaches the toolbar; Down returns to the last tile. Horizontal movement
   stays within the grid or toolbar. Arrow keys and pointer remain usable.
+- The right stick scrolls vertically at a speed proportional to its deflection.
+  It scrolls the active dialog when one is open and the catalog otherwise. Focus
+  moves to a visible tile if scrolling takes the selected tile offscreen. Neutral
+  input is required after a scope change; the stick never scrolls behind a game.
 - Either Select/View or Start/Menu (standard button 8 or 9) opens the shell menu
   from browsing or gameplay. Pressing either again closes the Gamegrid menu;
   other approval and payment dialogs keep priority. The menu includes collections,
@@ -33,7 +43,7 @@ persistent footer.
 - LB/RB cycles collections and Y opens search while browsing. These shortcuts
   do not act behind dialogs or during gameplay. B cancels a choice or keyboard,
   returns from wallet details/sign-in forms, then closes the enclosing dialog.
-  On the grid it clears search, returns to New, then opens the menu.
+  On the grid it clears search, returns to Discover, then opens the menu.
 - Search and editable shell fields offer an on-screen keyboard. A on a select
   opens a choice dialog: D-pad moves, A confirms, B cancels without changing it.
   Simply focusing a select does not change its value or trap horizontal movement.
@@ -42,7 +52,8 @@ persistent footer.
 - New dialogs, reconnects and focus changes require neutral input before another
   controller action. A held A must never approve a newly opened permission prompt.
 
-The page already fills the viewport. Browser fullscreen is optional and may require
+The page already fills the viewport. The menu's browser fullscreen control toggles
+between Enter and Exit and tracks native Escape/fullscreen changes. It is optional and may require
 a pointer or keyboard gesture; a synthetic gamepad click cannot bypass browser
 activation policy. Accounts and wallet tools use trusted shell dialogs above the
 player, including browser fullscreen. Their existing confirmation and recovery
@@ -58,10 +69,14 @@ neutral on blur; a game reading raw native input may continue while a menu is op
 No injected gamepad shim, new NAP grant, sandbox exception or cross-frame access is
 introduced here. Unknown controller mappings are reported rather than guessed.
 
-Only the selected tile animates its preview, subject to reduced-motion/data-saving
-preferences and the existing playback coordinator. Missing artwork does not exclude
-a game. Zap rankings use the existing verified receipts and retain their relay/cache
-coverage limits; they are not a claim to a global leaderboard.
+Visible tiles automatically play available muted, looping clips, subject to
+reduced-motion/data-saving preferences. Offscreen clips and clips in a hidden tab
+stop; opening a game or Gamegrid menu stops grid previews. A shared preview group
+allows the visible clips to coexist without interrupting explicit media or games.
+Other shell galleries keep their existing exclusive-preview behavior. Missing
+artwork does not exclude a game. Likes/comments reuse the shell's NIP-45 counts;
+zap rankings reuse verified receipts. All retain their relay/cache coverage limits
+and are not a claim to a global leaderboard.
 
 ## Deployment
 

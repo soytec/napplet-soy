@@ -12,7 +12,7 @@ function fixture() {
     id: 'test',
     mapping: 'standard' as GamepadMappingType,
     connected: true,
-    axes: [0, 0],
+    axes: [0, 0, 0, 0],
     buttons: Array.from({ length: 17 }, () => ({ value: 0, pressed: false, touched: false })),
   };
   let connected = true,
@@ -31,6 +31,7 @@ function fixture() {
     press,
     connect: (value: boolean) => (connected = value),
     active: (value: boolean) => (active = value),
+    scroll: () => input.scrollPixels,
     poll: (time: number, scope = 'browse', playing = false) =>
       input.poll(source.poll(), scope, time, playing),
   };
@@ -44,6 +45,42 @@ test('navigation repeats but activation edges do not; diagonal input chooses one
   expect(f.poll(400)).toEqual(['right']);
   f.press(12, 15);
   expect(f.poll(410)).toEqual(['up']);
+});
+test('right-stick scrolling is continuous, time based and gated by the same input boundaries', () => {
+  const f = fixture();
+  f.poll(0);
+  f.pad.axes[3] = 1;
+  expect(f.poll(10)).toEqual([]);
+  const first = f.scroll();
+  expect(first).toBeGreaterThan(0);
+  f.poll(30);
+  expect(f.scroll()).toBeCloseTo(first * 2);
+  f.poll(10030);
+  expect(f.scroll()).toBeLessThan(100);
+  f.poll(10040, 'dialog');
+  expect(f.scroll()).toBe(0);
+  f.poll(10060, 'dialog');
+  expect(f.scroll()).toBe(0);
+  f.pad.axes[3] = 0.39;
+  f.poll(10065, 'dialog');
+  f.poll(10066, 'dialog');
+  expect(f.scroll()).toBe(0);
+  f.pad.axes[3] = 0;
+  f.poll(10070, 'dialog');
+  f.pad.axes[3] = -1;
+  f.poll(10080, 'dialog');
+  expect(f.scroll()).toBeLessThan(0);
+  f.active(false);
+  f.poll(10090, 'dialog');
+  expect(f.scroll()).toBe(0);
+  f.active(true);
+  f.poll(10100, 'dialog');
+  expect(f.scroll()).toBe(0);
+  f.pad.axes[3] = 0;
+  f.poll(10110, 'game', true);
+  f.pad.axes[3] = 1;
+  f.poll(10120, 'game', true);
+  expect(f.scroll()).toBe(0);
 });
 test('held confirmation never crosses dialog, reconnect, or focus boundaries', () => {
   const f = fixture();

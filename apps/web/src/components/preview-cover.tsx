@@ -10,6 +10,7 @@ export function PreviewCover({
   revision,
   mode = 'hover',
   enabled = true,
+  previewGroup,
   onPlaybackChange,
   onUnavailable,
 }: {
@@ -19,6 +20,8 @@ export function PreviewCover({
   title: string;
   mode?: 'hover' | 'auto' | 'play' | 'pause';
   enabled?: boolean;
+  /** Share a stable group to allow this surface's visible decorative clips to play together. */
+  previewGroup?: object;
   onPlaybackChange?: (playing: boolean) => void;
   onUnavailable?: () => void;
 }) {
@@ -61,7 +64,7 @@ export function PreviewCover({
         stop();
         return;
       }
-      if (playback.claim(owner.current, mode === 'play' ? 'media' : 'preview', stop))
+      if (playback.claim(owner.current, mode === 'play' ? 'media' : 'preview', stop, previewGroup))
         setActive(true);
     };
     const enter = (event: PointerEvent) => {
@@ -104,7 +107,7 @@ export function PreviewCover({
       document.removeEventListener('visibilitychange', sync);
       stop();
     };
-  }, [video?.hash, video?.url, revision, enabled, failed, mode]);
+  }, [video?.hash, video?.url, revision, enabled, failed, mode, previewGroup]);
   useEffect(() => {
     const node = player.current;
     if (!node || !video || !active) return;

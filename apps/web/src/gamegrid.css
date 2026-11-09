@@ -77,39 +77,79 @@ body:has(.gamegrid) [data-slot='dialog-content'] textarea {
   scrollbar-width: none;
   padding: 0;
   margin: 0;
+  scroll-padding-block: 62px 20px;
 }
 .gg-viewport::-webkit-scrollbar {
   display: none;
 }
+.gg-section {
+  position: relative;
+  margin: 0;
+  padding: 0;
+}
+.gg-section-title {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  padding: 14px 18px;
+  font: 600 12px/17px var(--font-body);
+  letter-spacing: 0.04em;
+  color: #f0f8f3;
+  background: linear-gradient(110deg, #07110fdd, #12241b91);
+  box-shadow: inset 0 1px #ffffff22;
+  backdrop-filter: blur(22px) saturate(130%);
+  pointer-events: none;
+}
 .gg-grid {
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-auto-rows: 100dvh;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: clamp(190px, 34dvh, 440px);
   gap: 0;
   margin: 0;
   padding: 0;
-  min-height: 100dvh;
 }
-.gg-grid:has(> .gg-card:nth-child(5)) {
-  grid-auto-rows: 50dvh;
+.gg-grid:has(> .gg-card:only-child) {
+  grid-template-columns: 1fr;
 }
-.gg-grid:has(> .gg-card:nth-child(9)) {
-  grid-auto-rows: calc(100dvh / 3);
+.gg-grid:has(> .gg-card:first-child:nth-last-child(2)) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.gg-grid > .gg-card {
-  grid-column: span 3;
+.gg-grid:has(> .gg-card:first-child:nth-last-child(3)) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
-.gg-grid > .gg-card:nth-last-child(1):nth-child(4n + 1) {
-  grid-column: span 12;
+.gg-grid-lead[data-lead='true'],
+.gg-grid-lead-right[data-lead='true'] {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-rows: clamp(210px, 38dvh, 460px);
 }
-.gg-grid > .gg-card:nth-last-child(2):nth-child(4n + 1),
-.gg-grid > .gg-card:nth-last-child(1):nth-child(4n + 2) {
-  grid-column: span 6;
+.gg-grid-lead[data-lead='true'] > .gg-card:first-child {
+  grid-column: 1 / span 2;
+  grid-row: 1 / span 2;
 }
-.gg-grid > .gg-card:nth-last-child(3):nth-child(4n + 1),
-.gg-grid > .gg-card:nth-last-child(2):nth-child(4n + 2),
-.gg-grid > .gg-card:nth-last-child(1):nth-child(4n + 3) {
-  grid-column: span 4;
+.gg-grid-lead-right[data-lead='true'] > .gg-card:first-child {
+  grid-column: 4 / span 2;
+  grid-row: 1 / span 2;
+}
+.gg-section-empty {
+  min-height: 180px;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  color: #adbbb4;
+  background: radial-gradient(ellipse at 20% 0, #182920, #070e0b 80%);
+  font-size: 13px;
+}
+.gg-section-empty button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
 }
 .gg-card {
   position: relative;
@@ -634,41 +674,22 @@ body:has(.gamegrid) [data-slot='dialog-content'] textarea:focus {
   font-size: 12px;
 }
 @media (max-width: 1366px) {
-  .gamegrid .gg-grid {
-    grid-auto-rows: 100dvh;
-  }
-  .gamegrid .gg-grid:has(> .gg-card:nth-child(4)) {
-    grid-auto-rows: 50dvh;
-  }
-  .gamegrid .gg-grid:has(> .gg-card:nth-child(7)) {
-    grid-auto-rows: calc(100dvh / 3);
-  }
-  .gamegrid .gg-grid > .gg-card:nth-child(n) {
-    grid-column: span 4;
-  }
-  .gamegrid .gg-grid > .gg-card:nth-last-child(1):nth-child(3n + 1) {
-    grid-column: span 12;
-  }
-  .gamegrid .gg-grid > .gg-card:nth-last-child(2):nth-child(3n + 1),
-  .gamegrid .gg-grid > .gg-card:nth-last-child(1):nth-child(3n + 2) {
-    grid-column: span 6;
-  }
   .gg-card-info {
     padding: 46px 20px 20px;
   }
 }
 @media (max-width: 600px) {
-  .gamegrid .gg-grid > .gg-card:nth-child(n):nth-child(n) {
-    grid-column: span 6;
+  .gamegrid .gg-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: 30dvh;
   }
-  .gamegrid .gg-grid > .gg-card:nth-last-child(1):nth-child(2n + 1) {
-    grid-column: span 12;
+  .gg-grid-lead[data-lead='true'] > .gg-card:first-child,
+  .gg-grid-lead-right[data-lead='true'] > .gg-card:first-child {
+    grid-column: 1 / -1;
+    grid-row: span 2;
   }
-  .gamegrid .gg-grid:has(> .gg-card:nth-child(3)) {
-    grid-auto-rows: 50dvh;
-  }
-  .gamegrid .gg-grid:has(> .gg-card:nth-child(5)) {
-    grid-auto-rows: calc(100dvh / 3);
+  .gg-section:first-child .gg-section-title {
+    top: 45px;
   }
   .gg-collection-control {
     padding-left: 9px;

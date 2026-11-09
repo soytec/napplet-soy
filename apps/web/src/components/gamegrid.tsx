@@ -4,11 +4,14 @@ import {
   ArrowLeft,
   ArrowRight,
   Expand,
+  Minimize,
   Grid2X2,
+  Heart,
   History,
   Keyboard,
   LogOut,
   Menu,
+  MessageCircle,
   Play,
   RotateCcw,
   Search,
@@ -37,7 +40,7 @@ import {
   queryCatalog,
   seedCatalog,
 } from '@/lib/protocol-catalog';
-import { gallerySocial } from '@/lib/protocol-social';
+import { galleryEntries, gallerySocial } from '@/lib/protocol-social';
 import { useProtocolRefresh } from '@/lib/use-protocol-refresh';
 import { useGamegridInput } from '@/lib/use-gamegrid-input';
 import { useNostr } from './nostr-provider';
@@ -49,21 +52,27 @@ import { Player } from './player';
 import { ZapButton } from './zap-button';
 import { GamegridKeyboard } from './gamegrid-keyboard';
 import { GamegridSelect } from './gamegrid-select';
+import { useCountRankings } from './gallery-social';
 
 const WalletPanel = lazy(() =>
   import('./wallet/wallet-panel').then((module) => ({ default: module.WalletPanel })),
 );
 export type GamegridSearch = {
   q: string;
-  section: 'new' | 'zapped' | 'games' | 'continue';
+  section:
+    'discover' | 'featured' | 'liked' | 'zapped' | 'commented' | 'new' | 'games' | 'continue';
   page: number;
 };
 type GalleryData = Awaited<ReturnType<typeof getBrowseGallery>>;
 type RecentGame = { id: string; naddr: string | null; title: string };
 const HISTORY_KEY = 'napplet.gamegrid.recent.v1';
 const sections = [
-  { id: 'new', short: 'New', icon: Sparkles },
+  { id: 'discover', short: 'Discover', icon: Grid2X2 },
+  { id: 'featured', short: 'Featured', icon: Sparkles },
+  { id: 'liked', short: 'Most liked', icon: Heart },
   { id: 'zapped', short: 'Most zapped', icon: Zap },
+  { id: 'commented', short: 'Most commented', icon: MessageCircle },
+  { id: 'new', short: 'New', icon: Sparkles },
   { id: 'games', short: 'All games', icon: Grid2X2 },
   { id: 'continue', short: 'Continue', icon: History },
 ] as const;
@@ -115,15 +124,17 @@ function GameCard({
   index,
   sats,
   launch,
+  previews,
+  previewGroup,
 }: {
   napplet: PublicNapplet;
   index: number;
   sats?: number | null;
   launch: (napplet: PublicNapplet) => void;
+  previews: boolean;
+  previewGroup: object;
 }) {
   const { ready } = useNostr();
-  const [focused, setFocused] = useState(false);
-  const [hovered, setHovered] = useState(false);
   const playable = napplet.availability === 'ready';
   return (
     <button
@@ -133,17 +144,14 @@ function GameCard({
       disabled={!ready || !playable}
       aria-label={`${playable ? 'Play' : 'Unavailable'} ${napplet.title}`}
       onClick={() => launch(napplet)}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      onPointerEnter={(event) => setHovered(event.pointerType === 'mouse')}
-      onPointerLeave={() => setHovered(false)}
     >
       <PreviewCover
         revision={napplet.revisionId}
         title={napplet.title}
         video={publicPreviewVideo(napplet)}
         mode="auto"
-        enabled={focused || hovered}
+        enabled={previews}
+        previewGroup={previewGroup}
       >
         <img
           src={publicPoster(napplet)}
@@ -207,6 +215,10 @@ export function Gamegrid({
     [playerNotice, setPlayerNotice] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [playerRevision, setPlayerRevision] = useState(0);
+  const [fullscreen, setFullscreen] = useState(false);
+  const previewGroup = useRef({});
+  const [rankingEntries, setRankingEntries] = useState<PublicNapplet[] | null>(null);
+  const rankings = useCountRankings(rankingEntries);
   const [zaps, setZaps] = useState<GalleryZapData | null>(null),
     [zapError, setZapError] = useState(''),
     [zapRetry, setZapRetry] = useState(0);
@@ -226,6 +238,26 @@ export function Gamegrid({
 
   useEffect(() => setDraft(search.q), [search.q]);
   useEffect(() => setRecent(readHistory()), []);
+  useEffect(() => {
+    const sync = () => setFullscreen(!!document.fullscreenElement);
+    sync();
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
+  useEffect(() => {
+    let active = true;
+    setRankingEntries(null);
+    void galleryEntries(catalogSearch)
+      .then((entries) => {
+        if (active) setRankingEntries(entries);
+      })
+      .catch(() => {
+        if (active) setRankingEntries([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [search.q, refreshVersion]);
   useEffect(() => {
     viewport.current?.scrollTo({ top: 0 });
   }, [search.q, search.section, search.page]);
@@ -270,7 +302,7 @@ export function Gamegrid({
   }, [search.section, recent, refreshVersion]);
 
   useEffect(() => {
-    if (search.section !== 'zapped') return;
+    if (search.section !== 'zapped' && search.section !== 'discover') return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     setZaps(null);
@@ -321,7 +353,7 @@ export function Gamegrid({
     onBack: () => {
       if (playing) setMenuOpen(true);
       else if (search.q) update({ q: '' });
-      else if (search.section !== 'new') update({ section: 'new' });
+      else if (search.section !== 'discover') update({ section: 'discover' });
       else setMenuOpen(true);
     },
     onText: setTextField,
@@ -359,74 +391,151 @@ export function Gamegrid({
     setPlayerNotice('');
     input.resumeWhenNeutral();
   };
-  const entries =
-    search.section === 'zapped'
-      ? (zaps?.zapped ?? [])
-      : search.section === 'continue'
-        ? recentEntries.filter((entry) => matchesGallery(entry, catalogSearch))
-        : search.section === 'new'
-          ? catalog.napplets.slice(0, 12)
-          : catalog.napplets;
-  const loading =
-    search.section === 'continue'
-      ? recentLoading
-      : search.section === 'zapped'
-        ? !zaps && !zapError
-        : false;
+  const matching = (entries: PublicNapplet[]) =>
+    entries.filter((entry) => matchesGallery(entry, catalogSearch));
+  const collections = [
+    {
+      id: 'featured',
+      title: 'Featured',
+      icon: Sparkles,
+      layout: 'lead',
+      entries: matching(catalog.featured),
+      loading: false,
+      empty: 'No featured games in this collection yet.',
+    },
+    {
+      id: 'liked',
+      title: 'Most liked',
+      icon: Heart,
+      layout: 'lead-right',
+      entries: matching(rankings.liked),
+      loading: rankings.loading,
+      empty: 'No likes counted for this collection yet.',
+    },
+    {
+      id: 'zapped',
+      title: 'Most zapped',
+      icon: Zap,
+      layout: 'equal',
+      entries: matching(zaps?.zapped ?? []),
+      loading: !zaps && !zapError,
+      empty: zapError || 'No verified zaps for this collection yet.',
+    },
+    {
+      id: 'commented',
+      title: 'Most commented',
+      icon: MessageCircle,
+      layout: 'lead',
+      entries: matching(rankings.commented),
+      loading: rankings.loading,
+      empty: 'No comments counted for this collection yet.',
+    },
+    {
+      id: 'new',
+      title: 'New arrivals',
+      icon: History,
+      layout: 'equal',
+      entries: catalog.napplets,
+      loading: false,
+      empty: 'No games found.',
+    },
+    {
+      id: 'games',
+      title: 'All games',
+      icon: Grid2X2,
+      layout: 'equal',
+      entries: catalog.napplets,
+      loading: false,
+      empty: 'No games found.',
+    },
+    {
+      id: 'continue',
+      title: 'Continue playing',
+      icon: History,
+      layout: 'equal',
+      entries: matching(recentEntries),
+      loading: recentLoading,
+      empty: 'Games you open will appear here.',
+    },
+  ];
+  const visibleCollections =
+    search.section === 'discover'
+      ? collections.slice(0, 5)
+      : collections.filter((collection) => collection.id === search.section);
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await root.current?.requestFullscreen();
+      setPlayerNotice('');
+    } catch {
+      setPlayerNotice(
+        'Use your browser’s fullscreen shortcut. Gamegrid already fills this window.',
+      );
+    }
+  };
 
   return (
     <div className="gamegrid" ref={root} data-playing={!!playing}>
       <h1 className="sr-only">Gamegrid</h1>
-      <div className="gg-viewport" ref={viewport}>
-        {entries.length > 0 ? (
-          <section
-            className="gg-grid"
-            data-gamegrid-nav="grid"
-            aria-label={`${currentSection.short} games`}
-          >
-            {entries.map((entry, index) => (
-              <GameCard
-                key={entry.revisionId}
-                napplet={entry}
-                index={index}
-                launch={launch}
-                sats={
-                  search.section === 'zapped' ? zaps?.counts[entry.revisionId]?.msats : undefined
-                }
-              />
-            ))}
-          </section>
-        ) : (
-          <div className="gg-empty" data-gamegrid-nav="grid" role="status">
-            <h2>
-              {loading
-                ? 'Loading games…'
-                : search.q
-                  ? 'No games found.'
-                  : search.section === 'continue'
-                    ? 'No recent games.'
-                    : search.section === 'zapped'
-                      ? 'No verified zaps yet.'
-                      : 'No games available yet.'}
-            </h2>
-            <p>
-              {loading
-                ? 'Checking the available collection.'
-                : search.q
-                  ? 'Try another search.'
-                  : search.section === 'continue'
-                    ? 'Games you open will appear here.'
-                    : search.section === 'zapped'
-                      ? 'Explore the collection to find your next game.'
-                      : 'Available games tagged #game will appear here.'}
-            </p>
-            {!loading && (
-              <button className="gg-primary" onClick={() => update({ q: '', section: 'games' })}>
-                {search.q ? 'Clear search' : 'All games'}
-                <ArrowRight size={17} />
-              </button>
-            )}
+      <div className="gg-viewport" ref={viewport} data-gamegrid-scroll data-gamegrid-nav="grid">
+        {search.q &&
+        catalog.matches === 0 &&
+        !visibleCollections.some((collection) => collection.entries.length) ? (
+          <div className="gg-empty" role="status">
+            <h2>No games found.</h2>
+            <p>Try a different title or tag.</p>
+            <button className="gg-primary" onClick={() => update({ q: '', section: 'discover' })}>
+              Clear search
+              <ArrowRight size={17} />
+            </button>
           </div>
+        ) : (
+          visibleCollections.map((collection) => {
+            const entries =
+              search.section === 'discover'
+                ? collection.entries.slice(0, collection.layout === 'equal' ? 8 : 7)
+                : collection.entries;
+            return (
+              <section className="gg-section" key={collection.id} aria-label={collection.title}>
+                <h2 className="gg-section-title">
+                  <collection.icon size={15} />
+                  {collection.title}
+                </h2>
+                {entries.length ? (
+                  <div
+                    className={`gg-grid gg-grid-${collection.layout}`}
+                    data-lead={entries.length === 7}
+                  >
+                    {entries.map((entry, index) => (
+                      <GameCard
+                        key={entry.revisionId}
+                        napplet={entry}
+                        index={index}
+                        launch={launch}
+                        previews={!playing && !menuOpen && !walletOpen && !searchOpen}
+                        previewGroup={previewGroup.current}
+                        sats={
+                          collection.id === 'zapped'
+                            ? zaps?.counts[entry.revisionId]?.msats
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="gg-section-empty" role="status">
+                    <p>{collection.loading ? 'Finding games…' : collection.empty}</p>
+                    {!collection.loading && search.section !== 'discover' && (
+                      <button onClick={() => update({ q: '', section: 'discover' })}>
+                        {search.q ? 'Clear search' : 'Discover games'}
+                        <ArrowRight size={17} />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </section>
+            );
+          })
         )}
       </div>
       <header className="gg-hud" data-gamegrid-nav="toolbar" aria-label="Gamegrid controls">
@@ -705,28 +814,9 @@ export function Gamegrid({
               <UserRound size={20} />
               {pubkey ? 'Account & settings' : 'Connect account'}
             </button>
-            <button
-              onClick={() => {
-                const wrapper =
-                  (playing && root.current?.querySelector<HTMLElement>('.player-wrap')) ||
-                  root.current;
-                try {
-                  if (document.fullscreenElement) void document.exitFullscreen();
-                  else
-                    void wrapper
-                      ?.requestFullscreen()
-                      .catch(() =>
-                        setPlayerNotice(
-                          'Use your browser’s fullscreen shortcut. Gamegrid already fills this window.',
-                        ),
-                      );
-                } catch {
-                  setPlayerNotice('Gamegrid already fills this window.');
-                }
-              }}
-            >
-              <Expand size={20} />
-              Browser fullscreen
+            <button aria-pressed={fullscreen} onClick={() => void toggleFullscreen()}>
+              {fullscreen ? <Minimize size={20} /> : <Expand size={20} />}
+              {fullscreen ? 'Exit browser fullscreen' : 'Enter browser fullscreen'}
             </button>
             {playing ? (
               <button onClick={leaveGame}>
@@ -745,7 +835,7 @@ export function Gamegrid({
             {!playing && (
               <>
                 <br />
-                LB / RB collections · Y search
+                LB / RB collections · Y search · Right stick scroll
               </>
             )}
           </p>

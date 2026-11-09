@@ -512,7 +512,7 @@ function useNappletCounts(napplet: PublicNapplet) {
 }
 
 /** Rank a gallery by COUNT answers; cards observing the same metrics share each request. */
-function useCountRankings(entries: PublicNapplet[] | null): Rankings {
+export function useCountRankings(entries: PublicNapplet[] | null): Rankings {
   const [rankings, setRankings] = useState<Rankings>({ liked: [], commented: [], loading: true });
   const key = entries?.map((n) => n.revisionId).join(',');
   useEffect(() => {
