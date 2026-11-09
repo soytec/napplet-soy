@@ -10,6 +10,85 @@ import {
 } from './manifest-icon';
 import { MANIFEST_PRESENTATION_PROFILE } from '../../protocol/src/presentation';
 
+test('a stalled first icon origin cannot starve a healthy declared fallback', async () => {
+  const bytes = await sharp({
+    create: { width: 256, height: 256, channels: 4, background: '#e84c43' },
+  })
+    .png()
+    .toBuffer();
+  const event = finalizeEvent(
+    {
+      kind: 35129,
+      created_at: 4,
+      content: 'Pokédex fallback regression',
+      tags: [
+        ['d', 'healthy-icon-fallback'],
+        ['x', 'a'.repeat(64)],
+        ['icon', await sha256(bytes), 'image/png'],
+        ['server', 'https://first.example'],
+        ['server', 'https://second.example'],
+        ['server', 'https://third.example'],
+      ],
+    },
+    new Uint8Array(32).fill(9),
+  );
+  const originalFetch = globalThis.fetch,
+    originalTimeout = AbortSignal.timeout,
+    originalDecoder = Object.getOwnPropertyDescriptor(globalThis, 'createImageBitmap');
+  const timers: ReturnType<typeof setTimeout>[] = [],
+    urls: string[] = [];
+  const stalledSignals: AbortSignal[] = [];
+  AbortSignal.timeout = (milliseconds) => {
+    const controller = new AbortController();
+    // Preserve relative budgets while keeping the real failure path fast.
+    timers.push(
+      setTimeout(
+        () => controller.abort(new DOMException('Deadline', 'TimeoutError')),
+        milliseconds / 100,
+      ),
+    );
+    return controller.signal;
+  };
+  Object.defineProperty(globalThis, 'createImageBitmap', {
+    configurable: true,
+    value: async () => ({ width: 256, height: 256, close() {} }),
+  });
+  globalThis.fetch = Object.assign(
+    async (input: unknown, init?: RequestInit) => {
+      const url = new URL(String(input));
+      urls.push(url.hostname);
+      if (url.hostname === 'first.example')
+        return new Promise<Response>((_, reject) => {
+          const signal = init!.signal!;
+          stalledSignals.push(signal);
+          const abort = () => reject(signal.reason);
+          signal.addEventListener('abort', abort, { once: true });
+          if (signal.aborted) abort();
+        });
+      return url.hostname === 'second.example'
+        ? new Response(new Uint8Array(bytes))
+        : new Response(null, { status: 404 });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  try {
+    await Promise.all([resolveManifestIcon(event), resolveManifestIcon(event)]);
+    expect(resolvedIconUrl(event.id)).toStartWith('blob:');
+    expect(urls.filter((url) => url === 'second.example')).toHaveLength(1);
+    expect(stalledSignals[0]?.aborted).toBe(true);
+    expect(urls).toHaveLength(2);
+    const fetched = urls.length;
+    await resolveManifestIcon(event);
+    expect(urls).toHaveLength(fetched);
+  } finally {
+    timers.forEach(clearTimeout);
+    globalThis.fetch = originalFetch;
+    AbortSignal.timeout = originalTimeout;
+    if (originalDecoder) Object.defineProperty(globalThis, 'createImageBitmap', originalDecoder);
+    else delete (globalThis as { createImageBitmap?: unknown }).createImageBitmap;
+  }
+});
+
 test('browser icon resolution bounds pixels before decode and caches only verified decoded blob URLs', async () => {
   const bytes = await sharp({
     create: { width: 21, height: 13, channels: 4, background: '#234567' },
@@ -103,7 +182,7 @@ test('one manifest deadline covers every origin and releases a decoder that fini
   const signals: (AbortSignal | null | undefined)[] = [];
   let timeoutCalls = 0,
     closed = 0;
-  let finishDecode: (bitmap: ImageBitmap) => void = () => {};
+  const finishDecode: Array<(bitmap: ImageBitmap) => void> = [];
   let announceDecode: () => void = () => {};
   const decoding = new Promise<void>((resolve) => {
     announceDecode = resolve;
@@ -117,7 +196,7 @@ test('one manifest deadline covers every origin and releases a decoder that fini
     configurable: true,
     value: () =>
       new Promise<ImageBitmap>((resolve) => {
-        finishDecode = resolve;
+        finishDecode.push(resolve);
         announceDecode();
       }),
   });
@@ -135,15 +214,65 @@ test('one manifest deadline covers every origin and releases a decoder that fini
     deadline.abort(new DOMException('Optional icon deadline', 'TimeoutError'));
     await resolving;
     expect(timeoutCalls).toBe(1);
-    expect(signals).toEqual([deadline.signal, deadline.signal]);
+    expect(signals).toHaveLength(3);
+    expect(signals.every((signal) => signal === signals[0] && signal?.aborted)).toBe(true);
     expect(resolvedIconUrl(event.id)).toBeNull();
-    finishDecode({ width: 3, height: 2, close: () => closed++ } as ImageBitmap);
+    finishDecode.forEach((finish) =>
+      finish({ width: 3, height: 2, close: () => closed++ } as ImageBitmap),
+    );
     await Promise.resolve();
-    expect(closed).toBe(1);
+    expect(closed).toBe(finishDecode.length);
     expect(resolvedIconUrl(event.id)).toBeNull();
   } finally {
     globalThis.fetch = originalFetch;
     AbortSignal.timeout = originalTimeout;
+    if (originalDecoder) Object.defineProperty(globalThis, 'createImageBitmap', originalDecoder);
+    else delete (globalThis as { createImageBitmap?: unknown }).createImageBitmap;
+  }
+});
+
+test('browser screenshot decoding infers absent or unusable MIME fields from verified bytes', async () => {
+  const bytes = await sharp({
+    create: { width: 12, height: 7, channels: 4, background: '#cc6699' },
+  })
+    .png()
+    .toBuffer();
+  const hash = await sha256(bytes);
+  const originalFetch = globalThis.fetch,
+    originalDecoder = Object.getOwnPropertyDescriptor(globalThis, 'createImageBitmap');
+  const decodedTypes: string[] = [];
+  Object.defineProperty(globalThis, 'createImageBitmap', {
+    configurable: true,
+    value: async (blob: Blob) => {
+      decodedTypes.push(blob.type);
+      return { width: 12, height: 7, close() {} };
+    },
+  });
+  globalThis.fetch = Object.assign(async () => new Response(new Uint8Array(bytes)), {
+    preconnect: originalFetch.preconnect,
+  });
+  try {
+    for (const [index, fields] of [[], ['m'], ['m image/png', 'm image/jpeg']].entries()) {
+      const event = finalizeEvent(
+        {
+          kind: 35129,
+          created_at: 10 + index,
+          content: 'Optional screenshot MIME',
+          tags: [
+            ['d', `optional-mime-${index}`],
+            ['x', 'a'.repeat(64)],
+            ['server', 'https://image.example'],
+            ['screenshot', `x ${hash}`, ...fields],
+          ],
+        },
+        new Uint8Array(32).fill(9),
+      );
+      await resolveManifestScreenshots(event);
+      expect(resolvedScreenshotUrl(event.id)).toStartWith('blob:');
+    }
+    expect(decodedTypes).toEqual(['image/png', 'image/png', 'image/png']);
+  } finally {
+    globalThis.fetch = originalFetch;
     if (originalDecoder) Object.defineProperty(globalThis, 'createImageBitmap', originalDecoder);
     else delete (globalThis as { createImageBitmap?: unknown }).createImageBitmap;
   }
@@ -167,6 +296,7 @@ test('direct screenshots use the shared bounded browser decoder and never expose
         ['server', 'https://two.example'],
         ['presentation', MANIFEST_PRESENTATION_PROFILE],
         ['screenshot', await sha256(bytes), 'image/png'],
+        ['screenshot', 'c'.repeat(64), 'image/png'],
       ],
     },
     new Uint8Array(32).fill(9),
@@ -193,6 +323,7 @@ test('direct screenshots use the shared bounded browser decoder and never expose
     expect(resolvedScreenshotUrl(event.id)).toBeNull();
     await resolveManifestScreenshots(event);
     expect(urls).toHaveLength(2);
+    expect(urls.every((url) => !url.endsWith('c'.repeat(64)))).toBe(true);
     expect(decoded).toBe(1);
     expect(resolvedScreenshotUrl(event.id)).toStartWith('blob:');
     expect(resolvedIconUrl(event.id)).toBeNull();

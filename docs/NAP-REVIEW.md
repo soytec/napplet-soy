@@ -16,23 +16,23 @@ No VALUE amendment or iframe wallet API is added. See the [rollout checklist](LL
 
 Not yet released or deployed. Authority for Transport, Identity and Security is now
 NIP-5D PR 2303 head `c041f84667c1781c3c1d5bfbd970943131b38cc9` (dskvr/nips PR 14 and
-PR 15). The earlier manifest pin `4d0fb2e` remains the basis for our manifest
-writer; the PR 9/10/12 manifest drift is recorded in [PROTOCOL.md](PROTOCOL.md).
+PR 15). The manifest reader and fresh publisher also follow the PR 9/10/12
+source/presentation fields at this pin; see [PROTOCOL.md](PROTOCOL.md).
 Runtime profile `space-playback-8` identifies this change.
 
-| Upstream item | Our response |
-| --- | --- |
-| PR 14: identity bound to the `napplet.hello` port | Shared host binds the port and sends nothing via `iframeWindow.postMessage` |
-| PR 14: revoke on second hello, window message, second load, port close | Implemented; `messageerror` and `close` count as port failure |
-| PR 15: `close()` is the load-bearing teardown step | Every teardown path closes the port, including normal `close()` |
-| PR 15: bootstrap must not leave the port reachable | Port stays in the shim's closure; `NappletShimPrelude` exposes only installers |
-| PR 16: `referrerpolicy="no-referrer"` | Already set on every napplet frame, plus a `no-referrer` meta |
-| PR 16: resolve by author pubkey and `d` | Already enforced by manifest resolution |
-| PR 16: state keyed by at least author pubkey and `d` | Already enforced; host identity starts with the publisher pubkey |
-| PR 16: plain-text manifest strings | Already rendered as text |
-| PR 16: cap icon/media bytes and pixels before decoding | Already enforced from verified headers |
-| PR 16/17: interim WebRTC constructor removal | Adopted ahead of merge; see [PROTOCOL.md](PROTOCOL.md) |
-| kehto/web#382: host-page `frame-src` lock | Website drops `blob:`; local preview uses `'none'` outside the workshop |
+| Upstream item                                                          | Our response                                                                   |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| PR 14: identity bound to the `napplet.hello` port                      | Shared host binds the port and sends nothing via `iframeWindow.postMessage`    |
+| PR 14: revoke on second hello, window message, second load, port close | Implemented; `messageerror` and `close` count as port failure                  |
+| PR 15: `close()` is the load-bearing teardown step                     | Every teardown path closes the port, including normal `close()`                |
+| PR 15: bootstrap must not leave the port reachable                     | Port stays in the shim's closure; `NappletShimPrelude` exposes only installers |
+| PR 16: `referrerpolicy="no-referrer"`                                  | Already set on every napplet frame, plus a `no-referrer` meta                  |
+| PR 16: resolve by author pubkey and `d`                                | Already enforced by manifest resolution                                        |
+| PR 16: state keyed by at least author pubkey and `d`                   | Already enforced; host identity starts with the publisher pubkey               |
+| PR 16: plain-text manifest strings                                     | Already rendered as text                                                       |
+| PR 16: cap icon/media bytes and pixels before decoding                 | Already enforced from verified headers                                         |
+| PR 16/17: interim WebRTC constructor removal                           | Adopted ahead of merge; see [PROTOCOL.md](PROTOCOL.md)                         |
+| kehto/web#382: host-page `frame-src` lock                              | Website drops `blob:`; local preview uses `'none'` outside the workshop        |
 
 Packages move to `@napplet/shim` 0.35.0 with core 0.37.0 and nap 0.36.0, published
 2026-11-01 from napplet/web `627f433`. The npm `prelude.global.js` is byte-identical
@@ -60,13 +60,13 @@ Verification:
 
 Catalog impact, measured with a static scan of every artifact on `relay.napplet.soy`:
 
-| Measure | Count |
-| --- | --- |
-| Napplet manifest events | 653 |
+| Measure                                      | Count      |
+| -------------------------------------------- | ---------- |
+| Napplet manifest events                      | 653        |
 | Distinct artifacts fetched and hash-verified | 332 of 335 |
-| Current listings | 219 |
-| Current listings that post at window level | 50 |
-| Publishers of those listings | 12 |
+| Current listings                             | 219        |
+| Current listings that post at window level   | 50         |
+| Publishers of those listings                 | 12         |
 
 None of the affected listings are ours. Most bundle an older shim that sends
 `shell.ready`, or an SDK that asks for `theme.get` at window level. A match means the
@@ -160,9 +160,24 @@ in `20261009091435416-91120` on 2026-10-09; source/native/Nix, target service
 checks and live desktop/mobile gallery plus exact historical-byte checks pass.
 See [release evidence](CLI-RELEASES.md).
 
+## Presentation compatibility follow-up — 2026-11-09 source
+
+Live PR 2303 still points to `c041f84667c1781c3c1d5bfbd970943131b38cc9`.
+The standard presentation reader accepts missing, malformed or repeated optional
+MIME metadata, verifies the signed digest, then admits only bounded PNG/JPEG/WebP
+or supported WebM bytes. Any valid MIME declaration must match. NIP-5D permits any
+number of screenshots; this client reads the first eight usable claims in order.
+Multiple raw preview tags suppress the clip, including malformed extras.
+
+Fresh jobs already write standard fields. The single selected publishing cover,
+old `soy.presentation/1` readers, descriptor readers and frozen signatures remain
+unchanged. Focused regressions cover optional MIME, unsupported bytes, ordering,
+overflow and old publication resume. These refinements are local source changes;
+deployment and standalone CLI release remain separate from verification.
+
 ## Direct presentation review — 2026-10-06
 
-The authoritative NIP-5D pin remains `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d51`.
+At this historical review the NIP-5D pin was `4d0fb2e9fa1fdca71be09b17a4c5f382fbca5d51`.
 It defines hash/MIME icons but no screenshot/video fields. Reviewed
 [napplet/web PR 111](https://github.com/napplet/web/pull/111) at
 `6dd79febfa9807d5d3f51cabd77b793f5893d4b7`: that draft uploads screenshots using

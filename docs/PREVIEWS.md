@@ -2,9 +2,9 @@
 
 ## NIP-5D presentation media and source fields — 2026-11-02 source
 
-Not yet released or deployed. NIP-5D PR 2303 at
+Current source follows NIP-5D PR 2303 at
 [`c041f84`](https://github.com/dskvr/nips/blob/c041f84667c1781c3c1d5bfbd970943131b38cc9/5D.md)
-merged our earlier source/media amendment (dskvr/nips PR 12) in a simpler form.
+which incorporates our earlier source/media amendment (dskvr/nips PR 12) in a simpler form.
 Screenshots and the preview clip now use NIP-92 `key value` fields:
 
 ```json
@@ -21,19 +21,24 @@ signatures. Local development keeps the two-element `source-archive` because
 NIP-5D requires HTTPS there. soyLI does not yet record screenshot pixel size, so
 it omits the recommended `dim` field for screenshots.
 
-Readers accept both forms from every publisher. Standard entries keep tag order;
-malformed, repeated-`x` and unsupported-format entries are ignored without hiding
-usable ones. An entry without a supported `m` is unusable here because this client
-verifies the declared format. More than one `preview` tag ignores the clip, including malformed or legacy tags
-alongside a standard tag.
+Readers accept both forms from every publisher. NIP-5D imposes no screenshot count
+limit; this client reads the first eight usable standard screenshot claims in tag
+order and ignores extras without hiding those eight. Exactly one valid `x` is
+required. Missing, malformed or repeated optional `m` fields are ignored: readers
+verify the hash and detect PNG/JPEG/WebP or the supported WebM profile from the bytes
+before decoding. A valid declared MIME must match the detected format. Unsupported
+formats never render. More than one `preview` tag ignores the clip, including
+malformed or legacy tags alongside a standard tag. Neither URLs in the event content
+nor a `url` field are required; media resolves by hash through declared `server` hints.
 `source`, `source-commit` and `source-archive` are ignored when malformed or
 repeated, as NIP-5D requires; `source` accepts `http`, `https`, `ssh`, `git`,
 `nostr` and scp-like Git locations.
 
-Rollout order matters. The deployed reader understands only `soy.presentation/1`,
-so deploy this reader before releasing a CLI that writes the standard form;
-otherwise new screenshots stay hidden until the site updates. The four-element
-`source-archive` is already readable by the deployed site.
+The optional-MIME and eight-screenshot refinements are local source changes as of
+2026-11-09; implementation does not establish deployment or a CLI release. A
+compatible reader must precede distribution of a publisher using standard tags.
+See [deployment evidence](DEPLOYMENT.md) and [CLI releases](CLI-RELEASES.md) for
+activated versions. Existing signed events are not rewritten or republished.
 
 ## Direct manifest presentation — 2026-10-06 source
 
@@ -43,17 +48,18 @@ after compatible napplet.soy readers were deployed and verified.
 no-companion decision. The profile below is an implemented Soy convention, not
 a settlement of the remaining upstream/media/source/rollout questions.
 
-Fresh soyLI publications attach presentation files directly to the signed
+Since this release, soyLI publications attach presentation files directly to the signed
 current manifest and an explicitly requested `--snapshot` copy. No new kind-32267
 Zapstore descriptor, `app` reference or descriptor `imeta` is generated. Capture and local `preview.image` /
 `preview.video` configuration remain unchanged.
 
-This is the optional downstream **`soy.presentation/1`** convention, pending upstream
-agreement. The selected [NIP-5D revision](PROTOCOL.md) defines icons but no screenshot
-or video tags. [napplet/web PR 111](https://github.com/napplet/web/pull/111), reviewed
+The historical optional downstream **`soy.presentation/1`** convention remains
+readable. The NIP-5D pin used at that release defined icons but no screenshot or video
+tags; the current selected revision defines the standard form above.
+[napplet/web PR 111](https://github.com/napplet/web/pull/111), reviewed
 at `6dd79febfa9807d5d3f51cabd77b793f5893d4b7`, uses the older path/aggregate shape
-and does not define standalone presentation tags. This convention does not claim
-to implement a new upstream standard or change the authoritative pin.
+and does not define standalone presentation tags. This earlier convention is
+retained only for compatibility.
 
 ```json
 [
@@ -64,8 +70,9 @@ to implement a new upstream standard or change the authoritative pin.
 ]
 ```
 
-Require exactly one profile marker, up to four screenshot claims and at most one
-preview claim. Each media tag has exactly three elements: type, lowercase SHA-256
+Require exactly one profile marker and at most one preview claim. The reader now
+keeps up to eight usable legacy screenshots too and ignores extras. Each media
+tag has exactly three elements: type, lowercase SHA-256
 and MIME. Screenshots support PNG/JPEG/WebP; the clip uses the bounded silent VP8
 WebM profile below. The publisher currently captures one PNG and an optional clip.
 Readers try declared screenshots in order, then legacy descriptor covers, then the
@@ -104,10 +111,10 @@ agreement and independent-client rendering remain separate acceptance steps.
 
 A new-format manifest can advertise `icon` as `["icon", "<sha256>", "image/png"]` (also JPEG/WebP). Icons are optional and do not alter artifact identity. The host downloads only by hash from declared Blossom origins, checks SHA-256, verifies the actual supported file format and decodes it before rendering verified bytes. Browser rendering uses a Blob URL; the index serves its verified normalized PNG. A local 5 MiB / 16 megapixel budget bounds icons. Malformed, missing, unsupported or corrupt icons fall back without blocking playback. Existing screenshots take precedence as covers; a valid icon is a fallback before generated artwork.
 
-The pinned PR 7 has no screenshot-tag schema despite the announcement's mention.
-Direct presentation now uses the explicit downstream convention above; existing
-linked app descriptors remain optional legacy inputs. Neither is necessary to list
-or run a standard manifest.
+The PR 7 pin used for the initial icon release had no screenshot-tag schema.
+Current direct presentation follows NIP-5D at `c041f84`; the downstream convention
+and linked app descriptors remain optional legacy inputs. No media is necessary
+to list or run a standard manifest.
 
 Release `20260915084016730-23084` (2026-09-15) includes the short-video presentation
 and serves soyLI 0.7.0 with recording support. All four CLI downloads were uploaded
@@ -265,7 +272,7 @@ as the finishing step. A manually captured PNG may be selected instead. Remove
 `preview.image` to return to fresh automatic capture for each release.
 
 Publishing uploads the PNG to the configured Blossom server and puts its hash/MIME
-on the current manifest and any requested snapshot under `soy.presentation/1`. Our primary relay acknowledges
+on the current manifest and any requested snapshot using standard NIP-5D media fields. Our primary relay acknowledges
 the manifests before optional mirror copies. There is no separate descriptor to
 sign, discover or acknowledge in fresh jobs. No viewer or app private key is
 involved in capture. Already frozen older jobs retain their original descriptor.
@@ -344,8 +351,8 @@ the original `artifactHash` or invent a review approval to bypass validation.
 
 ### Signed association and interoperability
 
-Fresh manifests bind the clip directly with `preview` hash/MIME alongside the
-static `screenshot`. See the explicit downstream schema above. Independent clients
+Fresh manifests bind the clip directly with NIP-5D `preview` fields alongside the
+static `screenshot`. See the standard schema above. Independent clients
 may ignore these optional tags and retain the same executable. No video is added
 to playable paths or used to override artifact identity.
 

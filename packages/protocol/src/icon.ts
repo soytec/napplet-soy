@@ -123,13 +123,18 @@ export function iconDimensions(bytes: Uint8Array): { width: number; height: numb
 }
 
 /** A decoder must also succeed before rendering; a matching MIME header alone is insufficient. */
-export async function verifyIconBytes(bytes: Uint8Array, claim: ManifestIcon) {
+export async function verifyIconBytes(
+  bytes: Uint8Array,
+  claim: { hash: string; mime: string | null },
+) {
+  const mime = iconMime(bytes);
   if (
     !bytes.length ||
     bytes.length > MAX_ICON_BYTES ||
-    iconMime(bytes) !== claim.mime ||
+    !mime ||
+    (claim.mime !== null && mime !== claim.mime) ||
     (await sha256(bytes)) !== claim.hash
   )
     throw new Error('Invalid manifest icon bytes');
-  return iconDimensions(bytes);
+  return { ...iconDimensions(bytes), mime };
 }

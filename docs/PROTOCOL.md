@@ -45,13 +45,15 @@ shim or SDK and post at window level are stopped with a viewer-facing explanatio
 They must be republished to play. See the [NAP review](NAP-REVIEW.md) for pins,
 verification and the measured catalog impact.
 
-The PR 9, 10 and 12 manifest text included in `c041f84` is handled on the separate
-`nip5d/manifest-drift` branch, so this security change can ship on its own. That
-branch reads and writes NIP-92-style `screenshot`/`preview` fields and the
-four-element `source-archive`, and ignores malformed or repeated source fields.
-Until it lands, soyLI writes `soy.presentation/1` and the two-element
-`source-archive`, and the reader ignores the standard presentation form. PR 9's
-HTML publishing metadata, a SHOULD for publishing tools, was not reviewed here.
+The PR 9, 10 and 12 manifest text included in `c041f84` is implemented: fresh
+publications write NIP-92-style `screenshot`/`preview` fields and the four-element
+HTTPS `source-archive`; readers ignore malformed or repeated source fields.
+Older `soy.presentation/1` media and frozen jobs remain compatible. Local HTTP
+source archives retain the legacy two-element form. As of 2026-11-09 the reader
+also accepts absent or unusable optional media MIME fields and reads up to eight
+standard screenshots in order. These latest refinements are local source changes;
+see [presentation behavior and rollout evidence](PREVIEWS.md). PR 9's HTML publishing
+metadata, a SHOULD for publishing tools, was not reviewed here.
 
 ## Compliance audit — 2026-10-27
 
@@ -286,12 +288,16 @@ Use the selected manifest fields for identity, raw artifact `x`, `R`/`O` domains
 
 A standard optional `icon` carries a PNG/JPEG/WebP hash and MIME type. Fetch it only
 from declared Blossom origins, verify hash and decoded format, and render verified
-bytes; failures fall back without affecting playback. The selected PR defines no
-screenshot/video tags. Fresh soyLI publications instead use the documented optional
-downstream `soy.presentation/1` profile: a profile marker, `screenshot` hash/MIME
-tags and an optional `preview` hash/MIME tag, on the current manifest and any requested snapshot. The same
-reader applies to every author; neither the marker nor media is needed to play.
-This convention is pending upstream agreement and independent-client acceptance.
+bytes; failures fall back without affecting playback. The selected NIP-5D revision
+defines optional `screenshot` and `preview` tags with NIP-92 key/value fields.
+Exactly one `x` digest is required; MIME and other descriptive fields are optional.
+Fresh soyLI publications use these standard tags on the current manifest and any
+requested snapshot, without a presentation marker. The reader verifies media bytes,
+detects a supported format when optional MIME is unusable, and checks any valid MIME
+claim against that format. It reads up to eight standard screenshots in order;
+extra screenshots do not suppress usable ones. Older `soy.presentation/1` and linked
+descriptors remain readable. The same policy applies to every author, and optional
+media never gates playback. Independent-client rendering remains separate evidence.
 See [exact fields, precedence and limits](PREVIEWS.md).
 
 Existing [NIP-5A app references](https://github.com/nostr-protocol/nips/blob/master/5A.md#upstream-app-descriptors)

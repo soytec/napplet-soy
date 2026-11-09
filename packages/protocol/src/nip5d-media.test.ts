@@ -27,6 +27,21 @@ test('standard screenshots need no Soy profile and keep tag order', () => {
   ]);
 });
 
+test('a differing MIME claim for the same screenshot hash keeps its own fallback', () => {
+  expect(
+    manifestScreenshots(
+      event([
+        ['screenshot', `x ${a}`, 'm image/jpeg'],
+        ['screenshot', `x ${a}`, 'm image/png'],
+        ['screenshot', `x ${a}`, 'm image/png'],
+      ]),
+    ),
+  ).toEqual([
+    { hash: a, mime: 'image/jpeg' },
+    { hash: a, mime: 'image/png' },
+  ]);
+});
+
 test('malformed standard entries are ignored without suppressing usable ones', () => {
   const usable = ['screenshot', `x ${c}`, 'm image/jpeg'];
   for (const broken of [
@@ -34,18 +49,48 @@ test('malformed standard entries are ignored without suppressing usable ones', (
     ['screenshot', 'm image/png'], // missing x
     ['screenshot', `x ${a.toUpperCase()}`, 'm image/png'], // not lowercase hex
     ['screenshot', `x ${a}`, 'm image/svg+xml'], // unsupported format
-    ['screenshot', `x ${a}`], // no declared format this client can verify
-    ['screenshot', `x ${a}`, 'm image/png', 'm image/jpeg'], // repeated m
   ])
     expect(manifestScreenshots(event([broken, usable]))).toEqual([{ hash: c, mime: 'image/jpeg' }]);
   expect(manifestScreenshots(event([usable], 1))).toEqual([]);
 });
 
-test('more than four usable screenshots display a subset', () => {
+test('missing, malformed and repeated optional MIME fields retain hash-addressed media', () => {
+  for (const fields of [
+    [],
+    ['m'],
+    ['m '],
+    ['m not-a-mime'],
+    ['m image/png extra'],
+    ['m image/png', 'm image/jpeg'],
+    ['m image/png', 'm image/png'],
+    ['m', 'm image/png'],
+  ]) {
+    expect(manifestScreenshots(event([['screenshot', `x ${a}`, ...fields]]))).toEqual([
+      { hash: a, mime: null },
+    ]);
+    expect(manifestPreviewVideo(event([['preview', `x ${a}`, ...fields]]))).toEqual({
+      hash: a,
+      mime: null,
+    });
+  }
+});
+
+test('malformed duplicate hash fields invalidate a standard media tag', () => {
+  for (const fields of [
+    ['x', `x ${a}`],
+    [`x ${a}`, 'x'],
+  ]) {
+    expect(manifestScreenshots(event([['screenshot', ...fields]]))).toEqual([]);
+    expect(manifestPreviewVideo(event([['preview', ...fields]]))).toBeNull();
+  }
+});
+
+test('up to eight usable screenshots retain order and extras never suppress them', () => {
   const tags = [...'0123456789'].map((d) => ['screenshot', `x ${d.repeat(64)}`, 'm image/png']);
   expect(manifestScreenshots(event(tags)).map((s) => s.hash)).toEqual(
-    [...'0123'].map((d) => d.repeat(64)),
+    [...'01234567'].map((d) => d.repeat(64)),
   );
+  expect(manifestScreenshots(event([['screenshot', 'broken'], ...tags]))).toHaveLength(8);
 });
 
 test('a preview video is ignored when several standard preview tags are present', () => {
@@ -71,6 +116,19 @@ test('the earlier Soy presentation convention remains readable', () => {
   expect(manifestScreenshots(event(tags))).toEqual([{ hash: a, mime: 'image/png' }]);
   expect(manifestPreviewVideo(event(tags))).toEqual({ hash: b, mime: 'video/webm' });
   expect(manifestScreenshots(event(tags.slice(1)))).toEqual([]);
+});
+
+test('legacy screenshots use the same eight-item subset without rejecting excess claims', () => {
+  const tags = [...'0123456789'].map((d) => ['screenshot', d.repeat(64), 'image/png']);
+  const parsed = manifestScreenshots(
+    event([
+      ['presentation', MANIFEST_PRESENTATION_PROFILE],
+      ['screenshot', 'broken', 'image/png'],
+      ...tags,
+      ['screenshot', '0'.repeat(64), 'image/jpeg'], // ignored beyond the display subset
+    ]),
+  );
+  expect(parsed.map((claim) => claim.hash)).toEqual([...'01234567'].map((d) => d.repeat(64)));
 });
 
 test('source archive references follow the NIP-5D four-element form and the earlier form', () => {
