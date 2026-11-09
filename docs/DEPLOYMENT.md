@@ -3,9 +3,84 @@
 Deployment is operator-run. Routine changes are verified and committed locally;
 do not deploy or upload releases unless the user explicitly requests deployment.
 
-Updated 2026-10-30. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
+Updated 2026-11-09. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-### Most recent application deployment — Standalone HTML remixes, 2026-10-30
+### Most recent application deployment — Gamegrid and soyLI 0.32.0, 2026-11-09
+
+Website release **`20261109123450241-52445`** runs source
+`f343b2a0f135a2ae88b0187fcadf29bb93909c42`, whose tree matches merged
+`cd99c0120caea8c9f5db3868c5aad3b48fc2ffe2`
+([PR #53](https://github.com/soytec/napplet-soy/pull/53)). It adds search-only
+results and activates the verified 0.32.0 installer through the normal deployment.
+
+The initial reader release **`20261109115501705-88663`** ran source
+`fb2abb98ad62a9308f8df4e38b7956575497d4d6`, combining
+[Gamegrid and media compatibility](https://github.com/soytec/napplet-soy/pull/50)
+with the [portable test fixture](https://github.com/soytec/napplet-soy/pull/52).
+The shell accepts the selected NIP-5D presentation and HTTPS source-archive fields
+while retaining legacy reads. These readers and the hosted worker were activated
+before tagging soyLI 0.32.0. The website initially retained the 0.31.4 installer.
+
+[soyLI 0.32.0](CLI-RELEASES.md) was then published from
+`c8e9a7b5aaa80f590bd3e5c5453684fd1a56ba79`. All 11 public assets, their checksums
+and GitHub digests, and all four archive metadata records passed verification.
+An isolated macOS ARM64 fresh install and a real 0.31.4 → 0.32.0 update passed;
+the prior release, account/project markers and legacy command were preserved.
+The subsequent controller-journey guidance follow-ups are merged source for a
+future CLI release. They remain outside the immutable 0.32.0 binary and the
+deployed application and worker; see the [release scope](CLI-RELEASES.md).
+
+The live `/install.sh`, deployed source copy and built copy all match the official
+0.32.0 release asset byte for byte:
+`bbd719888be26c6a74e22497aa399bcb9da746737e3edab4061a8f4985b80ecb` (SHA-256).
+No separate installer-only activation was used.
+
+[Gamegrid](GAMEGRID.md) is available at [/gg](https://napplet.soy/gg). Its scrolling
+Discover view contains Featured, Most liked, Most zapped, Most commented and New
+sections. A public-browser check loaded all five sections and 32 tiles, played
+three visible previews, unloaded offscreen videos and found no horizontal
+overflow. The menu opened successfully. On the final release, searching for
+**Freeze Frame** showed one Search results section and one matching game, without
+Featured/ranking sections or horizontal overflow. Automated controller coverage
+exercises shell navigation and focus handoff; physical-controller and Steam Deck
+acceptance remain unverified, so Gamegrid remains a beta.
+
+The additive Studio worker image is
+`sha256:40e262a8953bbf35a5d92d0a424242a453599519574c0d69586a7f2c624b7137`.
+It embeds the compatible shared tools from `ac04341`, whose runtime files match
+the initial reader source. Isolated acceptance passed server and browser-build
+agent paths, truncated turns, timeout and crash recovery, cancellation, subsequent
+reuse, thread pressure, and desktop/portrait capture. Activation changed only the
+configured image; configuration ownership and mode remained `0:985` / `0640`.
+The search rollout retained this image. Studio is active/running with zero restarts
+and reports `ready` with its existing `legacy-x64` profile. Public and loopback
+health identify the final website release, and the current symlink matches it.
+External relay query errors remain visible in catalog health.
+
+Each application rollout passed **1,010 tests / 7,851 assertions** locally and
+**1,010 tests / 7,850 assertions** on the VPS. Local and remote checks also passed
+five relay, 18 Blossom and nine GRASP tests; the VPS passed three backend isolation
+checks and the production build. Exact-candidate Nix realization, forced
+`nodeModules`/`soyli` rebuilds and x86_64 Linux flake/VM checks passed. The initial
+reader source passed
+[Nix CI](https://github.com/soytec/napplet-soy/actions/runs/42610985965),
+[all four native platform checks](https://github.com/soytec/napplet-soy/actions/runs/42610985968)
+and [Studio integration CI](https://github.com/soytec/napplet-soy/actions/runs/42610985979).
+The search follow-up also passed
+[Nix package/VM CI](https://github.com/soytec/napplet-soy/actions/runs/42616608469)
+and [Studio integration CI](https://github.com/soytec/napplet-soy/actions/runs/42616608164).
+
+The first deployment stopped before activation because the legacy host's image
+library could not encode a GIF test fixture. The correction uses fixed valid GIF
+bytes and preserves the decoder assertion. A later local attempt stopped on a
+temporary-file error; the complete local and remote suites passed on the final
+attempt. No failed test was bypassed. Activation retained a protected
+configuration backup. Local worker evidence is in
+`.local/gamegrid/.local/gamegrid-release-worker/`; public release, upgrade and live
+installer receipts are in `.local/soyli-0.32.0-public-verification/`. The final
+search screenshot is `output/playwright/search-results-production.png`.
+
+### Previous application deployment — Standalone HTML remixes, 2026-10-30
 
 Website release **`20261030150744472-18351`** runs source
 `6b5abd746fc76eb2f9777ef980bf357d63548ef0` from the separate
