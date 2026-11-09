@@ -144,6 +144,8 @@ body:has(.gamegrid) [data-slot='dialog-content'] textarea {
   background: radial-gradient(ellipse at 20% 0, #182920, #070e0b 80%);
   font-size: 13px;
 }
+.gg-ranking-notice { margin: 0; padding: 36px 12px 12px; color: var(--muted-foreground); background: #101b15cc; }
+.gg-ranking-notice button { color: #fff; text-decoration: underline; padding: 6px 10px; }
 .gg-section-empty button {
   display: flex;
   align-items: center;

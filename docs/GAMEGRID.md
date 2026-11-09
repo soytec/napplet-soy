@@ -3,8 +3,9 @@
 `/gg` is the controller-oriented view of the existing shell, intended for a PC or
 Steam Deck browser, including a TV connected to that computer. It shares the
 catalog, account, wallet, verified player and permissions with the rest of the site.
-Browsing and playing do not require an account. This is local implementation work;
-it does not establish a production deployment or physical-controller certification.
+Browsing and playing do not require an account. Gamegrid is a beta: automated
+controller checks cover the shell flow, while physical-controller and Steam Deck
+hardware acceptance remains outstanding.
 
 The grid fills the viewport with edge-to-edge previews, square corners and no
 gutters or outer padding. A compact dark glass overlay holds collections, search,
@@ -77,6 +78,10 @@ Other shell galleries keep their existing exclusive-preview behavior. Missing
 artwork does not exclude a game. Likes/comments reuse the shell's NIP-45 counts;
 zap rankings reuse verified receipts. All retain their relay/cache coverage limits
 and are not a claim to a global leaderboard.
+Unavailable count relays show an explicit retry instead of an indefinite loading
+message. After eight seconds, incomplete replies are labeled partial or unavailable;
+the reads remain active and late replies still update the ranking. Retry rechecks
+relay support and requests fresh counts while preserving results already received.
 
 ## Deployment
 

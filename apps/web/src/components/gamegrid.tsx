@@ -52,7 +52,8 @@ import { Player } from './player';
 import { ZapButton } from './zap-button';
 import { GamegridKeyboard } from './gamegrid-keyboard';
 import { GamegridSelect } from './gamegrid-select';
-import { useCountRankings } from './gallery-social';
+import { useCountRankings } from '@/lib/use-count-rankings';
+import { rankingNotice } from '@/lib/count-rankings';
 
 const WalletPanel = lazy(() =>
   import('./wallet/wallet-panel').then((module) => ({ default: module.WalletPanel })),
@@ -409,7 +410,8 @@ export function Gamegrid({
       icon: Heart,
       layout: 'lead-right',
       entries: matching(rankings.liked),
-      loading: rankings.loading,
+      loading: rankings.status.liked === 'loading',
+      notice: rankings.retryError || rankingNotice(rankings.status.liked),
       empty: 'No likes counted for this collection yet.',
     },
     {
@@ -427,7 +429,8 @@ export function Gamegrid({
       icon: MessageCircle,
       layout: 'lead',
       entries: matching(rankings.commented),
-      loading: rankings.loading,
+      loading: rankings.status.commented === 'loading',
+      notice: rankings.retryError || rankingNotice(rankings.status.commented),
       empty: 'No comments counted for this collection yet.',
     },
     {
@@ -501,6 +504,11 @@ export function Gamegrid({
                   <collection.icon size={15} />
                   {collection.title}
                 </h2>
+                {collection.notice && (
+                  <p className="gg-ranking-notice" role="status">
+                    {collection.notice} <button onClick={rankings.retry}>Retry counts</button>
+                  </p>
+                )}
                 {entries.length ? (
                   <div
                     className={`gg-grid gg-grid-${collection.layout}`}
@@ -522,7 +530,7 @@ export function Gamegrid({
                       />
                     ))}
                   </div>
-                ) : (
+                ) : !collection.notice ? (
                   <div className="gg-section-empty" role="status">
                     <p>{collection.loading ? 'Finding games…' : collection.empty}</p>
                     {!collection.loading && search.section !== 'discover' && (
@@ -532,7 +540,7 @@ export function Gamegrid({
                       </button>
                     )}
                   </div>
-                )}
+                ) : null}
               </section>
             );
           })

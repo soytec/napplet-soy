@@ -37,9 +37,11 @@ on:
       - 'tests/services/rich-comments.test.ts'
       - 'tests/services/gamegrid.test.ts'
       - 'tests/services/preview-cover.test.ts'
+      - 'tests/services/count-rankings.test.ts'
       - 'tests/services/shell-dialogs.test.ts'
       - 'tests/fixtures/gamegrid.tsx'
       - 'tests/fixtures/preview-cover.tsx'
+      - 'tests/fixtures/count-rankings.tsx'
       - 'tests/fixtures/shell-dialogs.tsx'
       - 'tests/services/fixtures/studio-original-preview.tsx'
       - 'tests/services/studio-remix-network.test.ts'
@@ -128,4 +130,5 @@ jobs:
         run: |
           bun test tests/services/gamegrid.test.ts
           bun test tests/services/preview-cover.test.ts
+          bun test tests/services/count-rankings.test.ts
           bun test tests/services/shell-dialogs.test.ts
