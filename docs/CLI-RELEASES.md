@@ -1,11 +1,11 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The current published version is **0.32.0**. The repository has transferred to
+The current published version is **0.32.1**. The repository has transferred to
 [`soytec/napplet-soy`](https://github.com/soytec/napplet-soy), including its history,
 issues, pull requests and releases.
 
-**0.32.1 — release candidate; not yet published**
+**0.32.1 — whole-napplet controller guidance**
 
 When controller support is implemented, creator guidance now covers the entire
 napplet: menus, settings, gameplay, pause/resume, restart, results and back
@@ -19,6 +19,23 @@ policy. Existing projects can receive the managed guidance with `soyli skills
 update` after upgrading; review reported conflicts so creator edits are preserved.
 The same source is merged into the extracted soyLI repository. This patch keeps
 the existing `soytec/napplet-soy` binary release and update channel.
+
+Published **2026-11-09 (Europe/Vienna)** from
+`d66d52a377229b2631596070dd6843a21764149a`
+([PR #56](https://github.com/soytec/napplet-soy/pull/56)).
+[Release](https://github.com/soytec/napplet-soy/releases/tag/soyli-v0.32.1),
+[four-platform release CI](https://github.com/soytec/napplet-soy/actions/runs/42638410735),
+[Nix package/VM CI](https://github.com/soytec/napplet-soy/actions/runs/42635471554)
+and [Studio integration CI](https://github.com/soytec/napplet-soy/actions/runs/42635471629)
+passed. All 11 public assets match their checksums and GitHub digests, and all four
+archives match the release manifest.
+
+An isolated macOS ARM64 fresh install, a real **0.32.0 → 0.32.1** update and a
+current-version recheck passed. The public binary generates the exact tagged
+controller guide and updates an older managed guide while preserving creator
+edits and application source. The prior CLI release, account/project markers and
+normal user installation were preserved. Website and hosted-worker activation
+are recorded separately in the [deployment record](DEPLOYMENT.md).
 
 **0.32.0 — standard media and preview compatibility**
 
@@ -78,7 +95,7 @@ Merged creator-guidance follow-ups
 ([shell PR #54](https://github.com/soytec/napplet-soy/pull/54),
 [standalone PR #2](https://github.com/soytec/soyli/pull/2)) require complete napplet
 navigation when controller support is chosen; controller support remains optional.
-These source changes are included in the 0.32.1 release candidate above. They are
+These source changes are included in the 0.32.1 release above. They are
 not part of the immutable 0.32.0 binaries or their bundled guides.
 
 **0.31.4 — compliance corrections**

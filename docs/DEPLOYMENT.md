@@ -5,7 +5,47 @@ do not deploy or upload releases unless the user explicitly requests deployment.
 
 Updated 2026-11-09. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-### Most recent application deployment — Gamegrid and soyLI 0.32.0, 2026-11-09
+### Most recent application deployment — controller guidance and soyLI 0.32.1, 2026-11-09
+
+Website release **`20261109150341834-40351`** runs the published soyLI 0.32.1 tag
+source `d66d52a377229b2631596070dd6843a21764149a`
+([PR #56](https://github.com/soytec/napplet-soy/pull/56)), whose tree matches the
+verified candidate `0c43c0d1a4b00d7b26c062918c83b9c7afaee91e`. Controller support
+remains optional; when chosen, the creator guidance now covers the whole napplet,
+including menus, settings, results and back navigation. See the
+[release scope and public binary verification](CLI-RELEASES.md).
+
+The normal application rollout activated the 0.32.1 installer after its public
+assets, fresh install and 0.32.0 → 0.32.1 update passed verification. The live
+`/install.sh` matches the official release asset byte for byte:
+`81a54be71b345c94eeaa8eb20d9490685fa76baa7355b95c76983742180c3c26` (SHA-256).
+Public HTTPS health reports the exact release and `ok`; the homepage, `/gg`,
+`/manage` and `/studio/create` return successfully. Public backend discovery
+exposes the expected version, public key and relay only.
+
+The additive Studio worker image is
+`sha256:06267e47b9b43c5c3f4ac231789f510fd9ea1afcbfe623fb740b9f4176c2a949`.
+Activation verified 616 source hashes, preserved a protected configuration backup
+and changed only the configured image; ownership/mode remain `0:985` / `0640`.
+Offline acceptance passed both build paths, capture, failure/cancellation recovery,
+thread pressure and the embedded guide/version checks. The service reports `ready`, is
+active/running with zero restarts and uses soyLI 0.32.1. A fresh, disposable
+project scaffolded as the service user matched all five expected creator-file
+hashes. Existing dependency profiles and the temporary legacy CPU runtime remain
+unchanged.
+
+The application passed **1,010 tests / 7,851 assertions** locally and
+**1,010 tests / 7,850 assertions** on the VPS, plus five relay, 18 Blossom, nine
+GRASP and three backend-isolation tests and the production build. Exact-candidate
+Nix realization, forced package rebuilds and x86_64 Linux KVM regressions passed;
+the [release record](CLI-RELEASES.md) links the green native, Nix and Studio CI.
+Public asset and upgrade receipts are in
+`.local/soyli-0.32.1-public-verification/`; final HTTPS receipts are in
+`.local/soyli-0-32-1-rollout/.local/release-verification/public-rollout.json`.
+Worker acceptance and activation receipts are in
+`.local/soyli-0-32-1/.local/controller-guidance-worker/`.
+
+### Previous application deployment — Gamegrid and soyLI 0.32.0, 2026-11-09
 
 Website release **`20261109123450241-52445`** runs source
 `f343b2a0f135a2ae88b0187fcadf29bb93909c42`, whose tree matches merged
@@ -26,9 +66,9 @@ before tagging soyLI 0.32.0. The website initially retained the 0.31.4 installer
 and GitHub digests, and all four archive metadata records passed verification.
 An isolated macOS ARM64 fresh install and a real 0.31.4 → 0.32.0 update passed;
 the prior release, account/project markers and legacy command were preserved.
-The subsequent controller-journey guidance follow-ups are merged source for a
-future CLI release. They remain outside the immutable 0.32.0 binary and the
-deployed application and worker; see the [release scope](CLI-RELEASES.md).
+Controller-journey guidance was not included in this application/worker rollout
+or the immutable 0.32.0 binaries. It subsequently shipped in
+[soyLI 0.32.1](CLI-RELEASES.md).
 
 The live `/install.sh`, deployed source copy and built copy all match the official
 0.32.0 release asset byte for byte:
