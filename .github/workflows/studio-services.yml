@@ -35,6 +35,12 @@ on:
       - 'tests/services/fixtures/capture-recording.ts'
       - 'tests/services/keys-preview.test.ts'
       - 'tests/services/rich-comments.test.ts'
+      - 'tests/services/gamegrid.test.ts'
+      - 'tests/services/preview-cover.test.ts'
+      - 'tests/services/shell-dialogs.test.ts'
+      - 'tests/fixtures/gamegrid.tsx'
+      - 'tests/fixtures/preview-cover.tsx'
+      - 'tests/fixtures/shell-dialogs.tsx'
       - 'tests/services/fixtures/studio-original-preview.tsx'
       - 'tests/services/studio-remix-network.test.ts'
       - 'scripts/test-studio-remix-network.sh'
@@ -118,3 +124,8 @@ jobs:
         run: bun scripts/current-shell.ts
       - name: Verify napplet sessions survive visibility changes
         run: bun test tests/services/keys-preview.test.ts && bun test tests/services/rich-comments.test.ts
+      - name: Verify Gamegrid controls, preview playback and fullscreen dialogs
+        run: |
+          bun test tests/services/gamegrid.test.ts
+          bun test tests/services/preview-cover.test.ts
+          bun test tests/services/shell-dialogs.test.ts
