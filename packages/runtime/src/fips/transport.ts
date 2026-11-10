@@ -66,15 +66,21 @@ class Queue {
 // One carrier budget across all frames; identity, deduplication and counters stay frame-scoped.
 const transfers = new Queue();
 type Connection = {
+  key: string;
+  cached: Promise<Connection>;
   node: FipsNode;
   blobs: TcpBlobTransport;
   rpc: FipsRpcEndpoint;
   websocket?: WebSocketTransport;
   peerId: string;
   peers: Set<string>;
+  users: number;
+  retired: boolean;
+  closing?: Promise<void>;
 };
 export class FipsClient {
   private connections = new Map<string, Promise<Connection>>();
+  private liveConnections = new Set<Connection>();
   private activeTransfers = 0;
   private queuedTransfers = 0;
   private async slot(signal: AbortSignal) {
@@ -116,7 +122,7 @@ export class FipsClient {
       bootstrap?: TransportAddress[];
     } = {},
   ) {}
-  private async connection(provider: FipsProvider) {
+  private async connection(provider: FipsProvider): Promise<Connection> {
     if (
       (provider.servicePort ?? 39018) !== 39018 ||
       (provider.rpcPort !== undefined && provider.rpcPort !== 39019)
@@ -161,19 +167,56 @@ export class FipsClient {
           await node.stop();
           throw error;
         }
-        return {
+        const connection: Connection = {
+          key,
+          cached: promise!,
           node,
           blobs,
           rpc,
           websocket,
           peerId: toHex(identity.publicKey),
           peers,
+          users: 0,
+          retired: false,
         };
+        this.liveConnections.add(connection);
+        return connection;
       })();
       this.connections.set(key, promise);
-      promise.catch(() => this.connections.delete(key));
+      promise.catch(() => {
+        if (this.connections.get(key) === promise) this.connections.delete(key);
+      });
     }
-    return promise;
+    const connection = await promise;
+    this.lifetime.signal.throwIfAborted();
+    if (connection.retired) return this.connection(provider);
+    connection.users++;
+    return connection;
+  }
+  private closeConnection(connection: Connection) {
+    return (connection.closing ??= (async () => {
+      try {
+        await Promise.all([connection.blobs.close(), connection.rpc.close()]);
+      } finally {
+        try {
+          await connection.node.stop();
+        } finally {
+          this.liveConnections.delete(connection);
+        }
+      }
+    })());
+  }
+  private releaseConnection(connection: Connection) {
+    connection.users--;
+    if (connection.retired && !connection.users)
+      void this.closeConnection(connection).catch(() => {});
+  }
+  private retireConnection(connection: Connection) {
+    connection.retired = true;
+    if (this.connections.get(connection.key) === connection.cached)
+      this.connections.delete(connection.key);
+    // Existing operations keep their session. Later reads get fresh routing and
+    // handshake state; never replay or interrupt an in-flight stateful RPC.
   }
   async fetchBlob(
     hash: string,
@@ -198,8 +241,9 @@ export class FipsClient {
         try {
           for (const provider of providers) {
             taskSignal.throwIfAborted();
+            let connection: Connection | undefined;
             try {
-              const connection = await this.connection(provider);
+              connection = await this.connection(provider);
               taskSignal.throwIfAborted();
               this.counters.requests++;
               const bytes = await this.readFromProvider(
@@ -218,8 +262,11 @@ export class FipsClient {
               return bytes;
             } catch (error) {
               taskSignal.throwIfAborted();
+              if (connection && isRetryableFipsError(error)) this.retireConnection(connection);
               errors.push(error);
               this.counters.failovers++;
+            } finally {
+              if (connection) this.releaseConnection(connection);
             }
           }
           if (missing === providers.length) return null;
@@ -282,11 +329,13 @@ export class FipsClient {
       throw new Error('This FIPS provider does not advertise server operations');
     const combined = AbortSignal.any([this.lifetime.signal, ...(signal ? [signal] : [])]);
     const release = await this.slot(combined);
+    let connection: Connection | undefined;
     try {
-      const connection = await this.connection(provider);
+      connection = await this.connection(provider);
       this.counters.rpcRequests++;
       return await connection.rpc.request(provider.peerId, request, combined);
     } finally {
+      if (connection) this.releaseConnection(connection);
       release();
     }
   }
@@ -300,14 +349,9 @@ export class FipsClient {
   }
   async stop() {
     this.lifetime.abort(new Error('FIPS client closed'));
+    await Promise.all([...this.connections.values()].map((task) => task.catch(() => undefined)));
     await Promise.all(
-      [...this.connections.values()].map(async (task) => {
-        const c = await task.catch(() => undefined);
-        if (c) {
-          await Promise.all([c.blobs.close(), c.rpc.close()]);
-          await c.node.stop();
-        }
-      }),
+      [...this.liveConnections].map((connection) => this.closeConnection(connection)),
     );
     this.connections.clear();
   }

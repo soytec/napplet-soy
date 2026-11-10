@@ -16,6 +16,7 @@ class LocalCarrier implements Transport {
   readonly mtu = 65535;
   readonly maxFrameBytes = 66000;
   dropBodyPackets = false;
+  dropAllPackets = false;
   private context?: TransportContext;
   private identity = '';
   private readonly deliveries = new Set<ReturnType<typeof setTimeout>>();
@@ -35,7 +36,7 @@ class LocalCarrier implements Transport {
   }
   async send(address: TransportAddress, packet: Uint8Array) {
     // Auth/session/TCP control frames still flow, including the client's failure RST.
-    if (this.dropBodyPackets && packet.length > 800) return;
+    if (this.dropAllPackets || (this.dropBodyPackets && packet.length > 800)) return;
     const target = this.peers.get(address.addr);
     if (!target?.context) throw new Error('Local peer stopped');
     const copy = packet.slice();
@@ -189,6 +190,21 @@ test('valid missing and complete verified responses remain readable', async () =
     expect(await env.client.get(env.hash, [env.providerId], 0)).toEqual(env.bytes);
     await waitUntil(() => bufferedStreams(env.client) === 0 && bufferedStreams(env.provider) === 0);
     expect(env.reads()).toBe(2);
+  } finally {
+    await env.close();
+  }
+}, 5000);
+
+test('a connected FIPS session recovers after inbound control and data packet loss', async () => {
+  const env = await fixture();
+  try {
+    expect(await env.client.get(env.hash, [env.providerId], 0)).toEqual(env.bytes);
+    env.providerCarrier.dropAllPackets = true;
+    await expect(env.client.get(env.hash, [env.providerId], 0)).rejects.toBeInstanceOf(
+      AggregateError,
+    );
+    env.providerCarrier.dropAllPackets = false;
+    expect(await env.client.get(env.hash, [env.providerId], 0)).toEqual(env.bytes);
   } finally {
     await env.close();
   }

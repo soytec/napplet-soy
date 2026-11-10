@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { FipsNode, generateIdentity, toHex } from '@fips/core';
+import { FipsNode, generateIdentity, toHex, type TransportAddress } from '@fips/core';
 import { TcpBlobTransport } from './vendor/tcpBlobTransport';
 import { FipsRpcEndpoint } from './rpc';
 import { FipsClient } from './transport';
@@ -193,6 +193,66 @@ test('frames share a two-transfer budget but never expose another frame’s coun
   } finally {
     for (const resolve of pending.splice(0)) resolve();
     await Promise.all(clients.map((client) => client.stop()));
+    await server.close();
+  }
+}, 10000);
+
+test('retry after an exhausted carrier gets a fresh connection without aborting an in-flight operation', async () => {
+  class InterruptedCarrier extends MemoryCarrier {
+    interrupted = false;
+    override async send(address: TransportAddress, packet: Uint8Array) {
+      if (!this.interrupted) await super.send(address, packet);
+    }
+  }
+  const peers = new Map<string, MemoryCarrier>();
+  const bytes = new Uint8Array(1024).fill(29);
+  const hash = await digest(bytes);
+  const operationStarted = Promise.withResolvers<void>();
+  const completeOperation = Promise.withResolvers<void>();
+  let rpcCalls = 0;
+  const server = await provider(
+    peers,
+    async () => bytes,
+    async () => {
+      rpcCalls++;
+      operationStarted.resolve();
+      await completeOperation.promise;
+      return { status: 200, body: { completed: true } };
+    },
+  );
+  const carriers: InterruptedCarrier[] = [];
+  const client = new FipsClient({
+    transports: () => {
+      const carrier = new InterruptedCarrier(peers);
+      carriers.push(carrier);
+      return [carrier];
+    },
+    bootstrap: [{ transport: 'memory', addr: server.peerId }],
+    timeoutMs: 500,
+  });
+  try {
+    expect(await client.fetchBlob(hash, [server.descriptor])).toEqual(bytes);
+    const operation = client.request(server.descriptor, {
+      root: hash,
+      path: 'offline',
+      method: 'POST',
+    });
+    void operation.catch(() => {});
+    await operationStarted.promise;
+    carriers[0]!.interrupted = true;
+    await expect(client.fetchBlob(hash, [server.descriptor])).rejects.toBeInstanceOf(
+      AggregateError,
+    );
+    // A user retry must replace the unusable carrier, not repeat the same failed session.
+    expect(await client.fetchBlob(hash, [server.descriptor])).toEqual(bytes);
+    expect(carriers).toHaveLength(2);
+    completeOperation.resolve();
+    expect((await operation).body).toEqual({ completed: true });
+    expect(rpcCalls).toBe(1);
+    expect(client.status().activeTransfers).toBe(0);
+  } finally {
+    completeOperation.resolve();
+    await client.stop();
     await server.close();
   }
 }, 10000);
