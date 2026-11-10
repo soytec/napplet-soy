@@ -1,6 +1,6 @@
 # FIPS resources: contract and integration
 
-Status: implemented on `codex/fips-resource-integration`, with verification recorded below. Not pushed, released or deployed. Companion Atlas changes are commit `19429de15306332d806b2830dda1cf1f00b92ae7` on `codex/soyli-fips-consumer`. Development and acceptance use isolated worktrees; the original Atlas checkout, running builds and provider configuration are unchanged.
+Status: implemented on `codex/fips-resource-integration`, with release verification recorded below. Production activation is recorded separately in [DEPLOYMENT.md](DEPLOYMENT.md). Companion Atlas changes are on `codex/soyli-fips-consumer`. Development and acceptance use isolated worktrees; the original Atlas checkout, running builds and provider configuration are unchanged.
 
 ## Contract review — 10 November 2026
 
@@ -52,6 +52,8 @@ Verified locally on 10 November 2026:
 | --- | --- |
 | Shell `bun run check` | TypeScript and **1,023 tests passed**, zero failures; 7,957 assertions. Includes the existing host, transport, playback and OUTBOX regressions. |
 | Shell `bun run build` | Production client and SSR build passed. |
+| `bun test tests/services/packaged-cli.test.ts` | Native compiled CLI creates a project with byte-exact FIPS guidance and SDK: one test, 14 assertions. The native CLI and legacy worker share the raw TypeScript source loader. |
+| Full Nix packaging gate | Passed on an isolated x86_64 Linux/KVM builder: realized and force-rebuilt dependency and soyLI outputs, then passed flake/VM checks. The creator guide is an explicit Nix source input; the changed dependency output hash was measured and reviewed. AArch64 Nix checks were not run. |
 | `bun test scripts/deploy-archive.test.ts apps/cli/src/creator-kit.test.ts tests/services/cli-preview.test.ts` | 12 passed, one existing optional test skipped. Archive includes the new guidance/SDK. |
 | `FIPS_TEST_WEB_ORIGIN=http://127.0.0.1:4218 bun test tests/services/fips-browser.test.ts` | Real opaque shim/host in ordinary soyLI and the compiled website Player: 28 assertions passed in Chromium. |
 | Same browser fixture with `FIPS_TEST_BROWSER='/Applications/Brave Browser.app/Contents/MacOS/Brave Browser'` | 28 assertions passed in Brave against the compiled player; also passed against the development player. |
@@ -73,12 +75,14 @@ The final run recorded zero JavaScript page errors and **no HTTP requests outsid
 
 A separate explicit `GET capabilities` call through the same SDK returned **200**, JSON schema metadata and snapshot `5581476881ff0a76409a7b23b4cd3c2ac9be100f40414b45a8ed53ed1e687b31` in both body and `x-atlas-snapshot`. It was pinned to root `65e91586df3eb1a197a26902cca601e45b90e54d878053fcf6d90b7b1092c87c` and peer `02ec568d5b30f4602188ed4749d4b9336167e461bdad0f9dc2854c2b7dd802c068`; no replay or HTTP request occurred. Binary/status preservation and lost-response behavior are fixture-tested.
 
-One intervening cold run stopped with a visible directory-load error after 1.77 MiB; its exact transport cause was not captured. A fresh run succeeded without product or provider changes. Public-path reliability and cold-start latency therefore remain rollout observations to investigate, not a guaranteed performance result. Live acceptance scripts and screenshots are local development artifacts, not shipped product assets.
+An intervening cold run stopped with a visible directory-load error. A follow-up on a frozen artifact reproduced a TCP/FIPS read timeout after a seed reconnect; the directory retries exhausted and the consumer displayed **Retry map loading**, without falsely reporting readiness. Three subsequent cold contexts each completed in roughly 91 seconds without a product or provider change. The deterministic encrypted-wire tests cover stream cleanup and recovery; public-path latency and availability are still transport-dependent, not guaranteed performance results. Live acceptance scripts and screenshots are local development artifacts, not shipped product assets.
 
 The upstream consumer conformance harness reports **5 passed, 0 failed, 5 skipped**. Its manifest-event/index/requires, observed wire and clean-teardown cases remain skipped. Shared-host/private-port lifecycle tests provide separate evidence; they do not turn those skipped cases into passes. No independent-shell interoperability or physical mobile/controller acceptance is claimed.
 
 ### Rollout gates
 
-`bun run check:nix` was attempted and could not start because this environment has no `nix` executable (exit 127). Before pushing this dependency/CLI/runtime change, run the repository's full Nix dependency realization, forced soyLI rebuild and flake/VM checks on a suitable host; update and review exact dependency hashes if required. No production rollout or release was performed.
+The full Nix gate passed on 10 November 2026 after adding the missing creator-guide input and measuring the exact dependency output hash. The release candidate is soyLI **0.33.0**. Native release CI must pass on all four platforms before publication. Activate compatible website and hosted-worker readers before publishing the dependent Atlas consumer. The existing Atlas provider requires no restart.
+
+Atlas development remains in its private repository. A consumer-only export excludes host, administration, map compiler, deployment configuration and Git history; its source/license publication requires a separate owner decision. The export includes the consumer dependency closure and renderer/routing WASM provenance. Its custom toolchain must not be advertised as supported by the stock Studio browser build profile.
 
 Upstream standardization of public content-addressed provider grants and the optional operation boundary remains open. `soy.fips/1` must remain visibly experimental until a compatible contract is agreed and tested with another implementation.
