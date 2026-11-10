@@ -48,11 +48,12 @@ passed after recording the resource-client workspace in both the lockfile and Ni
 inputs. AArch64 Nix acceptance was not run. The [release record](CLI-RELEASES.md)
 links the green native, Nix and Studio CI and public binary checks.
 
-Atlas consumer publication and production acceptance remain a separate pending
-step. Its consumer-only export does not expose private host code and is not a
-stock Studio browser-build profile. Public asset, updater, scaffold and final
-HTTPS receipts are under `.local/fips-release/public-verification/`; worker
-acceptance and activation receipts are under `.local/fips-release/worker/`.
+The [Atlas consumer](FIPS-RESOURCES.md#public-atlas-consumer-release--10-november-2026)
+is published and indexed. Its public build, cover, MIT source archive and anonymous
+Git checkout match the approved inputs. The consumer-only export excludes private
+host code and is not a stock Studio browser-build profile. Public asset, updater,
+scaffold and final HTTPS receipts are under `.local/fips-release/public-verification/`;
+worker acceptance and activation receipts are under `.local/fips-release/worker/`.
 The complete normal rollout log is `.local/fips-release/deploy.log`.
 
 ### Previous application deployment — controller guidance and soyLI 0.32.1, 2026-11-09
