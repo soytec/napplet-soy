@@ -1,22 +1,47 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The current published version is **0.32.1**. The repository has transferred to
+The current published version is **0.33.0**. The repository has transferred to
 [`soytec/napplet-soy`](https://github.com/soytec/napplet-soy), including its history,
 issues, pull requests and releases.
 
-**0.33.0 — release candidate; not yet published**
+**0.33.0 — experimental verified FIPS resources**
 
 The shared preview and website host add experimental `soy.fips/1` resource
 sessions: approved roots and providers, verified selective block reads,
 cancellation and per-frame access. Atlas RPC operations require separate consent.
 This preserves the opaque sandbox and does not grant napplets direct networking.
+Exhausted transient reads retire unusable transport connections, allowing a later
+Retry to reconnect while active operations finish without replay.
 
 New projects include the FIPS creator guide and network-free client helper.
 Existing projects can receive these managed files with `soyli skills update`.
 Applications must detect unsupported hosts; this profile is not an accepted NAP
 or a claim of independent-shell interoperability. See the
 [contract, limits and acceptance evidence](FIPS-RESOURCES.md).
+
+Published **2026-11-10 (Europe/Vienna)** from
+`ed8a0d5d4e8593ddeaffa4e1f978fbd96fd1ddac`
+([PR #58](https://github.com/soytec/napplet-soy/pull/58)); the merged tree matches
+verified candidate `3d6aa8f9486dc6f5140ebca9ee024433ddd33a84`.
+[Release](https://github.com/soytec/napplet-soy/releases/tag/soyli-v0.33.0),
+[four-platform release CI](https://github.com/soytec/napplet-soy/actions/runs/42846361548),
+[PR native build CI](https://github.com/soytec/napplet-soy/actions/runs/42844004208),
+[Nix package/VM CI](https://github.com/soytec/napplet-soy/actions/runs/42844004152)
+and [Studio integration CI](https://github.com/soytec/napplet-soy/actions/runs/42844004830)
+passed. All 11 public assets match their checksums and GitHub digests; all four
+archives contain the expected platform, version and Bun pin. The release manifest
+identifies the tagged source. GitHub's latest stable release resolves to 0.33.0.
+
+An isolated macOS ARM64 fresh install, a real **0.32.1 → 0.33.0** update,
+current-version recheck, legacy command and `doctor` passed using public downloads
+and a minimal system PATH. The public binary emits the exact tagged FIPS guide
+and SDK bytes in a new scaffold and through `skills update` on a 0.32.1 scaffold;
+the older project's source, metadata, README and dependency lockfile are preserved.
+No account was created, and the previous CLI release, account/project markers,
+normal user installation and shell configuration were unchanged. Website and
+hosted-worker activation are recorded separately in the
+[deployment record](DEPLOYMENT.md).
 
 **0.32.1 — whole-napplet controller guidance**
 

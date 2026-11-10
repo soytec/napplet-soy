@@ -3,9 +3,58 @@
 Deployment is operator-run. Routine changes are verified and committed locally;
 do not deploy or upload releases unless the user explicitly requests deployment.
 
-Updated 2026-11-09. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
+Updated 2026-11-10. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-### Most recent application deployment — controller guidance and soyLI 0.32.1, 2026-11-09
+### Most recent application deployment — FIPS resources and soyLI 0.33.0, 2026-11-10
+
+Website release **`20261110155348389-22866`** runs source
+`ed8a0d5d4e8593ddeaffa4e1f978fbd96fd1ddac`
+([PR #58](https://github.com/soytec/napplet-soy/pull/58)), whose tree matches
+verified candidate `3d6aa8f9486dc6f5140ebca9ee024433ddd33a84`. The shared website,
+local preview and hosted tooling add experimental `soy.fips/1` resource sessions
+with explicit root/provider approval, verified selective reads and separate
+permission for Atlas operations. The opaque sandbox remains intact. This is not
+an accepted NAP or an independent-shell interoperability claim; see
+[scope, pins and acceptance limits](FIPS-RESOURCES.md).
+
+The normal rollout activated the 0.33.0 installer after public asset, fresh-install
+and 0.32.1 → 0.33.0 updater verification. The live `/install.sh` matches the official
+release asset byte for byte:
+`7105be595067c17fe670ff870ac9c7421db30dac0fd8d8e0b3ba2ae305ad37bb` (SHA-256).
+Public HTTPS health reports the exact release and `ok`; the homepage, `/gg` and
+`/studio/create` return successfully. A final health recheck confirmed the release
+remained stable. The public catalog index still named the previous release at
+verification, with `stale: false`.
+
+The additive Studio worker image is
+`sha256:053c11a90dffd023889ab79ccdff7cc57820cc820b9bad4f01317d541145fa92`.
+Activation checked the prepared source, preserved a protected configuration backup
+and changed the configured image; ownership/mode remain `0:985` / `0640`.
+Isolated acceptance passed both build paths, truncated turns, timeout and failure
+recovery, cancellation/reuse, desktop/portrait capture, thread pressure and runtime
+crash recovery. The live service reports `ready`, is active/running with zero
+restarts and uses soyLI 0.33.0. A fresh disposable project scaffolded as the service
+user matched all seven expected creator-file hashes, including the exact FIPS
+guide and SDK. Existing dependency profiles and the temporary legacy CPU runtime
+remain unchanged. The Atlas provider required no restart.
+
+The application passed **1,025 tests / 7,967 assertions** locally and
+**1,025 tests / 7,966 assertions** on the VPS. Both environments passed five relay,
+18 Blossom and nine GRASP tests; the VPS additionally passed three backend-isolation
+tests with 20 assertions and the production build. Exact-candidate Nix dependency
+realization, forced dependency/soyLI rebuilds and x86_64 Linux KVM regressions
+passed after recording the resource-client workspace in both the lockfile and Nix
+inputs. AArch64 Nix acceptance was not run. The [release record](CLI-RELEASES.md)
+links the green native, Nix and Studio CI and public binary checks.
+
+Atlas consumer publication and production acceptance remain a separate pending
+step. Its consumer-only export does not expose private host code and is not a
+stock Studio browser-build profile. Public asset, updater, scaffold and final
+HTTPS receipts are under `.local/fips-release/public-verification/`; worker
+acceptance and activation receipts are under `.local/fips-release/worker/`.
+The complete normal rollout log is `.local/fips-release/deploy.log`.
+
+### Previous application deployment — controller guidance and soyLI 0.32.1, 2026-11-09
 
 Website release **`20261109150341834-40351`** runs the published soyLI 0.32.1 tag
 source `d66d52a377229b2631596070dd6843a21764149a`

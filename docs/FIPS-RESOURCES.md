@@ -1,6 +1,6 @@
 # FIPS resources: contract and integration
 
-Status: implemented on `codex/fips-resource-integration`, with release verification recorded below. Production activation is recorded separately in [DEPLOYMENT.md](DEPLOYMENT.md). Companion Atlas changes are on `codex/soyli-fips-consumer`. Development and acceptance use isolated worktrees; the original Atlas checkout, running builds and provider configuration are unchanged.
+Status: merged in [PR #58](https://github.com/soytec/napplet-soy/pull/58), published in [soyLI 0.33.0](CLI-RELEASES.md), and active in the website and hosted worker; see [deployment receipts](DEPLOYMENT.md). The profile remains experimental. Companion Atlas implementation and acceptance used isolated worktrees; consumer publication and production acceptance are pending separately. The original Atlas checkout, running builds and provider configuration are unchanged.
 
 ## Contract review — 10 November 2026
 
@@ -82,7 +82,7 @@ The upstream consumer conformance harness reports **5 passed, 0 failed, 5 skippe
 
 ### Rollout gates
 
-The full Nix gate passed on 10 November 2026 after adding the missing creator-guide input and measuring the exact dependency output hash. The release candidate is soyLI **0.33.0**. Native release CI must pass on all four platforms before publication. Activate compatible website and hosted-worker readers before publishing the dependent Atlas consumer. The existing Atlas provider requires no restart.
+The full Nix gate passed on 10 November 2026, including the FIPS creator-guide input, resource-client workspace manifest/lockfile and measured dependency-output hash. [soyLI 0.33.0](CLI-RELEASES.md) is published from `ed8a0d5d4e8593ddeaffa4e1f978fbd96fd1ddac`. Four-platform native release CI passed; all public assets and archive metadata, an isolated 0.32.1 → 0.33.0 upgrade and fresh install, and exact generated FIPS guide/SDK bytes were verified. Compatible website and worker hosts are active; their receipts are in [DEPLOYMENT.md](DEPLOYMENT.md). The dependent Atlas consumer publication and production acceptance are pending separately. The existing Atlas provider requires no restart. No independent-shell interoperability is claimed.
 
 Atlas development remains in its private repository. A consumer-only export excludes host, administration, map compiler, deployment configuration and Git history; the owner approved this limited source export under MIT on 10 November 2026. This approval does not cover the rest of the private repository. The export includes the consumer dependency closure and renderer/routing WASM provenance. Its custom toolchain must not be advertised as supported by the stock Studio browser build profile.
 
