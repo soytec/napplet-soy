@@ -681,3 +681,20 @@ regressions cover wrong authors, versions, inherited addresses and recovery.
 Graph edges distinguish signed merge claims from verified Git ancestry. This source
 review is not independent interoperability certification. Deployment verification
 is recorded in [DEPLOYMENT.md](DEPLOYMENT.md#most-recent-application-deployment--contribution-graph-2026-10-25).
+
+## Experimental FIPS resource profile — 2026-11-10, not deployed
+
+[Contract mapping and evidence](FIPS-RESOURCES.md) records the shared web/soyLI
+implementation of `soy.fips/1`, with a matching injected binding and network-free
+application adapter. OUTBOX remains the standard discovery surface. The installed
+RESOURCE Blob/`requests` binding remains unchanged; current PR 80's base64/`urls`
+text is not silently adopted. MESH PR 122 does not provide public blob bodies or
+Atlas operation RPC. Exact compatible pins and remaining standardization gaps
+are in that mapping. No new standard NAP name or manifest domain is advertised.
+
+Public roots/providers require shell approval without login; verified descendant
+reads and root-pinned Atlas v1 operations use separate permissions. Opaque frames,
+private ports, equal publisher policy and existing NIP-5D identity remain intact.
+Frame/account changes revoke grants, transport identities and cached authority.
+The Atlas companion imports no dormant direct-network implementation. This is
+experimental source integration, not independent-shell conformance or rollout.

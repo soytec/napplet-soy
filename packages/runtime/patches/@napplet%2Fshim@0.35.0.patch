@@ -1,8 +1,7 @@
 diff --git a/dist/prelude.global.js b/dist/prelude.global.js
-index 3bf21e5aa156b9984d12399493bc4e2cdd2492f4..4d343b87271246de7cc88aa372512e0c929094b7 100644
 --- a/dist/prelude.global.js
 +++ b/dist/prelude.global.js
-@@ -342,8 +342,13 @@ var NappletShimPrelude = (() => {
+@@ -342,8 +342,13 @@
        }
      }
    }
@@ -17,7 +16,7 @@ index 3bf21e5aa156b9984d12399493bc4e2cdd2492f4..4d343b87271246de7cc88aa372512e0c
    }
  
    // ../nap/dist/chunk-GNKSDV4F.js
-@@ -351,7 +356,7 @@ var NappletShimPrelude = (() => {
+@@ -351,7 +356,7 @@
    var connection = null;
    var listeners = /* @__PURE__ */ new Set();
    function dispatch2(event) {
@@ -59,3 +58,26 @@ index 3bf21e5aa156b9984d12399493bc4e2cdd2492f4..4d343b87271246de7cc88aa372512e0c
      const id = crypto.randomUUID();
      const promise = sendRequest("llm.generate", { request: request7 }, GENERATE_TIMEOUT_MS, id);
      const entry = pending.get(id);
+@@ -5596,7 +5609,21 @@
+     return options.domains.filter((domain) => KNOWN_DOMAINS.has(domain));
+   }
+   function installNappletRuntimePrelude(options) {
+-    return installNappletGlobal({ domains: normalizePreludeDomains(options) });
++    const napplet = installNappletGlobal({ domains: normalizePreludeDomains(options) });
++    // Explicit experimental resource profile. Only its envelopes cross this
++    // adapter; neither the MessagePort nor a general transport is exposed.
++    if (napplet.resource && typeof options.resourceProfile === "function" && !napplet.resource.soyFips) {
++      const binding = options.resourceProfile(
++        message => {
++          if (message?.type === "resource.fips" && message.profile === "soy.fips/1") postToShell(message);
++        },
++        callback => onShellMessage(message => {
++          if (["resource.fips.result", "resource.fips.changed"].includes(message.type) && message.profile === "soy.fips/1") callback(message);
++        })
++      );
++      Object.defineProperty(napplet.resource, "soyFips", { value: binding, enumerable: true });
++    }
++    return napplet;
+   }
+   function renderNappletRuntimePreludeCall(options) {
+     return `globalThis.NappletShimPrelude.install(${JSON.stringify({

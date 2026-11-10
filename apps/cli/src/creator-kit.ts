@@ -25,6 +25,8 @@ import minicraftHandler from '../../../packages/dynamic-backends/fixtures/minicr
 import minicraftManifest from '../../../packages/dynamic-backends/fixtures/minicraft/backend.json';
 import minicraftSchemas from '../../../packages/dynamic-backends/fixtures/minicraft/schemas.json';
 import sharedDataGuide from '../../../docs/SHARED-DATA.md' with { type: 'text' };
+import fipsGuide from '../../../docs/FIPS-CREATOR.md' with { type: 'text' };
+import fipsHelper from '../../../packages/resource-client/src/index.ts?raw' with { type: 'text' };
 import outboxGuide from '../../../docs/OUTBOX.md' with { type: 'text' };
 import coordinatedAudio from '../../../docs/examples/coordinated-audio.ts?raw' with { type: 'text' };
 import appDataHelper from '../../../packages/app-data/src/app-data.ts?raw' with { type: 'text' };
@@ -117,6 +119,8 @@ browser policy limits; do not inject a Gamepad shim to bypass them.
   read docs/napplet-data.md and use docs/examples/app-data.ts with app-data-contract.ts.
   For ordinary Nostr event reads, live streams and consented publications, read
   docs/napplet-outbox.md. Keep map/app-data specialized write protections intact.
+- For selective immutable FIPS data, read docs/napplet-fips.md. The soy.fips/1
+  profile is experimental: detect absence, keep the sandbox, and use no HTTP fallback.
   Default to the documented public NIP-78 convention, with a stable schema label/version
   and application payload validation. Keep drafts in local storage, large files on Blossom.
   Do not invent a CVM collection service or replace requested sharing with local-only saves.
@@ -623,6 +627,8 @@ export function creatorSkills() {
     'docs/examples/coordinated-audio.ts': coordinatedAudio,
     'docs/examples/app-data-contract.ts': appDataContract,
     'docs/napplet-outbox.md': outboxGuide,
+    'docs/napplet-fips.md': fipsGuide,
+    'docs/examples/fips-resource-client.ts': fipsHelper,
     'docs/napplet-actions.md': actionsGuide,
     'docs/napplet-controllers.md': controllersGuide,
     'docs/napplet-mobile.md': mobileGuide,

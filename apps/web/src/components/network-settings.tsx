@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { network, saveNetwork } from '@/lib/network';
 import { Button } from '@/components/ui/button';
 import { MultiplayerSettings } from '../../../../packages/runtime/src/multiplayer-settings';
+import { FipsSettings } from '../../../../packages/runtime/src/fips/settings';
 export function NetworkSettings() {
   const [relays, setRelays] = useState(''),
     [blossom, setBlossom] = useState(''),
@@ -82,7 +83,7 @@ export function NetworkSettings() {
           Manage wallet relays in Wallet settings ↗
         </Link>
       </aside>
-      <MultiplayerSettings />
+      <MultiplayerSettings /><FipsSettings />
     </section>
   );
 }

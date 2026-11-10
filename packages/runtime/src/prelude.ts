@@ -1,5 +1,6 @@
 import { RUNTIME_DOMAINS } from './capabilities';
 import { validateConfigSchema } from './config-schema';
+import { createFipsBinding } from './fips/binding';
 
 /**
  * Interim WebRTC removal from the pending NIP-5D revision (dskvr/nips PR 16/17).
@@ -52,5 +53,6 @@ export function nappletPrelude(shim: string, declaration?: { schema?: unknown })
       },
     });
   })();`;
-  return `${WEBRTC_REMOVAL}\n${shim}\nglobalThis.NappletShimPrelude.install(${JSON.stringify({ domains: RUNTIME_DOMAINS })});\n${config}`;
+  const options = `{domains:${JSON.stringify(RUNTIME_DOMAINS)},resourceProfile:(${createFipsBinding.toString()})}`;
+  return `${WEBRTC_REMOVAL}\n${shim}\nglobalThis.NappletShimPrelude.install(${options});\n${config}`;
 }
