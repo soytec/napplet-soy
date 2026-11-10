@@ -99,6 +99,10 @@
         "radix-ui": "^1.6.7",
       },
     },
+    "packages/resource-client": {
+      "name": "@soytec/fips-resource-client",
+      "version": "0.1.0-experimental.1",
+    },
   },
   "patchedDependencies": {
     "@napplet/shim@0.35.0": "packages/runtime/patches/@napplet%2Fshim@0.35.0.patch",
@@ -635,6 +639,8 @@
     "@scure/bip32": ["@scure/bip32@2.4.0", "", { "dependencies": { "@noble/curves": "2.4.0", "@noble/hashes": "2.4.0", "@scure/base": "2.4.0" } }, "sha512-i3DS0CptAocyvqE4n3SUkpzeQK4vJMFwWLofTwRiiKo2aWojBOfyMCgfKw9HVpO6fSY5AK86sHS/Uzn8kK9Few=="],
 
     "@scure/bip39": ["@scure/bip39@2.0.1", "", { "dependencies": { "@noble/hashes": "2.0.1", "@scure/base": "2.0.0" } }, "sha512-PsxdFj/d2AcJcZDX1FXN3dDgitDDTmwf78rKZq1a6c1P1Nan1X/Sxc7667zU3U+AN60g7SxxP0YCVw2H/hBycg=="],
+
+    "@soytec/fips-resource-client": ["@soytec/fips-resource-client@workspace:packages/resource-client"],
 
     "@space/cli": ["@space/cli@workspace:apps/cli"],
 

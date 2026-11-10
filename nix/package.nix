@@ -73,6 +73,7 @@ let
       ../apps/cli/package.json
       ../apps/cvm/package.json
       ../apps/web/package.json
+      ../packages/resource-client/package.json
     ];
   };
 
