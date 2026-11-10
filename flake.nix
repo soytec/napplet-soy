@@ -79,6 +79,7 @@
             ./docs/BACKEND-CREATOR.md
             ./docs/DYNAMIC-BACKENDS-CREATOR.md
             ./docs/SHARED-DATA.md
+            ./docs/FIPS-CREATOR.md
             ./docs/OUTBOX.md
             ./docs/examples/coordinated-audio.ts
           ]

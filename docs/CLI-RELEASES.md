@@ -5,6 +5,19 @@ The current published version is **0.32.1**. The repository has transferred to
 [`soytec/napplet-soy`](https://github.com/soytec/napplet-soy), including its history,
 issues, pull requests and releases.
 
+**0.33.0 — release candidate; not yet published**
+
+The shared preview and website host add experimental `soy.fips/1` resource
+sessions: approved roots and providers, verified selective block reads,
+cancellation and per-frame access. Atlas RPC operations require separate consent.
+This preserves the opaque sandbox and does not grant napplets direct networking.
+
+New projects include the FIPS creator guide and network-free client helper.
+Existing projects can receive these managed files with `soyli skills update`.
+Applications must detect unsupported hosts; this profile is not an accepted NAP
+or a claim of independent-shell interoperability. See the
+[contract, limits and acceptance evidence](FIPS-RESOURCES.md).
+
 **0.32.1 — whole-napplet controller guidance**
 
 When controller support is implemented, creator guidance now covers the entire
