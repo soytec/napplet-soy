@@ -28,8 +28,9 @@ verification, with `stale: false`.
 
 The additive Studio worker image is
 `sha256:053c11a90dffd023889ab79ccdff7cc57820cc820b9bad4f01317d541145fa92`.
-Activation checked the prepared source, preserved a protected configuration backup
-and changed the configured image; ownership/mode remain `0:985` / `0640`.
+Activation verified all 756 deployed source hashes, preserved a protected
+configuration backup and changed only the configured image; ownership/mode remain
+`0:985` / `0640`.
 Isolated acceptance passed both build paths, truncated turns, timeout and failure
 recovery, cancellation/reuse, desktop/portrait capture, thread pressure and runtime
 crash recovery. The live service reports `ready`, is active/running with zero
