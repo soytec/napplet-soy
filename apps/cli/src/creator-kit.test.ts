@@ -280,3 +280,18 @@ test('built publications prepare external related links without modifying editab
   const second = await inspectProject(project, 'local', 'a'.repeat(64));
   expect(executableBytes(second.contents)).toEqual(prepared);
 });
+
+test('FIPS authoring ships a network-free adapter and accurately declares its experimental boundary', async () => {
+  const directory = await mkdtemp(join(root, 'fips-guidance-'));
+  const installed = await installCreatorSkills(directory);
+  expect(installed.updated).toContain('docs/napplet-fips.md');
+  const guide = await readFile(join(directory, 'docs/napplet-fips.md'), 'utf8');
+  expect(guide).toContain('not a\nstandard NAP');
+  expect(guide).toContain('without requiring a login');
+  const helper = await readFile(join(directory, 'docs/examples/fips-resource-client.ts'), 'utf8');
+  expect(helper).toContain('soy.fips/1');
+  expect(helper).not.toMatch(/\b(fetch|WebSocket|EventSource)\s*\(/);
+  expect(await readFile(join(directory, 'docs/napplet-space.md'), 'utf8')).toContain(
+    'docs/napplet-fips.md',
+  );
+});

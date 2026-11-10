@@ -1,8 +1,25 @@
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import type { BunPlugin } from 'bun';
 import type { previewAssets } from '../apps/cli/src/preview/assets';
 
 const root = resolve(import.meta.dir, '..');
+
+/** Preserve explicit creator-source imports as text in native and Studio builds. */
+export const creatorSourcePlugin: BunPlugin = {
+  name: 'raw-creator-source',
+  setup(build) {
+    // A separate module identity avoids colliding with the executable SDK import.
+    build.onResolve({ filter: /\.ts\?raw$/ }, ({ path, importer }) => ({
+      path: resolve(dirname(importer), path.slice(0, -4)),
+      namespace: 'creator-source',
+    }));
+    build.onLoad({ filter: /.*/, namespace: 'creator-source' }, async ({ path }) => ({
+      contents: await Bun.file(path).text(),
+      loader: 'text',
+    }));
+  },
+};
 
 /** Release and standalone integration fixtures share loaders and runtime isolation. */
 export async function compileCli(
@@ -29,28 +46,7 @@ export async function compileCli(
         ? { NAPPLET_DISTRIBUTION: JSON.stringify(options.distribution) }
         : {}),
     },
-    plugins: [
-      {
-        name: 'raw-creator-source',
-        setup(build) {
-          // Keep the shipped helper text separate from its executable module identity.
-          build.onResolve(
-            {
-              filter:
-                /\/(gamepad|app-data|app-data-contract|handler|handler-types|coordinated-audio)\.ts\?raw$/,
-            },
-            ({ path }) => ({
-              path: resolve(root, 'apps/cli/src', path.slice(0, -4)),
-              namespace: 'creator-source',
-            }),
-          );
-          build.onLoad({ filter: /.*/, namespace: 'creator-source' }, async ({ path }) => ({
-            contents: await Bun.file(path).text(),
-            loader: 'text',
-          }));
-        },
-      },
-    ],
+    plugins: [creatorSourcePlugin],
     compile: {
       ...(options.target ? { target: options.target } : {}),
       outfile,

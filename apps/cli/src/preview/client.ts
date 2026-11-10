@@ -25,6 +25,7 @@ import { createElement } from 'react';
 import { SettingsControl } from '../../../../packages/runtime/src/settings-panel';
 import { MediaControls } from '../../../../packages/runtime/src/media-controls';
 import { declaredConfig } from '../../../../packages/runtime/src/config-schema';
+import { FipsSettings } from '../../../../packages/runtime/src/fips/settings';
 import { MultiplayerSettings } from '../../../../packages/runtime/src/multiplayer-settings';
 
 createRoot(document.querySelector('#appearance')!).render(createElement(AppearanceControl));
@@ -86,7 +87,7 @@ const exports = document.querySelector<HTMLElement>('#files')!;
 const settingsRoot = createRoot(document.querySelector('#settings')!);
 const mediaRoot = createRoot(document.querySelector('#media')!);
 const networkRoot = createRoot(document.querySelector('#network-settings')!);
-networkRoot.render(createElement(MultiplayerSettings));
+networkRoot.render(createElement('div', null, createElement(MultiplayerSettings), createElement(FipsSettings)));
 let settingsOpen = false;
 function settingsChanged(open: boolean) {
   settingsOpen = open;

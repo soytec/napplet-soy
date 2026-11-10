@@ -520,3 +520,20 @@ ordinary listing zaps keep their address scope. Existing NIP-61 target events an
 recipient discovery are reused. Pending invoice recovery recognizes proposal
 roots/updates and preserves existing address-scoped payments. No automatic split
 payments, Git-author payment inference or napplet-frame wallet access is added.
+
+## Experimental FIPS resource profile — 2026-11-10, not deployed
+
+[Contract mapping and evidence](FIPS-RESOURCES.md) records the shared web/soyLI
+implementation of `soy.fips/1`, with a matching injected binding and network-free
+application adapter. OUTBOX remains the standard discovery surface. The installed
+RESOURCE Blob/`requests` binding remains unchanged; current PR 80's base64/`urls`
+text is not silently adopted. MESH PR 122 does not provide public blob bodies or
+Atlas operation RPC. Exact compatible pins and remaining standardization gaps
+are in that mapping. No new standard NAP name or manifest domain is advertised.
+
+Public roots/providers require shell approval without login; verified descendant
+reads and root-pinned Atlas v1 operations use separate permissions. Opaque frames,
+private ports, equal publisher policy and existing NIP-5D identity remain intact.
+Frame/account changes revoke grants, transport identities and cached authority.
+The Atlas companion imports no dormant direct-network implementation. This is
+experimental source integration, not independent-shell conformance or rollout.

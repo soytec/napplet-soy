@@ -1,4 +1,5 @@
 import { shellActivity } from './shell-ui';
+import { fipsHost } from './fips/host';
 import type { InvoicePaymentBackend } from './invoice-payment-session';
 import { cvmCheckout } from './cvm-payment-dialog';
 import { LlmSession, type LlmService } from './llm-contract';
@@ -62,6 +63,8 @@ export type HostOptions = {
   sign?: HostSign;
   title?: string;
   localServers?: string[];
+  /** Explicit loopback seed origins for isolated local tests; never frame supplied. */
+  localFipsSeeds?: string[];
   pubkey: string | null;
   prompt: (prompt: HostPrompt | null) => void;
   files: (files: ExportFile[]) => void;
@@ -114,8 +117,8 @@ export function attachNappletHost(options: HostOptions) {
     resourceBytes = 0;
   // Shells MUST NOT send NAP messages via iframeWindow.postMessage. Before the
   // handoff there is no channel, so nothing can be delivered.
-  const send = (message: Record<string, unknown>) => {
-    if (alive) port?.postMessage(message);
+  const send = (message: Record<string, unknown>, transfers: Transferable[] = []) => {
+    if (alive) port?.postMessage(message, transfers);
   };
   const intentEndpoint = options.intent?.workspace.attach(options.intent.catalogId, send);
   // The verified frame outlives account scopes. Each request captures its scope;
@@ -123,8 +126,8 @@ export function attachNappletHost(options: HostOptions) {
   const createAccount = (pubkey: string | null) => {
     let active = true;
     const requests = new Set<(error: Error) => void>();
-    const sendScoped = (message: Record<string, unknown>) => {
-      if (active) send(message);
+    const sendScoped = (message: Record<string, unknown>, transfers?: Transferable[]) => {
+      if (active) send(message, transfers);
     };
     let answer: ((accepted: boolean) => void) | undefined;
     let promptKind: HostPrompt['kind'] | undefined;
@@ -199,6 +202,11 @@ export function attachNappletHost(options: HostOptions) {
           dismiss: () => complete(false),
         });
       });
+    const fips = fipsHost({
+      send: sendScoped,
+      approve: (value, signal) => choose('network', value, { signal }),
+      localSeeds: options.localFipsSeeds,
+    });
     const consent = (kind: 'action' | 'upload', value: string, signal: AbortSignal) =>
       choose(kind, `${options.title ?? 'This napplet'} requests:\n${value}`, { signal });
     const actions = new NappletActions({
@@ -491,6 +499,7 @@ export function attachNappletHost(options: HostOptions) {
       pubkey,
       requests,
       handle,
+      fips,
       media,
       diagnostics: () => webrtc?.diagnostics() ?? Promise.resolve([]),
       send: sendScoped,
@@ -510,6 +519,7 @@ export function attachNappletHost(options: HostOptions) {
         for (const fail of requests) fail(new Error(reason));
         requests.clear();
         answer?.(false);
+        fips.close();
         media.close();
         backend?.close();
         webrtc?.close();
@@ -563,6 +573,10 @@ export function attachNappletHost(options: HostOptions) {
     const parsed = envelope.safeParse(data);
     if (!parsed.success) return;
     const message = parsed.data;
+    if (message.type === 'resource.fips') {
+      account.fips.handle(message);
+      return;
+    }
     if (message.type === 'shell.ready') {
       if (environmentSent) return;
       environmentSent = true;

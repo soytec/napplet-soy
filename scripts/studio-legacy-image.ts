@@ -5,6 +5,7 @@ import { previewAssets } from '../apps/cli/src/preview/assets';
 import { playwrightDirectory } from '../apps/cli/src/distribution';
 import version from '../apps/cli/distribution/version.json';
 import { createHash } from 'node:crypto';
+import { creatorSourcePlugin } from './cli-compile';
 
 const [destination, base] = process.argv.slice(2);
 if (!destination || !/^oven\/bun@sha256:[a-f0-9]{64}$/.test(base ?? ''))
@@ -12,8 +13,7 @@ if (!destination || !/^oven\/bun@sha256:[a-f0-9]{64}$/.test(base ?? ''))
     'Usage: bun scripts/studio-legacy-image.ts <new-directory> oven/bun@sha256:<digest>',
   );
 if (Bun.version !== '1.3.11') throw new Error('Prepare with pinned Bun 1.3.11.');
-const root = resolve(destination),
-  sourceRoot = process.cwd();
+const root = resolve(destination);
 await mkdir(root);
 // Fetch once into the secret-free context so image retries do not redownload the
 // full upstream monorepo. Never accept an unpinned local source tree.
@@ -49,27 +49,7 @@ for (const [name, entry] of [
       NAPPLET_PREVIEW_ASSETS: JSON.stringify(assets),
       NAPPLET_DISTRIBUTION: JSON.stringify('studio-container'),
     },
-    plugins: [
-      {
-        name: 'creator-source',
-        setup(build) {
-          build.onResolve(
-            {
-              filter:
-                /\/(gamepad|app-data|app-data-contract|handler|handler-types|coordinated-audio)\.ts\?raw$/,
-            },
-            ({ path }) => ({
-              path: resolve(sourceRoot, 'apps/cli/src', path.slice(0, -4)),
-              namespace: 'creator-source',
-            }),
-          );
-          build.onLoad({ filter: /.*/, namespace: 'creator-source' }, async ({ path }) => ({
-            contents: await Bun.file(path).text(),
-            loader: 'text',
-          }));
-        },
-      },
-    ],
+    plugins: [creatorSourcePlugin],
   });
   if (!result.success) throw new Error(result.logs.join('\n'));
 }

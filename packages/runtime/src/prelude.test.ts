@@ -37,8 +37,14 @@ test('the bootstrap removes WebRTC first and leaves all messaging, including SHE
   const prelude = nappletPrelude('/*shim*/');
   expect(prelude.indexOf(WEBRTC_REMOVAL)).toBe(0);
   expect(prelude.indexOf('/*shim*/')).toBeGreaterThan(WEBRTC_REMOVAL.length - 1);
-  const install = /NappletShimPrelude\.install\((.*)\);/.exec(prelude)![1];
-  expect(JSON.parse(install).domains).toContain('shell');
+  // Installation now includes an explicit experimental adapter function. Execute
+  // the generated bootstrap instead of assuming its argument is one-line JSON.
+  let installed: { domains: string[]; resourceProfile: unknown } | undefined;
+  const realm = { NappletShimPrelude: { install: (options: typeof installed) => { installed = options; } } };
+  new Function('globalThis', 'window', prelude)(realm, { napplet: { config: {} } });
+  expect(installed!.domains).toContain('shell');
+  expect(installed!.domains).not.toContain('fips');
+  expect(installed!.resourceProfile).toBeFunction();
   expect(prelude).not.toContain('postMessage');
   expect(prelude).not.toContain("addEventListener('message'");
 });
