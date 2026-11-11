@@ -99,8 +99,9 @@ Local dashboard acceptance on 11 November 2026:
   above the fullscreen player. These checks use browser emulation, not physical
   mobile hardware. No public provider, publication or deployed service was changed.
 
-The dashboard changes have not run the full Nix packaging gate; that gate remains
-required before pushing shared runtime changes.
+The full Nix packaging gate passed on an isolated x86_64 Linux/KVM builder:
+dependency and soyLI realization, forced rebuilds and offline NixOS VM regressions.
+No dependency hash changes were needed. AArch64 Nix acceptance was not run.
 
 ## Acceptance record
 
