@@ -3648,6 +3648,88 @@ input::placeholder, textarea::placeholder { color: var(--muted-foreground); opac
   max-width: 48rem;
 }
 
+/* Host-owned FIPS controls share the public Manage surface and account menu. */
+.fips-indicator-row { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.fips-indicator-row .fips-indicator { flex: 1; }
+.fips-indicator {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  padding: .7rem .8rem;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--foreground);
+  background: var(--background);
+  text-decoration: none;
+}
+.fips-indicator:hover { background: var(--accent); }
+.fips-indicator:focus-visible,
+.fips-dashboard summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.fips-indicator > svg { flex: 0 0 auto; }
+.fips-indicator-copy { display: grid; gap: .2rem; flex: 1; min-width: 0; }
+.fips-indicator-heading { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem; font-size: .85rem; font-weight: 600; }
+.fips-indicator-state { font-size: .75rem; font-weight: 400; color: var(--muted-foreground); }
+.fips-indicator small { color: var(--muted-foreground); font-size: .72rem; }
+.fips-status-dot { display: inline-block; flex: 0 0 auto; width: .5rem; height: .5rem; border-radius: 50%; background: var(--muted-foreground); }
+.fips-status-dot[data-tone='active'] { background: var(--primary); }
+.fips-status-dot[data-tone='pending'] { background: var(--gold); }
+.fips-status-dot[data-tone='error'] { background: var(--destructive); }
+.fips-dashboard { max-width: 64rem; min-width: 0; padding-top: .35rem; }
+.fips-dashboard-dialog { width: min(64rem, calc(100vw - 2rem)); max-width: none; max-height: calc(100dvh - 2rem); overflow-y: auto; overscroll-behavior: contain; }
+.fips-dashboard-dialog .fips-dashboard-heading { padding-right: 1.5rem; }
+body:has(.gamegrid) [data-slot='dialog-content'].fips-dashboard-dialog { background: var(--card); }
+.fips-dashboard h2 { display: flex; align-items: center; gap: .6rem; font-size: 1.5rem; font-weight: 700; }
+.fips-dashboard h3 { font-weight: 650; font-size: 1.05rem; }
+.fips-dashboard h4 { font-weight: 600; overflow-wrap: anywhere; }
+.fips-dashboard h5 { font-size: .85rem; font-weight: 600; }
+.fips-dashboard > p { max-width: 49rem; color: var(--muted-foreground); line-height: 1.65; margin: .7rem 0; font-size: .9rem; }
+.fips-section-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .65rem 1rem; }
+.fips-section-heading > div { min-width: 0; }
+.fips-experimental { font: .65rem var(--font-code); text-transform: uppercase; letter-spacing: .07em; border: 1px solid var(--border); border-radius: .3rem; color: var(--muted-foreground); padding: .3rem .45rem; }
+.fips-overview { display: flex; align-items: center; flex-wrap: wrap; gap: .7rem 1.6rem; border-block: 1px solid var(--border); padding: 1rem 0; margin: 1.4rem 0; font-size: .85rem; font-variant-numeric: tabular-nums; }
+.fips-state { display: inline-flex; align-items: center; gap: .45rem; font-size: .8rem; }
+.fips-access { display: grid; grid-template-columns: minmax(0, 1fr) minmax(13rem, .65fr); gap: .5rem 2rem; padding-block: .3rem 1.5rem; border-bottom: 1px solid var(--border); }
+.fips-access p { margin: .45rem 0 0; line-height: 1.6; font-size: .85rem; color: var(--muted-foreground); }
+.fips-access-control { display: grid; gap: .5rem; align-content: start; }
+.fips-access-control label { font-size: .8rem; font-weight: 500; }
+.fips-access-control select { width: 100%; min-height: 44px; padding: .6rem .75rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--background); color: var(--foreground); font: inherit; font-size: .85rem; }
+.fips-access-control select:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.fips-access-note { grid-column: 1 / -1; }
+.fips-dashboard .fips-notice { border-left: 3px solid var(--primary); padding: .6rem .85rem; margin: 1rem 0; color: var(--foreground); font-size: .85rem; background: var(--secondary); }
+.fips-session-section { margin-top: 1.8rem; }
+.fips-count { margin-left: .35rem; color: var(--muted-foreground); font: .8rem var(--font-code); }
+.fips-dashboard .fips-caption { color: var(--muted-foreground); font-size: .75rem; line-height: 1.6; margin: .45rem 0; }
+.fips-empty { font-size: .85rem; line-height: 1.65; color: var(--muted-foreground); padding: 1.1rem 0; }
+.fips-session { border-bottom: 1px solid var(--border); padding: 1.15rem 0 1.3rem; }
+.fips-session-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem 1.25rem; margin: 1rem 0; font-variant-numeric: tabular-nums; }
+.fips-session-summary dt { font-size: .7rem; color: var(--muted-foreground); line-height: 1.5; }
+.fips-session-summary dd { font-size: 1.1rem; font-weight: 500; margin-top: .15rem; }
+.fips-details summary { width: fit-content; cursor: pointer; font-size: .8rem; padding: .35rem 0; }
+.fips-details[open] summary { margin-bottom: .65rem; }
+.fips-details-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem 2rem; margin: .65rem 0; font-size: .75rem; }
+.fips-details-list > div { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; padding: .3rem 0; }
+.fips-details-list dt { color: var(--muted-foreground); }
+.fips-details-list dd { flex-shrink: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.fips-break, .fips-root-key, .fips-providers code { overflow-wrap: anywhere; word-break: break-word; }
+.fips-roots { margin-top: 1rem; }
+.fips-root { padding: .85rem 1rem; border-left: 2px solid var(--border); margin-top: .8rem; background: var(--secondary); border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+.fips-root-key { display: block; font-size: .75rem; line-height: 1.6; margin-top: .6rem; }
+.fips-providers { list-style: none; padding: 0; margin: .8rem 0 0; }
+.fips-providers li { display: grid; grid-template-columns: 4rem minmax(0, 1fr); align-items: baseline; gap: .3rem .6rem; font-size: .7rem; padding-block: .6rem; border-top: 1px solid var(--border); }
+.fips-providers li > span { color: var(--muted-foreground); grid-column: 1; }
+.fips-providers code { grid-column: 2; }
+.fips-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .8rem; }
+.fips-error { overflow-wrap: anywhere; font-size: .8rem; line-height: 1.6; color: var(--destructive); margin: .75rem 0; }
+@media (max-width: 640px) {
+  .fips-access { grid-template-columns: 1fr; gap: .9rem; }
+  .fips-session-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fips-details-list { grid-template-columns: minmax(0, 1fr); }
+  .fips-overview { gap: .6rem 1rem; }
+  .fips-overview .fips-state { width: 100%; }
+  .fips-root { padding: .75rem; }
+}
+
 /* Trusted shell UI is native top-layer content, including in browser fullscreen. */
 dialog[data-shell-dialog]::backdrop {
   background: #0006;

@@ -1,7 +1,7 @@
 import { createFileRoute, useLocation, useNavigate } from '@tanstack/react-router';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Tabs } from 'radix-ui';
-import { BriefcaseBusiness, Wallet, Radio, UserRound } from 'lucide-react';
+import { BriefcaseBusiness, Wallet, Radio, UserRound, Network } from 'lucide-react';
 import { WorkDot } from '@/components/work-provider';
 import { Button } from '@/components/ui/button';
 
@@ -17,10 +17,14 @@ const NetworkSettings = lazy(() =>
 const ManagedProfile = lazy(() =>
   import('@/components/managed-profile').then((m) => ({ default: m.ManagedProfile })),
 );
+const FipsDashboard = lazy(() =>
+  import('@/components/fips-dashboard').then((m) => ({ default: m.FipsDashboard })),
+);
 const sections = [
   ['work', 'My work', BriefcaseBusiness],
   ['wallet', 'Wallet', Wallet],
   ['relays', 'Relays', Radio],
+  ['fips', 'FIPS', Network],
   ['profile', 'Profile', UserRound],
 ] as const;
 
@@ -37,7 +41,9 @@ function Manage() {
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
   const currentHash = hash;
-  const section = ['wallet', 'relays', 'profile'].includes(currentHash) ? currentHash : 'work';
+  const section = ['wallet', 'relays', 'fips', 'profile'].includes(currentHash)
+    ? currentHash
+    : 'work';
   const navigate = useNavigate();
   return (
     <section className="detail-page work-page manage-page">
@@ -66,6 +72,9 @@ function Manage() {
             </Tabs.Content>
             <Tabs.Content value="relays">
               <NetworkSettings />
+            </Tabs.Content>
+            <Tabs.Content value="fips">
+              <FipsDashboard />
             </Tabs.Content>
             <Tabs.Content value="profile">
               <ManagedProfile />

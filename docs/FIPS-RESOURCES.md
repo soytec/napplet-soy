@@ -44,6 +44,64 @@ Transport pins match the Atlas reference:
 
 The shim integration is a tracked package-manager patch, exercised in the built player. There are no manual `node_modules` edits or Atlas preview injections; Bun applies the declared patch reproducibly. New soyLI projects receive [the creator guide](FIPS-CREATOR.md) and the network-free SDK example; deployment archives include both.
 
+## Shell dashboard — 11 November 2026, local implementation
+
+The website exposes FIPS controls at **Manage → FIPS** (`/manage#fips`), with a
+live status link and **Inspect** action in **Account & settings**, including while signed out. Public
+resource access still needs no Nostr account. Opening the dashboard does not
+establish a connection or approve a resource.
+
+Inspect opens the same controls in a shell dialog while the napplet continues
+running. It uses the shared overlay layer, including browser fullscreen. This
+allows revoking one root or clearing its session cache without leaving the player.
+
+Connections belong to a running napplet's document/account session. Navigating
+away closes that session; the dashboard distinguishes active sessions from
+recently closed ones. Up to ten recent summaries are retained only in the current
+tab's memory, with a clear-history action. They are not a persistent browsing log
+or a view of other tabs/devices. Account replacement clears old activity.
+
+The dashboard shows authenticated peer and seed-socket status, active/queued
+transfers, verified payload bytes, cache occupancy/hits, retries and errors.
+Approved resources show their root hash, advertised size, providers, seed origins,
+expiry and whether server operations were separately approved. Advertised root
+size is not the amount downloaded; payload totals are distinct from carrier
+traffic counters, which include connection traffic. Seed paths and query strings
+are omitted because they can contain private data.
+The host-only diagnostics surface contains no identity secret, cached resource
+body or operation payload, and is not added to the napplet's wire API.
+
+The browser-wide **Ask before connecting / Block** preference is shared with
+Network settings and soyLI preview. Block closes active connections and grants;
+returning to Ask requires fresh approval. If browser storage is unavailable, the
+dashboard reports that the choice applies only to this page. Individual grants
+can be revoked, sessions disconnected, verified caches cleared, and all active
+sessions disconnected together. Clearing a cache does not revoke a grant or
+recall bytes already delivered to a napplet; subsequent approved reads may fetch
+those bytes again.
+
+Provider/seed selection remains part of each root approval, not an arbitrary
+global endpoint override. The existing transfer, queue and cache safety bounds
+remain unchanged. These controls do not retry application operations. This
+dashboard is a local source change, not yet deployed.
+
+Local dashboard acceptance on 11 November 2026:
+
+- `bun run check`: TypeScript and 1,034 tests passed, zero failures; 8,049
+  assertions. Covers sanitized diagnostics, session teardown, cancellation
+  receipts, account isolation and alternate authenticated peer paths.
+- `bun run build`: production client and SSR build passed.
+- `FIPS_TEST_WEB_ORIGIN=http://127.0.0.1:4230 bun test tests/services/fips-browser.test.ts`:
+  real encrypted-peer/opaque-player fixture passed 51 assertions. Includes live
+  inspection without leaving the player, cache clearing, revoked access,
+  navigation receipts, account-change cleanup, persisted blocking and 390px layout.
+- Browser inspection verified light/dark layouts and the shared Inspect dialog
+  above the fullscreen player. These checks use browser emulation, not physical
+  mobile hardware. No public provider, publication or deployed service was changed.
+
+The dashboard changes have not run the full Nix packaging gate; that gate remains
+required before pushing shared runtime changes.
+
 ## Acceptance record
 
 Verified locally on 10 November 2026:

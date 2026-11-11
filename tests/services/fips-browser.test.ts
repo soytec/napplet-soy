@@ -221,6 +221,41 @@ test('FIPS resource SDK crosses the real opaque shim in soyLI and optionally the
         headers: { 'x-atlas-snapshot': root },
         bytes: [0, 255, 21],
       });
+      if (target.web) {
+        await page.getByTitle('Account & settings', { exact: true }).click();
+        const indicator = page.getByRole('link', { name: /FIPS: Connected\. Open FIPS dashboard/ });
+        await indicator.waitFor();
+        expect(await indicator.innerText()).toContain('1 peer');
+        await page.getByRole('button', { name: 'Inspect FIPS connections', exact: true }).click();
+        const inspect = page.getByRole('dialog', { name: 'Inspect FIPS connections', exact: true });
+        await inspect.waitFor();
+        expect(await page.locator('iframe').count()).toBe(1);
+        const active = inspect.getByRole('region', { name: 'Active FIPS sessions', exact: true });
+        await active.waitFor();
+        expect(await active.locator('article').count()).toBe(1);
+        await active.getByRole('button', { name: 'Clear cache', exact: true }).click();
+        expect(
+          await active
+            .locator('.fips-session-summary > div')
+            .filter({ hasText: 'Verified cache' })
+            .locator('dd')
+            .innerText(),
+        ).toBe('0 B');
+        const fresh = await frame.evaluate(async (hash) => {
+          const w = window as any;
+          const bytes = await w.resources.bytes(w.grant, hash);
+          return { size: bytes.length, stats: (await w.resources.info()).stats };
+        }, hash);
+        expect(fresh.size).toBe(bytes.length);
+        expect(fresh.stats.networkRequests).toBeGreaterThan(result.stats.networkRequests);
+        await active.locator('summary').click();
+        expect(await active.innerText()).toContain(descriptor.providers[0]!.peerId);
+        expect(await active.innerText()).toContain('Map operations (RPC): approved');
+        await active.getByRole('button', { name: 'Revoke root', exact: true }).click();
+        expect(await active.innerText()).toContain('No approved resource roots.');
+        await page.keyboard.press('Escape');
+        expect(await inspect.count()).toBe(0);
+      }
       const old = await frame.evaluate(async () => {
         const w = window as any;
         await w.resources.release(w.grant);
@@ -244,7 +279,72 @@ test('FIPS resource SDK crosses the real opaque shim in soyLI and optionally the
       }, descriptor);
       await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
       expect(await pending).toContain('not approved');
-      expect(errors).toEqual([]);
+      if (target.web) {
+        // Ordinary client-side navigation must close the player, while retaining
+        // truthful final counters for the dashboard (not a fake live connection).
+        await page.setViewportSize({ width: 1365, height: 1000 });
+        await page.getByTitle('Account & settings', { exact: true }).click();
+        await page.getByRole('link', { name: /Open FIPS dashboard/ }).click();
+        const dashboard = page.getByRole('region', { name: 'FIPS dashboard', exact: true });
+        await dashboard.waitFor();
+        expect(page.url()).toEndWith('/manage#fips');
+        expect(await page.locator('iframe').count()).toBe(0);
+        expect(await dashboard.innerText()).toContain('No active FIPS sessions');
+        const recent = page.getByRole('region', { name: 'Recent FIPS sessions', exact: true });
+        expect(await recent.locator('article').count()).toBe(1);
+        expect(await recent.innerText()).toContain('Closed');
+        expect(
+          await recent
+            .locator('.fips-session-summary > div')
+            .filter({ hasText: 'Received payload' })
+            .locator('dd')
+            .innerText(),
+        ).not.toBe('0 B');
+        await recent.getByText('Transfer details', { exact: true }).click();
+        expect(await recent.innerText()).toContain('Verified blocks / cache hits');
+        await page.setViewportSize({ width: 390, height: 844 });
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+          390,
+        );
+        await dashboard.getByLabel('Resource connections', { exact: true }).selectOption('block');
+        expect(await dashboard.innerText()).toContain('Blocked');
+        expect(errors).toEqual([]);
+        // Switching accounts after the player is gone must clear old activity too.
+        // This synthetic read-only extension cannot sign or publish anything.
+        await page.evaluate(() => {
+          (window as any).nostr = {
+            getPublicKey: async () =>
+              '79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
+            signEvent: async () => {
+              throw new Error('Fixture signing disabled');
+            },
+          };
+        });
+        await page.getByTitle('Account & settings', { exact: true }).click();
+        await page.getByRole('button', { name: 'Extension', exact: true }).click();
+        await page.getByRole('button', { name: 'Connect browser extension', exact: true }).click();
+        await page.getByRole('button', { name: 'Sign out', exact: true }).waitFor();
+        await page.keyboard.press('Escape');
+        expect(await recent.locator('article').count()).toBe(0);
+        await page.reload();
+        await dashboard.waitFor();
+        expect(
+          await dashboard.getByLabel('Resource connections', { exact: true }).inputValue(),
+        ).toBe('block');
+        expect(
+          await page
+            .getByRole('region', { name: 'Recent FIPS sessions', exact: true })
+            .locator('article')
+            .count(),
+        ).toBe(0);
+        await dashboard.getByLabel('Resource connections', { exact: true }).selectOption('ask');
+      }
+      // The production-only Studio client rejects this fixture's HTTP origin
+      // after synthetic login. FIPS remains usable without Studio or HTTPS on
+      // loopback; no other browser errors are expected.
+      expect(
+        errors.filter((error) => !(target.web && error === 'Hosted Studio requires HTTPS.')),
+      ).toEqual([]);
       await page.close();
     }
   } finally {

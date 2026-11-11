@@ -2,17 +2,22 @@ import { FipsResourceSession } from './session';
 import { FIPS_PROFILE, FIPS_TIMEOUT_MS } from './contract';
 import { fipsEnabled, onFipsPolicyChange } from './policy';
 import { redactDiagnostic } from '../../../diagnostics/src';
+import { clearRecentSessions, fipsDashboardError, registerFipsDashboardSession } from './dashboard';
 
 /** Private-port adapter; independent of React, Atlas discovery and the ordinary resource quota. */
 export function fipsHost(options: {
   send: (message: Record<string, unknown>, transfers?: Transferable[]) => void;
   approve: (description: string, signal: AbortSignal) => Promise<boolean>;
   localSeeds?: string[];
+  title?: string;
+  address?: string;
 }) {
   let session: FipsResourceSession;
   let closed = false;
   const pending = new Map<string, AbortController>();
   let timer: ReturnType<typeof setInterval> | undefined;
+  let dashboard: ReturnType<typeof registerFipsDashboardSession> | undefined;
+  let lastError: string | undefined;
   const sendStats = () => {
     if (!closed)
       options.send({
@@ -20,19 +25,32 @@ export function fipsHost(options: {
         profile: FIPS_PROFILE,
         stats: session.stats(),
       });
+    dashboard?.update();
   };
   const create = () =>
     new FipsResourceSession({ ...options, enabled: fipsEnabled, changed: sendStats });
   session = create();
-  const unsubscribe = onFipsPolicyChange(() => {
+  const endDashboard = (retainRecent = true) => {
+    const current = dashboard;
+    dashboard = undefined;
+    current?.end(retainRecent);
+  };
+  const reset = (reason: string) => {
     for (const [id, abort] of pending) {
-      reply(id, { error: 'Resource permissions changed; approve the roots again' });
+      reply(id, { error: reason });
       abort.abort();
     }
     pending.clear();
+    clearInterval(timer);
+    timer = undefined;
     session.close();
+    endDashboard();
+    lastError = undefined;
     session = create();
     sendStats();
+  };
+  const unsubscribe = onFipsPolicyChange(() => {
+    reset('Resource permissions changed; approve the roots again');
   });
   const reply = (id: string, fields: Record<string, unknown>, transfers?: Transferable[]) => {
     if (!closed)
@@ -67,6 +85,20 @@ export function fipsHost(options: {
         release: ['grant'],
       };
       if (typeof action !== 'string' || !fields[action]) return;
+      dashboard ??= registerFipsDashboardSession(options, {
+        snapshot: () => {
+          const state = session.dashboardSnapshot();
+          return {
+            ...state,
+            ...(lastError
+              ? { lastError, state: state.state === 'idle' ? 'error' : state.state }
+              : {}),
+          };
+        },
+        disconnect: () => reset('Resource session disconnected; approve the roots again'),
+        revokeGrant: (grant) => session.release(grant),
+        clearCache: () => session.clearCache(),
+      });
       try {
         if (
           JSON.stringify(message).length > 65536 ||
@@ -84,6 +116,8 @@ export function fipsHost(options: {
           throw new Error('Invalid block hash');
         if (pending.size >= 128) throw new Error('Resource queue is full; retry missing reads');
       } catch (error) {
+        lastError = fipsDashboardError(error, action);
+        dashboard.update();
         reply(id, { error: error instanceof Error ? error.message : 'Invalid request' });
         return;
       }
@@ -125,17 +159,21 @@ export function fipsHost(options: {
               transfers.push(bytes.buffer);
             }
           }
-          if (!abort.signal.aborted && current === session) reply(id, { value }, transfers);
-          else if (action === 'open' && Array.isArray(value))
+          if (!abort.signal.aborted && current === session) {
+            if (['open', 'bytes', 'request'].includes(action)) lastError = undefined;
+            reply(id, { value }, transfers);
+          } else if (action === 'open' && Array.isArray(value))
             for (const grant of value) current.release(grant);
         } catch (error) {
-          if (!abort.signal.aborted && current === session)
+          if (!abort.signal.aborted && current === session) {
+            lastError = fipsDashboardError(error, action);
             reply(id, {
               error: redactDiagnostic(
                 error instanceof Error ? error.message : 'Resource operation failed',
                 800,
               ),
             });
+          }
         } finally {
           if (pending.get(id) === abort) pending.delete(id);
           if (!pending.size) {
@@ -146,7 +184,7 @@ export function fipsHost(options: {
         }
       })();
     },
-    close() {
+    close(retainRecent = true) {
       if (closed) return;
       // Settle old account requests before suppressing late transport completions.
       for (const [id, abort] of pending) {
@@ -160,6 +198,8 @@ export function fipsHost(options: {
       clearInterval(timer);
       unsubscribe();
       session.close();
+      endDashboard(retainRecent);
+      if (!retainRecent) clearRecentSessions();
     },
   };
 }

@@ -10,8 +10,10 @@ import {
   type FipsOperation,
 } from './contract';
 import { parseRoots } from './policy';
+import type { FipsSessionSnapshot, FipsTransportSnapshot } from './dashboard';
 
-export type FipsTransport = Pick<FipsClient, 'fetchBlob' | 'request' | 'status' | 'stop'>;
+export type FipsTransport = Pick<FipsClient, 'fetchBlob' | 'request' | 'status' | 'stop'> &
+  Partial<Pick<FipsClient, 'diagnostics'>>;
 type Link = { type: LinkType; size: number; depth: number };
 type Grant = {
   descriptor: FipsRoot;
@@ -31,8 +33,11 @@ export class FipsResourceSession {
   private proofLinks = 0;
   private pending = 0;
   private opening = false;
+  private operationApprovals = 0;
   private timer?: ReturnType<typeof setTimeout>;
   private transport?: { client: FipsTransport; release: () => void };
+  private finalTransportStatus?: ReturnType<FipsTransport['status']>;
+  private finalTransportSnapshot?: FipsTransportSnapshot;
   private counters = { verifiedBlobs: 0, cacheHits: 0, errors: 0, cancelledRequests: 0 };
   constructor(
     private options: {
@@ -44,19 +49,78 @@ export class FipsResourceSession {
     },
   ) {}
   stats(): FipsStats {
-    const s = this.transport?.client.status();
+    const s = this.transport?.client.status() ?? this.finalTransportStatus;
     return {
       ...this.counters,
       networkRequests: (s?.requests ?? 0) + (s?.rpcRequests ?? 0),
       fipsBytes: s?.bytesReceived ?? 0,
-      activeTransfers: s?.activeTransfers ?? 0,
-      queuedTransfers: s?.queuedTransfers ?? 0,
+      activeTransfers: this.lifetime.signal.aborted ? 0 : (s?.activeTransfers ?? 0),
+      queuedTransfers: this.lifetime.signal.aborted ? 0 : (s?.queuedTransfers ?? 0),
       retries: s?.retries ?? 0,
       failovers: s?.failovers ?? 0,
     };
   }
+  /** Shell-only state; do not add this to the experimental app-facing wire API. */
+  dashboardSnapshot(): FipsSessionSnapshot {
+    const stats = this.stats();
+    const transport = this.transport?.client.diagnostics?.() ??
+      this.finalTransportSnapshot ?? {
+        seedGroups: this.transport?.client.status().connections ?? 0,
+        connectedPeers: 0,
+        openSeedSockets: 0,
+        connectionAttempts: 0,
+        reconnects: 0,
+        wireBytesReceived: 0,
+        wireBytesSent: 0,
+      };
+    return {
+      state: this.lifetime.signal.aborted
+        ? 'closed'
+        : this.opening || this.operationApprovals
+          ? 'approving'
+          : stats.activeTransfers || stats.queuedTransfers
+            ? transport.connectedPeers
+              ? 'transferring'
+              : 'connecting'
+            : transport.connectedPeers
+              ? 'connected'
+              : 'idle',
+      stats,
+      pendingRequests: this.pending + (this.opening ? 1 : 0),
+      cacheBytes: this.cacheBytes,
+      cacheEntries: this.cache.size,
+      transport,
+      grants: [...this.grants].map(([id, grant]) => ({
+        id,
+        root: grant.descriptor.root,
+        bytes: grant.descriptor.bytes,
+        expires: grant.descriptor.expires,
+        operationsAllowed: !!grant.rpcAllowed,
+        providers: grant.descriptor.providers.map((provider) => ({
+          peerId: provider.peerId,
+          // Queries, fragments and paths can contain credentials or app data.
+          seeds: [...new Set(provider.seedUrls.map((seed) => new URL(seed).origin))],
+        })),
+      })),
+    };
+  }
+  clearCache() {
+    this.cache.clear();
+    this.cacheBytes = 0;
+    this.emit();
+  }
   private emit() {
     this.options.changed?.(this.stats());
+  }
+  private trackCancellation(signal: AbortSignal) {
+    // Abort listeners run synchronously, so a teardown receipt includes cancelled
+    // work before its promise catch/finally handlers have had a chance to run.
+    const count = () => {
+      this.counters.cancelledRequests++;
+      this.emit();
+    };
+    signal.addEventListener('abort', count, { once: true });
+    return () => signal.removeEventListener('abort', count);
   }
   private client() {
     return (this.transport ??= this.options.transport
@@ -94,8 +158,11 @@ export class FipsResourceSession {
     const roots = parseRoots(raw, this.options.localSeeds);
     if (this.opening || this.grants.size + roots.length > 32)
       throw new Error('Too many root grants or an approval is already open');
-    this.opening = true;
     const combined = AbortSignal.any([this.lifetime.signal, ...(signal ? [signal] : [])]);
+    combined.throwIfAborted();
+    const untrack = this.trackCancellation(combined);
+    this.opening = true;
+    this.emit();
     try {
       const description =
         `Read ${roots.length} immutable resource root(s) over FIPS? No account or signing key is used. The shell verifies blocks; peers and seeds can observe connections.\n\n` +
@@ -136,7 +203,9 @@ export class FipsResourceSession {
       this.scheduleExpiry();
       return ids;
     } finally {
+      untrack();
       this.opening = false;
+      this.emit();
     }
   }
   private scheduleExpiry() {
@@ -167,6 +236,7 @@ export class FipsResourceSession {
       ...(signal ? [signal] : []),
     ]);
     combined.throwIfAborted();
+    const untrack = this.trackCancellation(combined);
     this.pending++;
     this.emit();
     try {
@@ -175,10 +245,10 @@ export class FipsResourceSession {
       this.grant(id);
       return value;
     } catch (error) {
-      if (combined.aborted) this.counters.cancelledRequests++;
-      else this.counters.errors++;
+      if (!combined.aborted) this.counters.errors++;
       throw error;
     } finally {
+      untrack();
       this.pending--;
       this.emit();
     }
@@ -287,13 +357,20 @@ export class FipsResourceSession {
     if (!provider) throw new Error('No approved operations provider');
     return this.run(id, signal, async (_, signal) => {
       if (!g.rpcAllowed) {
-        if (
-          !(await this.options.approve(
-            `Allow Atlas v1 map operations for root ${g.descriptor.root} at provider ${provider.peerId}? Requests stay pinned to this provider and are never replayed automatically.`,
-            signal,
-          ))
-        )
-          throw new Error('Map operation was not approved');
+        this.operationApprovals++;
+        this.emit();
+        try {
+          if (
+            !(await this.options.approve(
+              `Allow Atlas v1 map operations for root ${g.descriptor.root} at provider ${provider.peerId}? Requests stay pinned to this provider and are never replayed automatically.`,
+              signal,
+            ))
+          )
+            throw new Error('Map operation was not approved');
+        } finally {
+          this.operationApprovals--;
+          this.emit();
+        }
         signal.throwIfAborted();
         this.grant(id);
         g.rpcAllowed = true;
@@ -319,6 +396,14 @@ export class FipsResourceSession {
     this.lifetime.abort(cancelled());
     for (const id of this.grants.keys()) this.release(id);
     clearTimeout(this.timer);
+    this.finalTransportStatus = this.transport?.client.status();
+    const transport = this.dashboardSnapshot().transport;
+    this.finalTransportSnapshot = {
+      ...transport,
+      seedGroups: 0,
+      connectedPeers: 0,
+      openSeedSockets: 0,
+    };
     this.transport?.release();
     this.transport = undefined;
     this.cache.clear();

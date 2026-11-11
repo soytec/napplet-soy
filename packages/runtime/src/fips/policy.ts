@@ -67,13 +67,16 @@ export function fipsEnabled() {
   }
 }
 export function setFipsEnabled(enabled: boolean) {
+  let persisted = true;
   try {
     localStorage.setItem(key, enabled ? 'ask' : 'blocked');
     temporary = undefined;
   } catch {
     temporary = enabled;
+    persisted = false;
   }
   window.dispatchEvent(new Event(changed));
+  return persisted;
 }
 export function onFipsPolicyChange(callback: () => void) {
   const storage = (e: StorageEvent) => {
