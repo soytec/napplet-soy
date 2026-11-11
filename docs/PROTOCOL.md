@@ -537,3 +537,12 @@ private ports, equal publisher policy and existing NIP-5D identity remain intact
 Frame/account changes revoke grants, transport identities and cached authority.
 The Atlas companion imports no dormant direct-network implementation. This is
 experimental source integration, not independent-shell conformance or rollout.
+
+## WebRTC delivery proposal update — 2026-11-11
+
+The current reference implementation follows NAP-WEBRTC #145 at
+`69b8f0b367e3e204ce522b5369d446974b11459a` (parent #59 reviewed at
+`fb4dd6f0e6294e1837733d2af61931e3e114bd97`). This supersedes only the earlier
+WebRTC pin above. The selected NIP-5D authority is unchanged. Reliable JSON
+remains supported. See [WebRTC realtime delivery](WEBRTC-REALTIME.md) for the
+optional byte/delivery API, exact limits, local signaling extension and evidence.

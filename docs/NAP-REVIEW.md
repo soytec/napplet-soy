@@ -698,3 +698,18 @@ private ports, equal publisher policy and existing NIP-5D identity remain intact
 Frame/account changes revoke grants, transport identities and cached authority.
 The Atlas companion imports no dormant direct-network implementation. This is
 experimental source integration, not independent-shell conformance or rollout.
+
+## WebRTC #145 review — 2026-11-11
+
+Reviewed proposal #145 and parent #59, including updated discussions. #145 advanced to
+`69b8f0b367e3e204ce522b5369d446974b11459a`, parent head
+`fb4dd6f0e6294e1837733d2af61931e3e114bd97`. Implemented delivery controls,
+separate binary operation/events, payload advertisement, advisory RTT and
+authenticated peer attribution. NIP-5D authority is unchanged.
+
+[Contract and acceptance record](WEBRTC-REALTIME.md) separates proposal fields
+from Soy-owned capability negotiation, broadcast queue policy and compatibility.
+In particular, no timeout-triggered duplicate JSON send, no implicit peer downgrade,
+no invented loss statistic, and no durable-profile claim for guest keys.
+Implementation and local verification do not constitute deployment or independent
+shell interoperability.

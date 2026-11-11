@@ -13,8 +13,8 @@ proofs, restrictions and rollout instructions.
 
 The service uses `@contextvm/sdk` 0.13.16 and MCP SDK 1.30.0. Browser mediation targets
 [NAP-CVM PR 31, ad68a938](https://github.com/napplet/naps/blob/ad68a938236e9230324e377cd005008a315ff402/naps/NAP-CVM.md).
-Peer transport targets [NAP-WEBRTC PR 59, 5fae95dd](https://github.com/napplet/naps/blob/5fae95dd2c8e59bd06c654e0845656add077dcda/naps/NAP-WEBRTC.md).
-The installed upstream shim is 0.30.0. These are evolving proposal contracts;
+Peer transport targets [NAP-WEBRTC PR 145, 69b8f0b3](https://github.com/napplet/naps/blob/69b8f0b367e3e204ce522b5369d446974b11459a/naps/NAP-WEBRTC.md). See [realtime delivery](WEBRTC-REALTIME.md) for compatibility and the additional host signaling profile.
+The shell installs shim 0.35.0 with its reviewed local binding patch. These are evolving proposal contracts;
 NIP-5D remains authoritative for napplet publication and host messages.
 
 The local creator workflow also includes `soyli multiplayer <scenario.mjs>`:
@@ -234,11 +234,12 @@ protocol-or-empty-string]`. Production identity is the verified author's
   peer and contain `{v,wire,nonce,type,to,sdp}`; `to` binds the recipient's nonce.
   The lexicographically lower key offers. Non-trickle SDP includes gathered ICE
   candidates. Hello/offer retransmission runs every two seconds; stalled peers
-  close the session after 45 seconds. Reopening obtains fresh nonces/credentials.
+  leave individually after 45 seconds. Reopening obtains fresh nonces/credentials.
 - The host verifies signatures, namespace, freshness, peer allowlists and nonces,
   bounds message rates and queued work, and never exposes SDP or TURN secrets to
   the iframe. Public hellos disclose participation in the opaque rendezvous.
-- Native reliable/ordered data channels carry JSON. Broadcast messages are at most
+- Native data channels default to reliable/ordered JSON; optional #145 delivery
+  and bytes use the [authenticated realtime profile](WEBRTC-REALTIME.md). Broadcast messages are at most
   16 KiB, with 256 KiB channel backpressure. Host sends have a separate realtime
   budget of 120/second and 512 KiB/second. Game traffic does not go through Nostr.
 
