@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/studio-services.yml'
+      - '.github/scripts/ubuntu-mirror.sh'
       - 'apps/studio/**'
       - 'apps/web/**'
       - 'apps/cli/**'
@@ -72,13 +73,9 @@ jobs:
         with:
           bun-version: '1.3.11'
       - run: bun install --frozen-lockfile
-      - name: Use an Ubuntu archive mirror
-        if: runner.os == 'Linux' && runner.arch == 'X64'
-        # Runner and primary mirrors repeatedly failed DNS before tests could run.
-        # kernel.org mirrors Ubuntu; existing Ubuntu signing keys still verify packages.
-        run: |
-          sudo sed -i 's|mirror+file:/etc/apt/apt-mirrors.txt|https://mirrors.edge.kernel.org/ubuntu/|g; s|http://azure.archive.ubuntu.com/ubuntu/|https://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources
-      - run: sudo apt-get update && sudo apt-get install -y nftables iproute2 openssl
+      - run: |
+          bash .github/scripts/ubuntu-mirror.sh
+          sudo apt-get update && sudo apt-get install -y nftables iproute2 openssl
       - name: Import a remix through the actual Studio egress policy
         run: bash scripts/test-studio-remix-network.sh
   proposals:
@@ -95,14 +92,9 @@ jobs:
         with:
           bun-version: '1.3.11'
       - run: bun install --frozen-lockfile
-      - name: Use an Ubuntu archive mirror
-        if: runner.os == 'Linux' && runner.arch == 'X64'
-        # Runner and primary mirrors repeatedly failed DNS before tests could run.
-        # kernel.org mirrors Ubuntu; existing Ubuntu signing keys still verify packages.
-        run: |
-          sudo sed -i 's|mirror+file:/etc/apt/apt-mirrors.txt|https://mirrors.edge.kernel.org/ubuntu/|g; s|http://azure.archive.ubuntu.com/ubuntu/|https://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources
       - name: Install native service prerequisites
         run: |
+          bash .github/scripts/ubuntu-mirror.sh
           sudo apt-get update
           if ! sudo apt-get install -y build-essential pkg-config libssl-dev; then
             dpkg --print-architecture
@@ -118,7 +110,9 @@ jobs:
           printf 'RUSTUP_TOOLCHAIN=%s\n' "$studio_rust" >> "$GITHUB_ENV"
           go version
       - name: Install browser test prerequisites
-        run: bunx playwright install --with-deps chromium
+        run: |
+          bash .github/scripts/ubuntu-mirror.sh
+          bunx playwright install --with-deps chromium
       - name: Verify relay COUNT, synchronization and compatibility patches
         run: bun run test:relay
       - name: Build pinned services and verify proposals and browser Git
