@@ -5,6 +5,25 @@ The current published version is **0.33.0**. The repository has transferred to
 [`soytec/napplet-soy`](https://github.com/soytec/napplet-soy), including its history,
 issues, pull requests and releases.
 
+**0.34.0 — realtime multiplayer (prepared; not yet published)**
+
+Adds proposed NAP-WEBRTC #145 delivery controls, authenticated binary support,
+explicit payload limits, bounded broadcast queues, isolated peer failures and
+advisory RTT to the shared preview runtime. Reliable, ordered JSON remains the
+fallback. Unsupported byte sends queue nothing; timeouts never automatically
+resend a payload as JSON. Creator guidance now covers coalescing, sequence checks,
+prediction/reconciliation and the limits of simulated-network measurements.
+
+This targets proposal revision `69b8f0b367e3e204ce522b5369d446974b11459a`, whose
+parent #59 remains open. The additional `soy-rtc/realtime-1` signaling profile is
+a local host implementation, not an accepted cross-shell standard. See
+[the exact contract and verification evidence](WEBRTC-REALTIME.md).
+
+The updater remains on `soytec/napplet-soy`; the extracted soyLI source port does
+not change the public installation channel. Deploy compatible shell readers
+before publishing this CLI release. Existing previews must restart to load the
+new runtime; `soyli skills update` updates managed guidance and preserves conflicts.
+
 **0.33.0 — experimental verified FIPS resources**
 
 The shared preview and website host add experimental `soy.fips/1` resource
