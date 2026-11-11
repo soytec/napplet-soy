@@ -44,7 +44,7 @@ Transport pins match the Atlas reference:
 
 The shim integration is a tracked package-manager patch, exercised in the built player. There are no manual `node_modules` edits or Atlas preview injections; Bun applies the declared patch reproducibly. New soyLI projects receive [the creator guide](FIPS-CREATOR.md) and the network-free SDK example; deployment archives include both.
 
-## Shell dashboard — 11 November 2026, local implementation
+## Shell dashboard — 11 November 2026
 
 The website exposes FIPS controls at **Manage → FIPS** (`/manage#fips`), with a
 live status link and **Inspect** action in **Account & settings**, including while signed out. Public
@@ -83,7 +83,8 @@ those bytes again.
 Provider/seed selection remains part of each root approval, not an arbitrary
 global endpoint override. The existing transfer, queue and cache safety bounds
 remain unchanged. These controls do not retry application operations. This
-dashboard is a local source change, not yet deployed.
+dashboard is deployed on napplet.soy with the matching Studio worker; see the
+[deployment record](DEPLOYMENT.md). The downloadable soyLI release remains 0.33.0.
 
 Local dashboard acceptance on 11 November 2026:
 
@@ -102,6 +103,14 @@ Local dashboard acceptance on 11 November 2026:
 The full Nix packaging gate passed on an isolated x86_64 Linux/KVM builder:
 dependency and soyLI realization, forced rebuilds and offline NixOS VM regressions.
 No dependency hash changes were needed. AArch64 Nix acceptance was not run.
+
+Production dashboard acceptance on 11 November 2026 passed anonymous access,
+account status, 390px light/dark layouts, Gamegrid inspection, navigation and
+Escape/focus restoration. The Inspect dialog remained visible and interactive
+above the fullscreen player without replacing its iframe. That fullscreen check
+used a browser-only override for the matching bundled Soft orbit artifact; it did
+not exercise an external FIPS provider or a signed-in account. Physical mobile
+hardware remains untested.
 
 ## Acceptance record
 
