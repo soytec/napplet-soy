@@ -198,6 +198,16 @@ with their components. These styles do not constrain napplet artwork.
 <details>
 <summary><strong>Local development and verification</strong></summary>
 
+For just the website with hot reload:
+
+```sh
+bun install --frozen-lockfile
+bun run dev:site
+```
+
+Open [127.0.0.1:3000](http://127.0.0.1:3000). This starts only the web dev server;
+it does not start PM2 or the local relay, Blossom, GRASP and backend services.
+
 The platform toolchain needs Bun **1.3.11**, Node **18+** for PM2, Git, Go, Rust
 **1.97.1** and a C compiler. The relay tooling selects Go **1.25.0** automatically.
 Linux also needs `pkg-config` and OpenSSL development headers.
