@@ -1,4 +1,5 @@
 import { test, expect } from 'bun:test';
+import { existsSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -178,7 +179,17 @@ Promise.all(['embedded','external'].map(async id => {
         await errors;
       }
     } finally {
-      await rm(root, { recursive: true, force: true });
+      try {
+        await rm(root, { recursive: true, force: true });
+      } catch (error) {
+        // Bun 1.3.11 can return EFAULT from recursive rm on hosted Intel Macs.
+        // Keep cleanup mandatory; use the system tool only for that OS error
+        // and only on this test's mkdtemp directory (never a caller's path).
+        if (process.platform !== 'darwin' || (error as NodeJS.ErrnoException).code !== 'EFAULT')
+          throw error;
+        await run(['/bin/rm', '-rf', '--', root], tmpdir(), false);
+      }
+      expect(existsSync(root)).toBe(false);
     }
   },
   240000,
