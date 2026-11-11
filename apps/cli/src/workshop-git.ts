@@ -51,20 +51,30 @@ export async function workingTree(directory: string) {
     }
   }
   const index = await git(['ls-files', '--stage', '-z']);
-  const changed = new Set(
-    (await git(['ls-files', '-z', '--others', '--exclude-standard'])).split('\0').filter(Boolean),
-  );
-  const diff = head
-    ? ['diff', '--name-only', '-z', 'HEAD', '--']
-    : ['diff', '--cached', '--name-only', '-z', '--'];
-  for (const path of (await git(diff)).split('\0').filter(Boolean)) changed.add(path);
-  const [stagedText, unstagedText] = await Promise.all([
-    git(['diff', '--cached', '--name-only', '-z', '--']),
-    git(['diff', '--name-only', '-z', '--']),
+  // status computes content changes without diff's implicit update-index write.
+  // Disable rename folding so each entry names exactly one path, including deletes.
+  const status = await git([
+    'status',
+    '--porcelain=v2',
+    '-z',
+    '--untracked-files=all',
+    '--no-renames',
   ]);
-  const staged = stagedText.split('\0').filter(Boolean),
-    unstaged = unstagedText.split('\0').filter(Boolean);
-  for (const path of [...staged, ...unstaged]) changed.add(path);
+  const changed = new Set<string>(),
+    staged: string[] = [],
+    unstaged: string[] = [];
+  for (const entry of status.split('\0').filter(Boolean)) {
+    if (entry.startsWith('? ')) {
+      changed.add(entry.slice(2));
+      continue;
+    }
+    const fields = entry.split(' ');
+    const path = fields.slice(entry[0] === 'u' ? 10 : 8).join(' ');
+    const xy = fields[1]!;
+    changed.add(path);
+    if (xy[0] !== '.') staged.push(path);
+    if (xy[1] !== '.') unstaged.push(path);
+  }
   const branch = await git(['symbolic-ref', '--short', '-q', 'HEAD']).catch(() => '(detached)');
   return {
     head,
@@ -109,7 +119,10 @@ export async function workingDiff(directory: string, revision: string, path: str
   let diff = tree.head
     ? await sourceGit(
         directory,
-        ['diff', '--no-ext-diff', '--no-textconv', '--no-color', 'HEAD', '--', path],
+        [
+          '-c', 'diff.autoRefreshIndex=false',
+          'diff', '--no-ext-diff', '--no-textconv', '--no-color', 'HEAD', '--', path,
+        ],
         {},
         256 * 1024,
       )
