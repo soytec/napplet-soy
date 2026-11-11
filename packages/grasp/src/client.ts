@@ -52,6 +52,9 @@ export async function sourceGit(
     GIT_CONFIG_NOSYSTEM: '1',
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_TERMINAL_PROMPT: '0',
+    // UI snapshots may run alongside a checkpoint. Suppress optional index
+    // refresh writes from status; add/commit still take required locks.
+    GIT_OPTIONAL_LOCKS: '0',
     GIT_AUTHOR_NAME: 'Napplet creator',
     GIT_AUTHOR_EMAIL: 'creator@napplet.invalid',
     GIT_COMMITTER_NAME: 'Napplet creator',

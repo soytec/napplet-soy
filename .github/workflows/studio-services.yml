@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/studio-services.yml'
+      - '.github/scripts/ubuntu-mirror.sh'
       - 'apps/studio/**'
       - 'apps/web/**'
       - 'apps/cli/**'
@@ -72,7 +73,9 @@ jobs:
         with:
           bun-version: '1.3.11'
       - run: bun install --frozen-lockfile
-      - run: sudo apt-get update && sudo apt-get install -y nftables iproute2 openssl
+      - run: |
+          bash .github/scripts/ubuntu-mirror.sh
+          sudo apt-get update && sudo apt-get install -y nftables iproute2 openssl
       - name: Import a remix through the actual Studio egress policy
         run: bash scripts/test-studio-remix-network.sh
   proposals:
@@ -91,14 +94,25 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Install native service prerequisites
         run: |
+          bash .github/scripts/ubuntu-mirror.sh
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libssl-dev
+          if ! sudo apt-get install -y build-essential pkg-config libssl-dev; then
+            dpkg --print-architecture
+            apt-cache policy build-essential libc6-dev gcc g++ make dpkg-dev
+            apt-config dump | grep -E 'Architecture|Default-Release|Preferences|Dir::State'
+            for file in /etc/apt/preferences /etc/apt/preferences.d/*; do
+              if [ -f "$file" ]; then cat "$file"; fi
+            done
+            exit 1
+          fi
           studio_rust="$(bun -e 'import pin from "./services/grasp/upstream.json"; process.stdout.write(pin.rust)')"
           rustup toolchain install "$studio_rust" --profile minimal
           printf 'RUSTUP_TOOLCHAIN=%s\n' "$studio_rust" >> "$GITHUB_ENV"
           go version
       - name: Install browser test prerequisites
-        run: bunx playwright install --with-deps chromium
+        run: |
+          bash .github/scripts/ubuntu-mirror.sh
+          bunx playwright install --with-deps chromium
       - name: Verify relay COUNT, synchronization and compatibility patches
         run: bun run test:relay
       - name: Build pinned services and verify proposals and browser Git

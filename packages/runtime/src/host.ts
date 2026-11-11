@@ -785,7 +785,7 @@ export function attachNappletHost(options: HostOptions) {
         failure(new Error('quota-exceeded: Request exceeds the host input size limit.'));
       return;
     }
-    const realtime = message.type === 'webrtc.send';
+    const realtime = message.type === 'webrtc.send' || message.type === 'webrtc.sendBytes';
     if (Date.now() - rtcWindow >= 1000) {
       rtcWindow = Date.now();
       rtcCalls = 0;

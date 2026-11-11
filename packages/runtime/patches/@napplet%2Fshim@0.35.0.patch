@@ -58,7 +58,42 @@ diff --git a/dist/prelude.global.js b/dist/prelude.global.js
      const id = crypto.randomUUID();
      const promise = sendRequest("llm.generate", { request: request7 }, GENERATE_TIMEOUT_MS, id);
      const entry = pending.get(id);
-@@ -5596,7 +5609,21 @@
+@@ -3921,6 +3934,8 @@
+     "webrtc.open.result",
+     "webrtc.send",
+     "webrtc.send.result",
++    "webrtc.sendBytes",
++    "webrtc.sendBytes.result",
+     "webrtc.close",
+     "webrtc.close.result",
+     "webrtc.event"
+@@ -3984,6 +3999,17 @@
+       (msg) => {
+         if (msg.type === "webrtc.send.result" && !msg.error) return void 0;
+         rejectResult(msg, "webrtc send failed");
++      }
++    );
++  }
++  function sendBytes2(sessionId, bytes) {
++    // No JSON retry here: a timeout leaves delivery unknown.
++    return request2(
++      { type: "webrtc.sendBytes", id: crypto.randomUUID(), sessionId, bytes },
++      "webrtc.sendBytes.result",
++      (msg) => {
++        if (msg.type === "webrtc.sendBytes.result" && !msg.error) return void 0;
++        rejectResult(msg, "webrtc sendBytes failed");
+       }
+     );
+   }
+@@ -5345,6 +5371,7 @@
+       napplet.webrtc = {
+         open: open3,
+         send: send2,
++        sendBytes: sendBytes2,
+         close: close2,
+         onEvent: onEvent2
+       };
+@@ -5596,7 +5623,21 @@
      return options.domains.filter((domain) => KNOWN_DOMAINS.has(domain));
    }
    function installNappletRuntimePrelude(options) {
