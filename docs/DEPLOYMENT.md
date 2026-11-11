@@ -5,7 +5,58 @@ do not deploy or upload releases unless the user explicitly requests deployment.
 
 Updated 2026-11-11. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-### Most recent application deployment — FIPS dashboard, 2026-11-11
+### Most recent application deployment — realtime multiplayer, 2026-11-11
+
+Website release **`20261111154205110-71855`** runs source
+`aa07c89a64a759203529bfbabe6f91ccc26c3a0a`
+([PR #64](https://github.com/soytec/napplet-soy/pull/64)). The compatible runtime
+([PR #63](https://github.com/soytec/napplet-soy/pull/63), `f206df6`) was deployed
+first as `20261111151052893-13721`, retaining the 0.33.0 installer until the
+[soyLI 0.34.0 release and public updater checks](CLI-RELEASES.md) passed.
+The final public installer matches the official release asset byte for byte:
+`6297676daf722b815a31c3a54e28c68418fad01b6c6beb1cb47b1e5bc33fb7e1` (SHA-256).
+
+The shared runtime adds the proposed WebRTC delivery controls and authenticated
+binary support while retaining reliable JSON. Queue semantics, exact limits,
+proposal pins and the local signaling extension are documented in
+[WEBRTC-REALTIME.md](WEBRTC-REALTIME.md). This does not claim standardized
+cross-shell signaling or measured Internet multiplayer latency.
+
+The final rollout passed **1,042 tests / 8,110 assertions** locally and
+**1,042 tests / 8,109 assertions** on the legacy VPS, plus relay, Blossom and
+GRASP service checks. All runtime/release PR checks and four native release
+jobs passed. The pre-push full Nix gate force-rebuilt dependencies and soyLI and
+passed x86_64 Linux/KVM regressions; AArch64 Nix acceptance was not run.
+The final SSH output stream was interrupted during compilation, but the remote
+deployment completed and activated the release. A fresh connection verified the
+active release, public health, successful page responses and exact installer;
+the worker guard subsequently verified all 764 deployed source hashes. The
+finished deployment was not rerun.
+
+The matching additive Studio worker is
+`sha256:f853d9eae35fdcb7ede0cb3de65cc4386cfb9a863ebf921103e096d55b56c327`.
+All fourteen isolated acceptance checks passed: server/browser build paths,
+truncation, timeout/failure/cancellation recovery, desktop/portrait capture,
+thread/crash recovery and exact creator guidance. Four activation simulations
+covered success, rollback, busy jobs and configuration races. Activation required
+idle creator jobs, preserved a protected configuration backup and changed only
+the image; ownership/mode remained `root:napplet-studio`, `0640`. The live
+service-user scaffold emitted all eight expected guide/helper files exactly,
+created no account and installed no dependencies. Studio reported `ready`,
+active/running, with zero automatic restarts.
+
+Public HTTPS health identifies the exact release and reports `ok`; `/`, `/manage`,
+`/gg` and `/studio/create` respond successfully. External relay errors in the
+catalog remain separate from readiness. Machines v8 was updated through released
+soyLI under its existing identity; its signed release, public artifact/source/cover
+hashes, anonymous Git revision and production menu/local AI race were verified.
+See [publication evidence](WEBRTC-REALTIME.md#machines-publication--2026-11-11).
+No public multiplayer rooms were used for test traffic, and no Atlas provider
+or private CVM was restarted. Local receipts are under
+`.local/webrtc-rollout/`, with accepted worker evidence in
+`.local/webrtc-release/.local/webrtc-worker/worker/`.
+
+### Previous application deployment — FIPS dashboard, 2026-11-11
 
 Website release **`20261111071624314-86790`** runs source
 `808044555443d6e2dede98d9494f985e0957cb3b`
