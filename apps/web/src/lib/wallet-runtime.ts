@@ -157,7 +157,7 @@ export async function openWallet(pubkey: string) {
       : [...new Set([...fallback, ...relays$.value])];
     await collect(initial, filters);
     const discovered = store.getReplaceable(17375, pubkey);
-    if (discovered) await wallet.unlock();
+    if (discovered && discovered !== existing) await wallet.unlock();
     const owned = discovered && getWalletRelays(discovered);
     const info = store.getReplaceable(10019, pubkey),
       mail = store.getReplaceable(10002, pubkey);
@@ -180,6 +180,7 @@ export async function openWallet(pubkey: string) {
       await wallet.unlock();
     }
     await wallet.refreshTransactions();
+    wallet.setAutoUnlock(true);
     watchNutzaps();
     updateNuts();
   };
@@ -320,6 +321,7 @@ export async function openWallet(pubkey: string) {
         subs.unsubscribe();
         wallet.stop();
         pool.close();
+        storage.close();
         void wallet.lock().catch(() => {});
       },
     };
@@ -329,6 +331,8 @@ export async function openWallet(pubkey: string) {
     subs.unsubscribe();
     wallet.stop();
     pool.close();
+    storage.close();
+    void wallet.lock().catch(() => {});
     throw error;
   }
 }

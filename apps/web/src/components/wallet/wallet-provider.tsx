@@ -149,6 +149,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       );
       subs.add(runtime.wallet.transactions$.subscribe((transactions) => update({ transactions })));
       subs.add(runtime.wallet.progress$.subscribe((progress) => update({ progress })));
+      subs.add(
+        runtime.wallet.errorState$.subscribe((error) => {
+          if (error) update({ error: walletErrorMessage(error) });
+        }),
+      );
       subs.add(runtime.nuts$.subscribe((nutzaps) => update({ nutzaps })));
       // Check each outstanding quote/token fairly, including invoices paid near
       // expiry. Outgoing checks cannot initiate or retry a payment.

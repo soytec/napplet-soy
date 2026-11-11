@@ -61,6 +61,7 @@ async function setup(mint = new TestMint(), fund = 64) {
       eventStore: store,
       pool,
       relays: ['wss://relay.test'],
+      decryptionCache: storage,
       couch: { getAll: () => [], store: () => () => {}, remove: () => {}, clear: () => {} },
     },
     storage,
@@ -133,6 +134,26 @@ test('Cashu send persists outputs before swapping; preserves unselected proofs, 
   );
   await s.wallet.resume(tx.id, true);
   expect(s.mint.swaps).toBe(1);
+});
+
+test('locally authored token and history plaintext is cached without round-trip decryption', async () => {
+  const s = await setup();
+  let decryptions = 0;
+  const decrypt = s.signer.nip44.decrypt;
+  s.signer.nip44.decrypt = async (...args) => {
+    decryptions++;
+    return decrypt(...args);
+  };
+  // Full balance send also exercises the manually constructed empty-change token.
+  const tx = await s.wallet.prepareSend(s.mint.url, 64);
+  await s.wallet.resume(tx.id, true);
+  expect(decryptions).toBe(0);
+  const events = s.published.filter((event) => [7375, 7376].includes(event.kind));
+  expect(events.length).toBe(2);
+  for (const event of events) expect(await s.storage.getItem(event.id)).not.toBeNull();
+  await s.wallet.lock();
+  await s.wallet.unlock();
+  expect(decryptions).toBe(0);
 });
 test('all-funds Cashu send can save empty change and delete the old balance', async () => {
   const s = await setup(undefined, 8),

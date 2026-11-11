@@ -22,10 +22,13 @@ function done(tx: IDBTransaction) {
  * The non-exportable key protects data at rest, not against same-origin malicious scripts. */
 export class WalletVault implements WalletStorage {
   private connection?: Promise<IDBDatabase>;
+  private deviceKey?: Promise<CryptoKey>;
+  private closed = false;
   constructor(readonly pubkey: string) {
     if (!/^[a-f0-9]{64}$/.test(pubkey)) throw new WalletError('Invalid wallet account.');
   }
   private db() {
+    if (this.closed) throw new WalletError('Wallet storage is closed. Reopen the wallet.');
     return (this.connection ??= new Promise((resolve, reject) => {
       const r = indexedDB.open(databaseName, 1);
       r.onupgradeneeded = () => r.result.createObjectStore('data');
@@ -42,8 +45,23 @@ export class WalletVault implements WalletStorage {
   private context(key: string) {
     return new TextEncoder().encode(`${location.origin}:${this.pubkey}:${key}`);
   }
-  private async key() {
+  private key() {
+    if (this.closed) throw new WalletError('Wallet storage is closed. Reopen the wallet.');
+    return (this.deviceKey ??= this.loadKey().catch((error) => {
+      this.deviceKey = undefined;
+      throw error;
+    }));
+  }
+  private async loadKey() {
     const db = await this.db();
+    const read = db.transaction('data', 'readonly'),
+      readComplete = done(read),
+      id = `${this.pubkey}:key`;
+    const existing: CryptoKey | undefined = await request(read.objectStore('data').get(id));
+    await readComplete;
+    if (existing) return existing;
+    // Generate outside the transaction, then recheck atomically: another vault
+    // may have initialized this account while Web Crypto was running.
     const candidate = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
       'encrypt',
       'decrypt',
@@ -51,7 +69,6 @@ export class WalletVault implements WalletStorage {
     const tx = db.transaction('data', 'readwrite'),
       complete = done(tx),
       store = tx.objectStore('data');
-    const id = `${this.pubkey}:key`;
     let key: CryptoKey = await request(store.get(id));
     if (!key) {
       key = candidate;
@@ -100,5 +117,14 @@ export class WalletVault implements WalletStorage {
       complete = done(tx);
     tx.objectStore('data').delete(`${this.pubkey}:${id}`);
     await complete;
+  }
+  close() {
+    this.closed = true;
+    this.deviceKey = undefined;
+    void this.connection?.then(
+      (db) => db.close(),
+      () => {},
+    );
+    this.connection = undefined;
   }
 }

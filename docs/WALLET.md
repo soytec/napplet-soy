@@ -162,6 +162,39 @@ the same account. Keep account recovery separately and export before clearing
 browser data. Relay-only recovery cannot reconstruct an unfinished mint request
 whose blinding secrets were only on the lost device.
 
+### Decryption cache — source implementation, not deployed
+
+The browser passes its account-scoped encrypted vault to NutWallet's
+`decryptionCache`. Wallet configuration, token proofs and history plaintext are
+cached by signed event ID. Reopening an unchanged wallet on the same browser
+profile uses the cache without NIP-44 signer requests. New events and missing
+cache entries still require decryption; sign-in, relay authentication and signing
+wallet changes may independently prompt. Relay event loading still precedes the
+initial wallet view; this cache is not an offline wallet-event database.
+
+Each vault reuses one non-exportable AES-GCM key initialization, reading the
+existing key before generating a candidate and atomically checking again before
+storing it. Cached-content reads run with bounded concurrency; signer requests
+remain serial. Concurrent unlock callers share a task that also drains events
+arriving during decryption. Each successful decryption is saved before requesting
+the next, so a later denial preserves earlier progress. Locally authored token
+and history plaintext is saved without asking the signer to decrypt it again.
+
+Cache failures surface in the wallet UI instead of silently becoming signer
+requests. Failed automatic unlocks pause until manual retry/sync. Lock/close
+invalidates pending unlock work and clears plaintext after in-flight signer
+replies settle; closing also releases the vault connection and key reference.
+Locking does not delete the persistent cache or recovery journal. Silent reopening
+trusts this browser profile: non-exportability is not a user-presence requirement
+or protection against same-origin scripts using the stored key. Do not clear
+wallet storage to resolve a cache error without preserving recovery data.
+
+Regression checks cover warm browser reload with zero signer decryptions and zero
+key generations, account-separated encrypted IndexedDB, concurrent unlocks, late
+events/replies, denied requests, failed cache reads/writes and locally authored
+empty-change/history events. Run `bun test packages/wallet
+tests/services/wallet-cache.test.ts` for these checks.
+
 NIP-09 deletion timestamps never predate the superseded token events, including
 events whose timestamp was rounded up by the library. This prevents old proofs
 from reappearing in the local balance after consecutive transfers.
