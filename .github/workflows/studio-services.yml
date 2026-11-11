@@ -104,7 +104,15 @@ jobs:
       - name: Install native service prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libssl-dev
+          if ! sudo apt-get install -y build-essential pkg-config libssl-dev; then
+            dpkg --print-architecture
+            apt-cache policy build-essential libc6-dev gcc g++ make dpkg-dev
+            apt-config dump | grep -E 'Architecture|Default-Release|Preferences|Dir::State'
+            for file in /etc/apt/preferences /etc/apt/preferences.d/*; do
+              if [ -f "$file" ]; then cat "$file"; fi
+            done
+            exit 1
+          fi
           studio_rust="$(bun -e 'import pin from "./services/grasp/upstream.json"; process.stdout.write(pin.rust)')"
           rustup toolchain install "$studio_rust" --profile minimal
           printf 'RUSTUP_TOOLCHAIN=%s\n' "$studio_rust" >> "$GITHUB_ENV"
