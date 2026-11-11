@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdtemp, readlink, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, readlink, rm, symlink, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Accounts, type Vault } from '../../../packages/identity/src/accounts';
@@ -273,6 +273,27 @@ test('Git workshop reviews safe aliases and invalidates review when equal-conten
     await expect(workingDiff(f.directory, sensitive.revision, 'CLAUDE.md')).rejects.toThrow(
       'likely credential',
     );
+  } finally {
+    await f.close();
+  }
+});
+
+test('workshop background snapshots do not refresh the Git index or report stat-only changes', async () => {
+  const f = await fixture();
+  try {
+    const index = join(f.directory, '.git/index');
+    const before = await Bun.file(index).bytes();
+    await utimes(join(f.directory, 'index.html'), new Date(0), new Date(0));
+    const tree = await workingTree(f.directory);
+    expect(tree.changed).toEqual([]);
+    expect(tree.staged).toEqual([]);
+    expect(tree.unstaged).toEqual([]);
+    expect(await Bun.file(index).bytes()).toEqual(before);
+    await Bun.write(join(f.directory, 'index.html'), '<p>Real change</p>');
+    const changed = await workingTree(f.directory);
+    expect(changed.changed).toEqual(['index.html']);
+    expect((await workingDiff(f.directory, changed.revision, 'index.html')).diff).toContain('Real change');
+    expect(await Bun.file(index).bytes()).toEqual(before);
   } finally {
     await f.close();
   }
