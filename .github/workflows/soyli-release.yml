@@ -43,12 +43,12 @@ jobs:
         with:
           bun-version: '1.3.11'
       - run: bun install --frozen-lockfile
-      - name: Use the official Ubuntu archive
+      - name: Use an Ubuntu archive mirror
         if: runner.os == 'Linux' && runner.arch == 'X64'
-        # The runner's Azure mirror repeatedly failed DNS before tests could run.
-        # Keep Ubuntu's signed repository configuration and all dependency checks.
+        # Runner and primary mirrors repeatedly failed DNS before tests could run.
+        # kernel.org mirrors Ubuntu; existing Ubuntu signing keys still verify packages.
         run: |
-          sudo sed -i 's|mirror+file:/etc/apt/apt-mirrors.txt|https://archive.ubuntu.com/ubuntu/|g; s|http://azure.archive.ubuntu.com/ubuntu/|https://archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources
+          sudo sed -i 's|mirror+file:/etc/apt/apt-mirrors.txt|https://mirrors.edge.kernel.org/ubuntu/|g; s|http://azure.archive.ubuntu.com/ubuntu/|https://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources
       - name: Check version and tag
         id: release
         run: bun scripts/cli-release-check.ts
@@ -82,12 +82,12 @@ jobs:
         with:
           bun-version: '1.3.11'
       - run: bun install --frozen-lockfile
-      - name: Use the official Ubuntu archive
+      - name: Use an Ubuntu archive mirror
         if: runner.os == 'Linux' && runner.arch == 'X64'
-        # The runner's Azure mirror repeatedly failed DNS before tests could run.
-        # Keep Ubuntu's signed repository configuration and all dependency checks.
+        # Runner and primary mirrors repeatedly failed DNS before tests could run.
+        # kernel.org mirrors Ubuntu; existing Ubuntu signing keys still verify packages.
         run: |
-          sudo sed -i 's|mirror+file:/etc/apt/apt-mirrors.txt|https://archive.ubuntu.com/ubuntu/|g; s|http://azure.archive.ubuntu.com/ubuntu/|https://archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources
+          sudo sed -i 's|mirror+file:/etc/apt/apt-mirrors.txt|https://mirrors.edge.kernel.org/ubuntu/|g; s|http://azure.archive.ubuntu.com/ubuntu/|https://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources
       - if: runner.os == 'Linux'
         run: bunx playwright install-deps chromium
       - name: Build native distribution
