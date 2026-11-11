@@ -383,7 +383,8 @@ export class ShellWallet extends NutWallet {
     });
     await this.publishBatch([signed, info], relays);
     await this.unlock();
-    this.resync();
+    // The runtime's relay observable restarts loading if destinations changed.
+    // Same-relay configuration is already in the store and needs no second sync.
   }
   private transaction(
     type: WalletTransaction['type'],

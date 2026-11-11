@@ -1,6 +1,6 @@
 import { walletErrorMessage, WalletError } from '../../../../../packages/wallet/src/errors';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Subscription } from 'rxjs';
+import { auditTime, combineLatest, Subscription } from 'rxjs';
 import { useNostr } from '../nostr-provider';
 import { browserIdentity } from '@/lib/browser-identity';
 import type { WalletRuntime } from '@/lib/wallet-runtime';
@@ -19,6 +19,7 @@ type Snapshot = {
   nutzaps: NostrEvent[];
   progress: string;
   busy: boolean;
+  loading: boolean;
   error: string;
   opened: boolean;
   notice: string;
@@ -30,6 +31,7 @@ const initial: Snapshot = {
   nutzaps: [],
   progress: '',
   busy: false,
+  loading: false,
   error: '',
   opened: false,
   notice: '',
@@ -47,7 +49,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const { pubkey, ready, needsReconnect, connect } = useNostr();
   const [state, setState] = useState(initial);
   const active = useRef<
-    { runtime: WalletRuntime; subs: Subscription; release: () => void } | undefined
+    | { runtime: WalletRuntime; subs: Subscription; release: () => void; loading: boolean }
+    | undefined
   >(undefined);
   const generation = useRef(0),
     working = useRef(false),
@@ -133,12 +136,21 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         return;
       }
       const subs = new Subscription();
-      active.current = { runtime, subs, release };
+      active.current = { runtime, subs, release, loading: false };
       const update = (patch: Partial<Snapshot>) => {
         if (active.current?.runtime === runtime) setState((s) => ({ ...s, ...patch }));
       };
       subs.add(
-        runtime.wallet.balance$.subscribe(() => {
+        combineLatest([runtime.wallet.loadingState$, runtime.wallet.busy$]).subscribe(
+          ([loading, busy]) => {
+            if (active.current?.runtime !== runtime) return;
+            active.current.loading = loading || busy;
+            update({ loading: loading || busy });
+          },
+        ),
+      );
+      subs.add(
+        runtime.wallet.balance$.pipe(auditTime(16)).subscribe(() => {
           try {
             const balances = runtime.wallet.satBalances();
             update({ balances, balance: Object.values(balances).reduce((a, b) => a + b, 0) });
@@ -159,7 +171,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       // expiry. Outgoing checks cannot initiate or retry a payment.
       const checked = new Map<string, number>();
       const timer = setInterval(() => {
-        if (working.current || active.current?.runtime !== runtime) return;
+        if (working.current || active.current?.runtime !== runtime || active.current.loading)
+          return;
         const tx = settlementCandidates(runtime.wallet.transactions$.value).sort(
           (a, b) => (checked.get(a.id) ?? 0) - (checked.get(b.id) ?? 0),
         )[0];
@@ -180,7 +193,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   };
   const run = async <T,>(fn: (r: WalletRuntime) => Promise<T>): Promise<T | undefined> => {
     const current = active.current;
-    if (!current || working.current) return;
+    if (!current || working.current || current.loading) return;
     working.current = true;
     setState((s) => ({ ...s, busy: true, error: '', progress: '', notice: '' }));
     try {
@@ -214,6 +227,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     <Context.Provider
       value={{
         ...visible,
+        busy: visible.busy || visible.loading,
+        progress: visible.progress || (visible.loading ? 'Syncing and unlocking your wallet…' : ''),
         open,
         lock,
         run,

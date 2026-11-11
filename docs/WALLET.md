@@ -104,15 +104,33 @@ store; public recipient metadata and receipt lookups use a separate signer-free
 payment client. Neither private wallet proofs nor wallet history are seeded into
 the public shell cache.
 
-Loading reuses a saved wallet's own relay addresses. On a new device, the first
-lookup fetches wallet data together with relay hints; a second lookup is needed
-only for additional advertised destinations. Verified events enter the store as
-they arrive. Once a wallet is known and a relay completes its snapshot, the
-Applesauce group read policy allows quiet stragglers to stop blocking the initial
-view (3-second grace, 1.5-second idle detection, within the 12-second lookup budget).
-An empty first relay alone does not end wallet discovery. The live wallet loader
-continues synchronization after opening; initial results are not a guarantee of
-complete history across offline relays. Mint proof-state checks still precede spending.
+Loading reuses a saved wallet's own relay addresses. Bootstrap requests only
+wallet configuration and relay hints (kinds 17375, 10019 and 10002), visiting
+additional advertised destinations without re-reading those already queried.
+Once a wallet is known and a relay completes its metadata snapshot, the Applesauce
+group read policy allows quiet stragglers to stop blocking discovery (3-second
+grace, 1.5-second idle detection, within the 12-second lookup budget). An empty
+first relay alone does not end wallet discovery.
+
+NutWallet owns token/history/deletion backfill and live loading. Explicit refresh
+uses one native resync; a changed relay set already triggers that reload and does
+not receive an additional explicit resync. Relay sets are normalized and sorted.
+Unchanged nutzap subscriptions remain open across refreshes; failed subscriptions
+can be retried. Configuration changes on the same relays do not force a new sync.
+Balance/history UI projections coalesce event bursts into 16 ms windows, while
+event admission and financial operations remain immediate. Wallet actions wait
+while native loading/unlocking is busy; the initial view can show progressive
+balances with a syncing indicator. Offline relays still mean history can be
+incomplete, and mint proof-state checks still precede spending.
+
+These loading optimizations are source changes, not deployed. Applesauce remains
+pinned to 7.0.0. Upstream [#116](https://github.com/hzrd149/applesauce/issues/116)
+(authorless wallet-deletion filters) and
+[#117](https://github.com/hzrd149/applesauce/issues/117) (per-emission watchdog timer
+churn) await an upstream release; these local changes do not patch those internals.
+The isolated browser regression (`bun test tests/services/wallet-loading.test.ts`)
+checks metadata-only discovery, one native token backfill per relay per refresh,
+retained nutzap subscriptions and correct balances after native deletion loading.
 Local and production wallets contact relays and mints from the browser; adding
 relays improves redundancy but does not inherently make these operations faster.
 
@@ -169,8 +187,9 @@ The browser passes its account-scoped encrypted vault to NutWallet's
 cached by signed event ID. Reopening an unchanged wallet on the same browser
 profile uses the cache without NIP-44 signer requests. New events and missing
 cache entries still require decryption; sign-in, relay authentication and signing
-wallet changes may independently prompt. Relay event loading still precedes the
-initial wallet view; this cache is not an offline wallet-event database.
+wallet changes may independently prompt. Metadata discovery precedes the initial
+view and native event sync can continue while it is shown; this cache is not an
+offline wallet-event database.
 
 Each vault reuses one non-exportable AES-GCM key initialization, reading the
 existing key before generating a candidate and atomically checking again before
