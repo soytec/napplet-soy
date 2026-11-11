@@ -3,9 +3,56 @@
 Deployment is operator-run. Routine changes are verified and committed locally;
 do not deploy or upload releases unless the user explicitly requests deployment.
 
-Updated 2026-11-10. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
+Updated 2026-11-11. **[napplet.soy](https://napplet.soy) is live**, using the temporary legacy CPU profile on the existing Namecheap VPS. Caddy issued valid Let's Encrypt certificates for the website, www, Blossom and Git; the other site remains available. The deploy script includes Caddy and PM2. Local production builds exercise the same web, relay, Blossom and GRASP implementations and PM2 definitions. Dedicated hosts use the pinned local Caddy version; shared hosts retain their existing Caddy. See the deployment record below for verification and the compatibility workaround.
 
-### Most recent application deployment — FIPS resources and soyLI 0.33.0, 2026-11-10
+### Most recent application deployment — FIPS dashboard, 2026-11-11
+
+Website release **`20261111071624314-86790`** runs source
+`808044555443d6e2dede98d9494f985e0957cb3b`
+([PR #61](https://github.com/soytec/napplet-soy/pull/61)). The merged tree matches
+verified candidate `4824fcf262d7d66e3830db8e31a7715669b0904d`. Manage now includes
+the [FIPS dashboard](FIPS-RESOURCES.md#shell-dashboard--11-november-2026), and the
+account popover shows connection status with an Inspect dialog that retains the
+running player. Diagnostics and controls remain host-only; the napplet wire API,
+resource approvals and opaque sandbox are unchanged.
+
+The normal rollout passed **1,034 tests / 8,049 assertions** locally and
+**1,034 tests / 8,048 assertions** on the legacy VPS. Both environments passed
+relay, Blossom and GRASP service checks; the production build and candidate
+health checks passed. All PR checks were green before merge, including four
+native packaging targets, Nix and Studio/browser regressions. The independent
+pre-push Nix gate realized and force-rebuilt dependencies and soyLI, then passed
+x86_64 Linux/KVM regressions without hash changes. AArch64 Nix checks were not run.
+
+The matching additive Studio worker is
+`sha256:f887c646f65838175e359dee3eb622962e57067d2e15de4b85e2c89d5fbe01e9`.
+All thirteen isolated acceptance checks passed, covering both build paths,
+timeout/truncation/failure/cancellation recovery, capture, crash/thread recovery
+and exact FIPS scaffolding. Four activation simulations covered success,
+rollback, busy jobs and configuration races. Activation verified 759 deployed
+source hashes, required idle creator jobs, retained a protected configuration
+backup and changed only the image. Studio then reported `ready`.
+The live service-user scaffold check passed with exact creator-file hashes and
+zero automatic service restarts. Private server settings and the egress script retained
+their pre-rollout hashes; Studio configuration ownership and mode remained
+`root:napplet-studio`, `0640`.
+
+Public HTTPS health identifies the exact release and reports `ok`; `/manage`,
+`/gg` and `/studio/create` respond successfully. Fresh production browser checks
+passed anonymous dashboard and account status, 390px light/dark layouts, Gamegrid
+inspection, navigation, Escape/focus restoration and the Inspect dialog above a
+fullscreen player with its iframe retained. The fullscreen check supplied the
+matching bundled Soft orbit artifact through a browser-only fixture override;
+no account, provider or payment operations were performed. These are Chromium
+checks, not physical mobile-device acceptance. The public installer remains
+byte-identical to soyLI 0.33.0 (SHA-256
+`7105be595067c17fe670ff870ac9c7421db30dac0fd8d8e0b3ba2ae305ad37bb`). No standalone
+CLI release, napplet republication or Atlas provider restart was performed.
+Local rollout receipts are under `.local/fips-dashboard-release/` in the isolated
+FIPS dashboard worktree, including `deploy.log`, `ci-green.json`,
+`public-verification.json` and the `worker/` acceptance/activation records.
+
+### Previous application deployment — FIPS resources and soyLI 0.33.0, 2026-11-10
 
 Website release **`20261110155348389-22866`** runs source
 `ed8a0d5d4e8593ddeaffa4e1f978fbd96fd1ddac`
