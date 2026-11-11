@@ -1,6 +1,8 @@
 # WebRTC realtime delivery
 
-Local reference implementation; not a deployment or independent-shell interoperability claim.
+Released in soyLI 0.34.0 and deployed to napplet.soy on 2026-11-11.
+This is a reference implementation, not an independent-shell interoperability claim.
+See the [rollout record](DEPLOYMENT.md) and [CLI release verification](CLI-RELEASES.md).
 The selected NIP-5D authority remains `c041f84667c1781c3c1d5bfbd970943131b38cc9`.
 
 ## Proposal and implementation boundary
@@ -156,7 +158,7 @@ Verification on 2026-11-11:
   regressions completed successfully. Changed implementation, test, packaging
   and embedded-guide files were hash-checked against the local shell commit.
 - A same-process sequence of multiplayer test services stalled during cleanup;
-  acceptance commands were rerun in fresh processes. No production changes.
+  acceptance commands were rerun in fresh processes. These were isolated pre-release checks.
 
 Bytes are application payloads, excluding SCTP/DTLS/TURN overhead and base64 bridge
 representation. Pending-input count is a backlog proxy, **not measured RTT**.
@@ -166,3 +168,28 @@ The network lab models message delay, jitter/reordering, transient drops and a
 reliable retransmission delay. It does not emulate packet-level SCTP congestion.
 Physical controllers, separate-network NAT/TURN, prolonged Internet loss, and
 cross-shell signaling interoperability remain unverified.
+
+## Machines publication — 2026-11-11
+
+The [updated Machines v8 release](https://napplet.soy/r/f041ff5dc40ccf6ca7fb40417dbe05b9776b5c061284c5043b652cd0845c3493)
+was published through the public soyLI 0.34.0 binary from clean source revision
+`71c68951e1dda1fcc2562f564c2ee4a44e6c14ea`. The creator key and address identifier
+`n-b5572362d4a` are unchanged. Its signed current event is
+`f041ff5dc40ccf6ca7fb40417dbe05b9776b5c061284c5043b652cd0845c3493`.
+
+Public downloads were independently hash-verified:
+
+| File | SHA-256 |
+| --- | --- |
+| Game | `49a9d499a8d22624717a5d4aa7ea5ec9e9b1930bb2abdd62511edfade1fca786` |
+| Source archive | `996282af7a380b0df4a51887a5f8c2465556121f994a4bb9012d6ea887b91113` |
+| Existing cover | `0d4ac01b43431ae842011f45f4b1de42f4170fc90d59f9c8747c982cb25721e6` |
+
+The primary relay returned the exact event and the website confirmed its signed
+manifest and artifact. An anonymous Git ref lookup also returned the exact
+published source revision. A fresh anonymous production Chromium session loaded the
+verified game, entered a local AI race and returned to its menu with no console
+errors. It did not join a public multiplayer room or perform real-network
+multiplayer acceptance. Three optional mirror copies timed out; the primary
+publication and website availability succeeded. Existing players should reload
+before joining the new v7 rooms.

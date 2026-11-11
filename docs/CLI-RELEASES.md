@@ -1,11 +1,11 @@
 # soyLI releases and updates
 
 GitHub Releases distribute the standalone CLI independently of the website/VPS.
-The current published version is **0.33.0**. The repository has transferred to
+The current published version is **0.34.0**. The repository has transferred to
 [`soytec/napplet-soy`](https://github.com/soytec/napplet-soy), including its history,
 issues, pull requests and releases.
 
-**0.34.0 — realtime multiplayer (prepared; not yet published)**
+**0.34.0 — realtime multiplayer**
 
 Adds proposed NAP-WEBRTC #145 delivery controls, authenticated binary support,
 explicit payload limits, bounded broadcast queues, isolated peer failures and
@@ -20,9 +20,30 @@ a local host implementation, not an accepted cross-shell standard. See
 [the exact contract and verification evidence](WEBRTC-REALTIME.md).
 
 The updater remains on `soytec/napplet-soy`; the extracted soyLI source port does
-not change the public installation channel. Deploy compatible shell readers
-before publishing this CLI release. Existing previews must restart to load the
+not change the public installation channel. Compatible shell readers were deployed
+before this CLI release was published. Existing previews must restart to load the
 new runtime; `soyli skills update` updates managed guidance and preserves conflicts.
+
+Published **2026-11-11 (Europe/Vienna)** from
+`aa07c89a64a759203529bfbabe6f91ccc26c3a0a`
+([PR #64](https://github.com/soytec/napplet-soy/pull/64)), after the runtime in
+[PR #63](https://github.com/soytec/napplet-soy/pull/63) was deployed.
+[Release](https://github.com/soytec/napplet-soy/releases/tag/soyli-v0.34.0),
+[four-platform release CI](https://github.com/soytec/napplet-soy/actions/runs/43048991361),
+[Nix package/VM CI](https://github.com/soytec/napplet-soy/actions/runs/43043946185)
+and [Studio integration CI](https://github.com/soytec/napplet-soy/actions/runs/43043944534)
+passed. All 11 public assets match their checksums and GitHub digests; all four
+archives contain the expected platform, version and Bun pin. The release manifest
+identifies the tagged source and GitHub's latest stable release resolves to 0.34.0.
+
+An isolated macOS ARM64 fresh install, real **0.33.0 → 0.34.0** update,
+current-version recheck, legacy command and `doctor` passed using public downloads
+and a minimal system PATH. New scaffolds and `skills update` contain the exact
+tagged WebRTC guide, FIPS guide and SDK bytes. The older project's source,
+metadata, README and dependency lockfile were preserved, as were the normal
+installation, accounts and shell configuration. The corresponding extracted
+source port is merged in [soyLI PR #3](https://github.com/soytec/soyli/pull/3).
+Website and hosted-worker activation are recorded in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 **0.33.0 — experimental verified FIPS resources**
 
