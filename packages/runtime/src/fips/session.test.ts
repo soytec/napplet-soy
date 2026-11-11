@@ -3,6 +3,12 @@ import { encodeAndHash, LinkType, toHex, fromHex } from '@hashtree/core';
 import { FipsResourceSession, type FipsTransport } from './session';
 import { parseRoots } from './policy';
 import type { FipsRoot } from './contract';
+import {
+  clearRecentSessions,
+  disconnectSession,
+  fipsDashboardSnapshot,
+  registerFipsDashboardSession,
+} from './dashboard';
 const hash = async (b: Uint8Array) =>
   toHex(new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array(b))));
 const provider = {
@@ -236,5 +242,102 @@ test('root-pinned operations retain status and snapshot, require consent and nev
     expect(result.headers?.['x-atlas-snapshot']).toBe(f.descriptor.root);
   } finally {
     s.close();
+  }
+});
+
+test('host cache controls release bytes without changing grants and diagnostics omit seed paths or credentials', async () => {
+  const f = await fixture();
+  let approvals = 0;
+  const s = new FipsResourceSession({
+    approve: async () => {
+      approvals++;
+      return true;
+    },
+    enabled: () => true,
+    transport: f.transport,
+  });
+  try {
+    const [id] = await s.open([
+      {
+        ...f.descriptor,
+        providers: [
+          {
+            ...provider,
+            seedUrls: ['wss://seed.example.com/private-path?token=not-for-diagnostics#'],
+          },
+        ],
+      },
+    ]);
+    await s.bytes(id!, f.descriptor.root);
+    await s.bytes(id!, f.ha);
+    const first = s.dashboardSnapshot();
+    expect(first.cacheEntries).toBe(2);
+    expect(first.cacheBytes).toBeGreaterThan(1024);
+    expect(first.grants[0]!.providers[0]!.seeds).toEqual(['wss://seed.example.com']);
+    expect(first.grants[0]!.operationsAllowed).toBe(false);
+    s.clearCache();
+    expect(s.dashboardSnapshot()).toMatchObject({ cacheBytes: 0, cacheEntries: 0 });
+    expect(s.dashboardSnapshot().grants[0]!.id).toBe(id);
+    expect(await s.bytes(id!, f.ha)).toEqual(f.a);
+    expect(f.reads()).toBe(3);
+    expect(approvals).toBe(1);
+    await s.request(id!, { path: 'capabilities', method: 'GET' });
+    expect(s.dashboardSnapshot().grants[0]!.operationsAllowed).toBe(true);
+    s.release(id!);
+    expect(s.dashboardSnapshot().grants).toHaveLength(0);
+    await expect(s.bytes(id!, f.ha)).rejects.toThrow('revoked');
+  } finally {
+    s.close();
+  }
+});
+
+test('disconnect receipts retain transport totals and count pending cancellations synchronously exactly once', async () => {
+  clearRecentSessions();
+  const f = await fixture();
+  const status = f.transport.status;
+  f.transport.status = () => ({ ...status(), bytesReceived: 4096 });
+  const s = new FipsResourceSession({
+    approve: async () => true,
+    enabled: () => true,
+    transport: f.transport,
+  });
+  const entry = registerFipsDashboardSession(
+    { title: 'Closing reader' },
+    {
+      snapshot: () => s.dashboardSnapshot(),
+      disconnect: () => {
+        s.close();
+        entry.end();
+      },
+      revokeGrant: (id) => s.release(id),
+      clearCache: () => s.clearCache(),
+    },
+  );
+  try {
+    const [id] = await s.open([f.descriptor]);
+    await s.bytes(id!, f.descriptor.root);
+    const late = Promise.withResolvers<Uint8Array>();
+    f.transport.fetchBlob = async () => late.promise;
+    const pending = s.bytes(id!, f.ha).then(
+      () => false,
+      () => true,
+    );
+    disconnectSession(entry.id);
+    expect(fipsDashboardSnapshot().recentSessions[0]!.stats).toMatchObject({
+      fipsBytes: 4096,
+      networkRequests: 1,
+      cancelledRequests: 1,
+      activeTransfers: 0,
+      queuedTransfers: 0,
+    });
+    late.resolve(f.a);
+    expect(await pending).toBe(true);
+    expect(s.stats()).toMatchObject({ fipsBytes: 4096, networkRequests: 1, cancelledRequests: 1 });
+    expect(fipsDashboardSnapshot().recentSessions[0]!.stats.cancelledRequests).toBe(1);
+    expect(s.dashboardSnapshot()).toMatchObject({ cacheBytes: 0, cacheEntries: 0, grants: [] });
+  } finally {
+    s.close();
+    entry.end(false);
+    clearRecentSessions();
   }
 });

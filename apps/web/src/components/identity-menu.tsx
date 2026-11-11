@@ -1,7 +1,7 @@
 import type { AdminAccess } from '../lib/admin-client';
-import { useId, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useId, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation } from '@tanstack/react-router';
-import { Dialog, DialogContent } from './ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { CreatorLink } from './creator-link';
 import {
   Copy,
@@ -22,8 +22,13 @@ import { defaultSignerRelays } from '../../../../packages/identity/src/signer';
 import { CreateKeyPanel, KeyBackup } from './key-backup';
 import { useStudio } from './studio-provider';
 import { IntentHandlerSettings } from './intent-handler-settings';
+import { FipsIndicator } from './fips-indicator';
 
 import { WorkDot } from './work-provider';
+
+const FipsDashboard = lazy(() =>
+  import('./fips-dashboard').then((module) => ({ default: module.FipsDashboard })),
+);
 
 export function IdentityMenu({
   open,
@@ -54,6 +59,7 @@ export function IdentityMenu({
   const [secret, setSecret] = useState('');
   const [password, setPassword] = useState('');
   const [showBackup, setShowBackup] = useState(false);
+  const [inspectFips, setInspectFips] = useState(false);
   const [relay, setRelay] = useState(defaultSignerRelays[0]);
   const [showRelay, setShowRelay] = useState(false);
   const [accepted, setAccepted] = useState(false);
@@ -560,6 +566,13 @@ export function IdentityMenu({
       {!busy && (
         <section className="identity-settings" aria-label="App settings">
           <h3>Settings</h3>
+          <FipsIndicator
+            onNavigate={() => changeOpen(false)}
+            onInspect={() => {
+              changeOpen(false);
+              setInspectFips(true);
+            }}
+          />
           {studio.client && (
             <Button
               variant="outline"
@@ -577,28 +590,45 @@ export function IdentityMenu({
     </>
   );
   return (
-    <Popover open={open} onOpenChange={changeOpen}>
-      {children}
-      {gamegrid ? (
-        <Dialog open={open} onOpenChange={changeOpen}>
-          <DialogContent
-            className="identity-menu gg-account"
-            showCloseButton={false}
+    <>
+      <Popover open={open} onOpenChange={changeOpen}>
+        {children}
+        {gamegrid ? (
+          <Dialog open={open} onOpenChange={changeOpen}>
+            <DialogContent
+              className="identity-menu gg-account"
+              showCloseButton={false}
+              aria-labelledby={titleId}
+              aria-describedby={method ? undefined : descriptionId}
+            >
+              {content}
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <PopoverContent
+            className="identity-menu"
             aria-labelledby={titleId}
             aria-describedby={method ? undefined : descriptionId}
           >
             {content}
-          </DialogContent>
-        </Dialog>
-      ) : (
-        <PopoverContent
-          className="identity-menu"
-          aria-labelledby={titleId}
-          aria-describedby={method ? undefined : descriptionId}
+          </PopoverContent>
+        )}
+      </Popover>
+      <Dialog open={inspectFips} onOpenChange={setInspectFips}>
+        <DialogContent
+          className="fips-dashboard-dialog"
+          aria-describedby={undefined}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            document.getElementById('identity-button')?.focus({ preventScroll: true });
+          }}
         >
-          {content}
-        </PopoverContent>
-      )}
-    </Popover>
+          <DialogTitle className="sr-only">Inspect FIPS connections</DialogTitle>
+          <Suspense fallback={<p role="status">Loading FIPS connections…</p>}>
+            <FipsDashboard />
+          </Suspense>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

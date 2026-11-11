@@ -206,6 +206,8 @@ export function attachNappletHost(options: HostOptions) {
       send: sendScoped,
       approve: (value, signal) => choose('network', value, { signal }),
       localSeeds: options.localFipsSeeds,
+      title: options.title,
+      address: `event:${options.manifestId}`,
     });
     const consent = (kind: 'action' | 'upload', value: string, signal: AbortSignal) =>
       choose(kind, `${options.title ?? 'This napplet'} requests:\n${value}`, { signal });
@@ -519,7 +521,7 @@ export function attachNappletHost(options: HostOptions) {
         for (const fail of requests) fail(new Error(reason));
         requests.clear();
         answer?.(false);
-        fips.close();
+        fips.close(reason !== 'Identity changed');
         media.close();
         backend?.close();
         webrtc?.close();

@@ -9,6 +9,7 @@ import { IdentityMenu } from './identity-menu';
 import { StudioProvider } from './studio-provider';
 import { WorkProvider } from './work-provider';
 import { WalletProvider } from './wallet/wallet-provider';
+import { clearRecentSessions } from '../../../../packages/runtime/src/fips/dashboard';
 
 if (typeof window !== 'undefined') void enableWasmVerification();
 
@@ -47,6 +48,7 @@ export function NostrProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setReady(true);
     const manager = browserIdentity();
+    let previousPubkey = manager.state.pubkey;
     setIdentity(manager.state);
     void manager.initialize();
     const sync = () => {
@@ -54,6 +56,12 @@ export function NostrProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener('focus', sync);
     const unsubscribe = manager.subscribe(() => {
+      // The player may already have closed when this account changes from Manage.
+      // Its recent resource activity must not follow the next selected account.
+      if (manager.state.pubkey !== previousPubkey) {
+        previousPubkey = manager.state.pubkey;
+        clearRecentSessions();
+      }
       setIdentity(manager.state);
       if (manager.state.authorization) void connect();
     });

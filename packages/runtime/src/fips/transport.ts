@@ -4,12 +4,14 @@ import {
   type Transport,
   type PeerEvent,
   type TransportAddress,
+  type TransportContext,
 } from '@fips/core';
 import { WebSocketTransport } from '@fips/transport-websocket';
 import { fromHex, toHex } from '@hashtree/core';
 import type { FipsProvider } from './contract';
 import { TcpBlobTransport } from './vendor/tcpBlobTransport';
 import { abortable, FipsRpcEndpoint, type FipsRpcRequest, type FipsRpcResponse } from './rpc';
+import type { FipsTransportSnapshot } from './dashboard';
 export { FIPS_RPC_TIMEOUT_MS } from './rpc';
 /** Includes waiting for transfer slots; per-attempt budgets remain 30 seconds. */
 export const FIPS_REQUEST_TIMEOUT_MS = 20 * 60_000;
@@ -65,15 +67,36 @@ class Queue {
 }
 // One carrier budget across all frames; identity, deduplication and counters stay frame-scoped.
 const transfers = new Queue();
+/** Observe public transport events without inspecting upstream socket internals. */
+class MonitoredWebSocketTransport extends WebSocketTransport {
+  private readySeeds = new Set<string>();
+  get readySeedCount() {
+    return this.readySeeds.size;
+  }
+  override start(context: TransportContext) {
+    return super.start({
+      ...context,
+      onConnectionState: (event) => {
+        if (event.state === 'connected') this.readySeeds.add(event.remoteAddr.addr);
+        else this.readySeeds.delete(event.remoteAddr.addr);
+        context.onConnectionState?.(event);
+      },
+    });
+  }
+  override async stop() {
+    this.readySeeds.clear();
+    await super.stop();
+  }
+}
 type Connection = {
   key: string;
   cached: Promise<Connection>;
   node: FipsNode;
   blobs: TcpBlobTransport;
   rpc: FipsRpcEndpoint;
-  websocket?: WebSocketTransport;
+  websocket?: MonitoredWebSocketTransport;
   peerId: string;
-  peers: Set<string>;
+  peers: Map<string, string>;
   users: number;
   retired: boolean;
   closing?: Promise<void>;
@@ -115,6 +138,12 @@ export class FipsClient {
     failovers: 0,
     rpcRequests: 0,
   };
+  private closedCarrierCounters = {
+    connectionAttempts: 0,
+    reconnects: 0,
+    wireBytesReceived: 0,
+    wireBytesSent: 0,
+  };
   constructor(
     private options: {
       transports?: (seedUrls: string[]) => Transport[];
@@ -137,18 +166,19 @@ export class FipsClient {
       promise = (async () => {
         const identity = await generateIdentity();
         const custom = this.options.transports?.(seeds);
-        const websocket = custom ? undefined : new WebSocketTransport({ seedUrls: seeds });
+        const websocket = custom ? undefined : new MonitoredWebSocketTransport({ seedUrls: seeds });
         const node = new FipsNode({
           identity,
           transports: custom ?? [websocket!],
           forwarding: false,
           routingMode: 'reply_learned',
         });
-        const peers = new Set<string>();
+        const peers = new Map<string, string>();
         node.on('peer', (raw) => {
           const event = raw as PeerEvent;
-          if (event.state === 'connected') peers.add(event.remotePubkey);
-          else if (event.state === 'disconnected') peers.delete(event.remotePubkey);
+          const path = JSON.stringify([event.remoteAddr.transport, event.remoteAddr.addr]);
+          if (event.state === 'connected') peers.set(path, event.remotePubkey);
+          else if (event.state === 'disconnected') peers.delete(path);
         });
         const blobs = new TcpBlobTransport({
           endpoint: node,
@@ -201,6 +231,13 @@ export class FipsClient {
         try {
           await connection.node.stop();
         } finally {
+          const stats = connection.websocket?.stats();
+          if (stats) {
+            this.closedCarrierCounters.connectionAttempts += stats.connectionAttempts;
+            this.closedCarrierCounters.reconnects += stats.reconnectsScheduled;
+            this.closedCarrierCounters.wireBytesReceived += stats.bytesReceived;
+            this.closedCarrierCounters.wireBytesSent += stats.bytesSent;
+          }
           this.liveConnections.delete(connection);
         }
       }
@@ -346,6 +383,29 @@ export class FipsClient {
       queuedTransfers: this.queuedTransfers,
       connections: this.connections.size,
     };
+  }
+  /** Host-only carrier counters: no transport identity, packets or destination URLs. */
+  diagnostics(): FipsTransportSnapshot {
+    const result = {
+      ...this.closedCarrierCounters,
+      seedGroups: this.connections.size,
+      connectedPeers: 0,
+      openSeedSockets: 0,
+    };
+    const peers = new Set<string>();
+    for (const connection of this.liveConnections) {
+      if (!connection.closing) for (const peer of connection.peers.values()) peers.add(peer);
+      const stats = connection.websocket?.stats();
+      if (stats) {
+        if (!connection.closing) result.openSeedSockets += connection.websocket!.readySeedCount;
+        result.connectionAttempts += stats.connectionAttempts;
+        result.reconnects += stats.reconnectsScheduled;
+        result.wireBytesReceived += stats.bytesReceived;
+        result.wireBytesSent += stats.bytesSent;
+      }
+    }
+    result.connectedPeers = peers.size;
+    return result;
   }
   async stop() {
     this.lifetime.abort(new Error('FIPS client closed'));

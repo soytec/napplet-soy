@@ -1,5 +1,12 @@
 import { expect, test } from 'bun:test';
-import { FipsNode, generateIdentity, toHex, type TransportAddress } from '@fips/core';
+import {
+  FipsNode,
+  generateIdentity,
+  toHex,
+  type Transport,
+  type TransportAddress,
+  type TransportContext,
+} from '@fips/core';
 import { TcpBlobTransport } from './vendor/tcpBlobTransport';
 import { FipsRpcEndpoint } from './rpc';
 import { FipsClient } from './transport';
@@ -96,8 +103,19 @@ test('real FIPS stacks deduplicate overlapping bytes, fail over and preserve JSO
     expect(binary.bytes).toEqual(new Uint8Array([0, 255, 33]));
     expect(rpcCalls).toBe(2);
     expect(client.status().activeTransfers).toBe(0);
+    expect(client.diagnostics()).toMatchObject({
+      seedGroups: 1,
+      connectedPeers: 2,
+      openSeedSockets: 0,
+    });
+    expect(JSON.stringify(client.diagnostics())).not.toContain(serving.peerId);
   } finally {
     await client.stop();
+    expect(client.diagnostics()).toMatchObject({
+      seedGroups: 0,
+      connectedPeers: 0,
+      openSeedSockets: 0,
+    });
     await serving.close();
     await missing.close();
   }
@@ -145,6 +163,97 @@ test('cancelling the last waiter resets its TCP stream and releases queue capaci
   } finally {
     await client.stop();
     await server.close();
+  }
+}, 10000);
+
+test('dashboard keeps an authenticated peer connected when one of its carrier paths disconnects', async () => {
+  class PathCarrier implements Transport {
+    readonly mtu = 65535;
+    readonly maxFrameBytes = 66000;
+    private carrier: MemoryCarrier;
+    private context?: TransportContext;
+    constructor(
+      readonly type: string,
+      peers: Map<string, MemoryCarrier>,
+    ) {
+      this.carrier = new MemoryCarrier(peers);
+    }
+    start(context: TransportContext) {
+      this.context = context;
+      return this.carrier.start({
+        ...context,
+        onPacket: (packet) =>
+          context.onPacket({
+            ...packet,
+            transportType: this.type,
+            remoteAddr: { ...packet.remoteAddr, transport: this.type },
+          }),
+      });
+    }
+    stop() {
+      return this.carrier.stop();
+    }
+    connect(address: TransportAddress) {
+      return this.carrier.connect(address);
+    }
+    send(address: TransportAddress, packet: Uint8Array) {
+      return this.carrier.send(address, packet);
+    }
+    disconnect(peerId: string) {
+      this.context?.onConnectionState?.({
+        remoteAddr: { transport: this.type, addr: peerId },
+        state: 'disconnected',
+      });
+      return this.stop();
+    }
+  }
+  const identity = await generateIdentity(),
+    peerId = toHex(identity.publicKey);
+  const paths = [new Map<string, MemoryCarrier>(), new Map<string, MemoryCarrier>()];
+  const node = new FipsNode({
+    identity,
+    transports: paths.map((peers, i) => new PathCarrier(`path-${i}`, peers)),
+    forwarding: false,
+    routingMode: 'reply_learned',
+  });
+  const bytes = new Uint8Array(1024).fill(31),
+    hash = await digest(bytes);
+  const blobs = new TcpBlobTransport({
+    endpoint: node,
+    localStore: store,
+    timeoutMs: 2000,
+    serveBlob: async () => bytes,
+  });
+  await node.start();
+  const carriers = paths.map((peers, i) => new PathCarrier(`path-${i}`, peers));
+  const client = new FipsClient({
+    transports: () => carriers,
+    bootstrap: carriers.map((carrier) => ({ transport: carrier.type, addr: peerId })),
+    timeoutMs: 2000,
+  });
+  try {
+    const descriptor = { peerId, seedUrls: ['wss://fixture.example/fips'] };
+    expect(await client.fetchBlob(hash, [descriptor])).toEqual(bytes);
+    expect(client.diagnostics()).toMatchObject({
+      seedGroups: 1,
+      connectedPeers: 1,
+      openSeedSockets: 0,
+    });
+    await carriers[0]!.disconnect(peerId);
+    expect(client.diagnostics().connectedPeers).toBe(1);
+    expect(await client.fetchBlob(hash, [descriptor])).toEqual(bytes);
+    await carriers[1]!.disconnect(peerId);
+    expect(client.diagnostics().connectedPeers).toBe(0);
+    await client.stop();
+    expect(client.diagnostics()).toMatchObject({
+      connectedPeers: 0,
+      openSeedSockets: 0,
+      seedGroups: 0,
+    });
+  } finally {
+    await client.stop();
+    await blobs.close();
+    await node.stop();
   }
 }, 10000);
 
