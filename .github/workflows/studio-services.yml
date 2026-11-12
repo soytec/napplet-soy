@@ -21,6 +21,10 @@ on:
       - 'tests/services/cvm-payments.test.ts'
       - 'tests/services/cvm-checkout-browser.test.ts'
       - 'tests/fixtures/cvm-checkout.ts'
+      - 'tests/services/optional-wallet.test.ts'
+      - 'tests/services/fixtures/optional-wallet/**'
+      - 'tests/services/wallet-*.test.ts'
+      - 'tests/fixtures/wallet-*.ts'
       - 'tests/services/studio-publication.test.ts'
       - 'tests/services/publish-check.test.ts'
       - 'tests/services/nip5d-port*.test.ts'
@@ -130,6 +134,10 @@ jobs:
         run: |
           bun test tests/services/cvm-payments.test.ts
           bun test tests/services/cvm-checkout-browser.test.ts
+      - name: Verify optional wallet, cache and loading lifecycle
+        run: |
+          bun test packages/wallet tests/services/wallet-cache.test.ts tests/services/wallet-loading.test.ts
+          bun test tests/services/optional-wallet.test.ts
       - name: Verify update publication and sandbox media capture
         run: bun test tests/services/studio-publication.test.ts && bun test tests/services/publish-check.test.ts
       - name: Verify private port identity and sandbox revocation
