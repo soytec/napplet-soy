@@ -104,15 +104,33 @@ store; public recipient metadata and receipt lookups use a separate signer-free
 payment client. Neither private wallet proofs nor wallet history are seeded into
 the public shell cache.
 
-Loading reuses a saved wallet's own relay addresses. On a new device, the first
-lookup fetches wallet data together with relay hints; a second lookup is needed
-only for additional advertised destinations. Verified events enter the store as
-they arrive. Once a wallet is known and a relay completes its snapshot, the
-Applesauce group read policy allows quiet stragglers to stop blocking the initial
-view (3-second grace, 1.5-second idle detection, within the 12-second lookup budget).
-An empty first relay alone does not end wallet discovery. The live wallet loader
-continues synchronization after opening; initial results are not a guarantee of
-complete history across offline relays. Mint proof-state checks still precede spending.
+Loading reuses a saved wallet's own relay addresses. Bootstrap requests only
+wallet configuration and relay hints (kinds 17375, 10019 and 10002), visiting
+additional advertised destinations without re-reading those already queried.
+Once a wallet is known and a relay completes its metadata snapshot, the Applesauce
+group read policy allows quiet stragglers to stop blocking discovery (3-second
+grace, 1.5-second idle detection, within the 12-second lookup budget). An empty
+first relay alone does not end wallet discovery.
+
+NutWallet owns token/history/deletion backfill and live loading. Explicit refresh
+uses one native resync; a changed relay set already triggers that reload and does
+not receive an additional explicit resync. Relay sets are normalized and sorted.
+Unchanged nutzap subscriptions remain open across refreshes; failed subscriptions
+can be retried. Configuration changes on the same relays do not force a new sync.
+Balance/history UI projections coalesce event bursts into 16 ms windows, while
+event admission and financial operations remain immediate. Wallet actions wait
+while native loading/unlocking is busy; the initial view can show progressive
+balances with a syncing indicator. Offline relays still mean history can be
+incomplete, and mint proof-state checks still precede spending.
+
+These loading optimizations are source changes, not deployed. Applesauce remains
+pinned to 7.0.0. Upstream [#116](https://github.com/hzrd149/applesauce/issues/116)
+(authorless wallet-deletion filters) and
+[#117](https://github.com/hzrd149/applesauce/issues/117) (per-emission watchdog timer
+churn) await an upstream release; these local changes do not patch those internals.
+The isolated browser regression (`bun test tests/services/wallet-loading.test.ts`)
+checks metadata-only discovery, one native token backfill per relay per refresh,
+retained nutzap subscriptions and correct balances after native deletion loading.
 Local and production wallets contact relays and mints from the browser; adding
 relays improves redundancy but does not inherently make these operations faster.
 
@@ -161,6 +179,40 @@ scripts running on the same origin. The Nostr signer encrypts exported backups t
 the same account. Keep account recovery separately and export before clearing
 browser data. Relay-only recovery cannot reconstruct an unfinished mint request
 whose blinding secrets were only on the lost device.
+
+### Decryption cache — source implementation, not deployed
+
+The browser passes its account-scoped encrypted vault to NutWallet's
+`decryptionCache`. Wallet configuration, token proofs and history plaintext are
+cached by signed event ID. Reopening an unchanged wallet on the same browser
+profile uses the cache without NIP-44 signer requests. New events and missing
+cache entries still require decryption; sign-in, relay authentication and signing
+wallet changes may independently prompt. Metadata discovery precedes the initial
+view and native event sync can continue while it is shown; this cache is not an
+offline wallet-event database.
+
+Each vault reuses one non-exportable AES-GCM key initialization, reading the
+existing key before generating a candidate and atomically checking again before
+storing it. Cached-content reads run with bounded concurrency; signer requests
+remain serial. Concurrent unlock callers share a task that also drains events
+arriving during decryption. Each successful decryption is saved before requesting
+the next, so a later denial preserves earlier progress. Locally authored token
+and history plaintext is saved without asking the signer to decrypt it again.
+
+Cache failures surface in the wallet UI instead of silently becoming signer
+requests. Failed automatic unlocks pause until manual retry/sync. Lock/close
+invalidates pending unlock work and clears plaintext after in-flight signer
+replies settle; closing also releases the vault connection and key reference.
+Locking does not delete the persistent cache or recovery journal. Silent reopening
+trusts this browser profile: non-exportability is not a user-presence requirement
+or protection against same-origin scripts using the stored key. Do not clear
+wallet storage to resolve a cache error without preserving recovery data.
+
+Regression checks cover warm browser reload with zero signer decryptions and zero
+key generations, account-separated encrypted IndexedDB, concurrent unlocks, late
+events/replies, denied requests, failed cache reads/writes and locally authored
+empty-change/history events. Run `bun test packages/wallet
+tests/services/wallet-cache.test.ts` for these checks.
 
 NIP-09 deletion timestamps never predate the superseded token events, including
 events whose timestamp was rounded up by the library. This prevents old proofs

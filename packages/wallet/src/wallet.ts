@@ -17,12 +17,16 @@ import {
   type SwapPreview,
 } from '@cashu/cashu-ts';
 import { NutWallet, type NutWalletOptions } from 'applesauce-wallet/wallet';
+import { getEncryptedContent, setEncryptedContentCache } from 'applesauce-core/helpers';
 import { WalletFactory, WalletTokenFactory } from 'applesauce-wallet/factories';
 import {
   getTokenContent,
   getWalletPrivateKey,
   getWalletMints,
   getWalletRelays,
+  unlockWallet,
+  unlockTokenContent,
+  unlockHistoryContent,
 } from 'applesauce-wallet/helpers';
 import { generateSecretKey, getPublicKey, type NostrEvent, type EventTemplate } from 'nostr-tools';
 import { bytesToHex } from '@noble/hashes/utils.js';
@@ -65,6 +69,9 @@ export class ShellWallet extends NutWallet {
   readonly transactions$ = new BehaviorSubject<WalletTransaction[]>([]);
   readonly progress$ = new BehaviorSubject('');
   private alive = true;
+  private unlockTask?: Promise<void>;
+  private contentGeneration = 0;
+  private readonly cachedContent = new WeakSet<NostrEvent>();
   constructor(
     options: NutWalletOptions,
     readonly storage: WalletStorage,
@@ -80,6 +87,111 @@ export class ShellWallet extends NutWallet {
   private check() {
     if (!this.alive) throw new WalletError('Wallet closed. Reopen it for this account.');
     this.assertAccount();
+  }
+  /** Share one unlock pass, including events that arrive while a signer is open.
+   * Unlike the upstream batch cache, each successful decryption is durable before
+   * moving on; a denied later request cannot discard earlier cache progress. */
+  override unlock(): Promise<void> {
+    if (this.unlockTask) return this.unlockTask;
+    const generation = this.contentGeneration;
+    const active = () => {
+      this.check();
+      if (generation !== this.contentGeneration)
+        throw new WalletError('Wallet locked. Reopen it to continue.');
+    };
+    this.unlockTask = Promise.resolve()
+      .then(() =>
+        this.track('unlock', async () => {
+          active();
+          if (!this.eventStore.getReplaceable(17375, this.pubkey))
+            throw new WalletError('Wallet does not exist.');
+          const processed = new Set<string>();
+          for (;;) {
+            const events = this.getEncryptedEvents().filter((event) => !processed.has(event.id));
+            if (!events.length) break;
+            const restored = new Set<string>();
+            // Cache IO can run in parallel; interactive signer calls remain serial.
+            // Bound the lookups so large wallets do not flood IndexedDB transactions.
+            if (this.decryptionCache) {
+              const locked = events.filter((event) => getEncryptedContent(event) === undefined);
+              for (let offset = 0; offset < locked.length; offset += 8) {
+                await Promise.all(
+                  locked.slice(offset, offset + 8).map(async (event) => {
+                    active();
+                    this.cachedContent.delete(event);
+                    let content;
+                    try {
+                      content = await this.decryptionCache!.getItem(event.id);
+                    } catch {
+                      throw new WalletError(
+                        'Wallet decryption cache could not be read. Retry before requesting decryption.',
+                      );
+                    }
+                    active();
+                    if (typeof content === 'string') {
+                      restored.add(event.id);
+                      setEncryptedContentCache(event, content);
+                    }
+                  }),
+                );
+              }
+            }
+            for (const event of events) {
+              active();
+              if (getEncryptedContent(event) !== undefined && this.cachedContent.has(event)) {
+                processed.add(event.id);
+                continue;
+              }
+              try {
+                if (event.kind === 17375) await unlockWallet(event, this.signer);
+                else if (event.kind === 7375) await unlockTokenContent(event, this.signer);
+                else await unlockHistoryContent(event, this.signer);
+              } catch {
+                throw new WalletError(
+                  'Wallet decryption did not complete. Unlock your signer and retry.',
+                );
+              }
+              active();
+              if (restored.has(event.id)) this.cachedContent.add(event);
+              await this.persistKnownContent([event]);
+              processed.add(event.id);
+            }
+          }
+        }),
+      )
+      .catch((error) => {
+        // A denied signer or failed cache must not create a background prompt loop.
+        this.setAutoUnlock(false);
+        throw error instanceof WalletError
+          ? error
+          : new WalletError('Wallet decryption did not complete. Unlock your signer and retry.');
+      })
+      .finally(() => {
+        this.unlockTask = undefined;
+      });
+    return this.unlockTask;
+  }
+  override async lock() {
+    this.setAutoUnlock(false);
+    this.contentGeneration++;
+    // In-flight signer replies can attach plaintext. Clear it after they settle.
+    await this.unlockTask?.catch(() => {});
+    await super.lock();
+  }
+  private async persistKnownContent(events: NostrEvent[]) {
+    if (!this.decryptionCache) return;
+    for (const event of events) {
+      const content = getEncryptedContent(event);
+      if (content === undefined || this.cachedContent.has(event)) continue;
+      try {
+        await this.decryptionCache.setItem(event.id, content);
+      } catch {
+        throw new WalletError(
+          'Wallet decryption cache could not be saved. Free disk space and retry; keep browser data for recovery.',
+        );
+      }
+      this.cachedContent.add(event);
+    }
   }
   async refreshTransactions() {
     this.transactions$.next(await this.journal.list());
@@ -182,6 +294,7 @@ export class ShellWallet extends NutWallet {
       required: event.kind === 9321 ? walletRelays(relays ?? []) : own,
     }));
     await this.storage.setItem('outbox', JSON.stringify({ items }));
+    await this.persistKnownContent(events);
     await this.flush();
   }
   async flush() {
@@ -270,7 +383,8 @@ export class ShellWallet extends NutWallet {
     });
     await this.publishBatch([signed, info], relays);
     await this.unlock();
-    this.resync();
+    // The runtime's relay observable restarts loading if destinations changed.
+    // Same-relay configuration is already in the store and needs no second sync.
   }
   private transaction(
     type: WalletTransaction['type'],
@@ -847,6 +961,11 @@ export class ShellWallet extends NutWallet {
           ),
         });
     events.push(token);
+    if (!keep.length)
+      setEncryptedContentCache(
+        token,
+        JSON.stringify({ mint: tx.mint, proofs: [], unit: 'sat', del: spent }),
+      );
     if (tx.type === 'nutzap') {
       const recipient = nutzapRecipient(tx.recipient!);
       const proofs = deserializeProofs(tx.send!);
@@ -908,6 +1027,7 @@ export class ShellWallet extends NutWallet {
         ],
       }),
     );
+    setEncryptedContentCache(events[events.length - 1], JSON.stringify(historyTags));
     if (spent.length)
       events.push(
         await this.signer.signEvent({
@@ -921,5 +1041,6 @@ export class ShellWallet extends NutWallet {
       );
     tx.events = events;
     await this.save(tx);
+    await this.persistKnownContent(events);
   }
 }

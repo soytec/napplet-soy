@@ -7,7 +7,7 @@ import { WalletError } from '../../../../packages/wallet/src/errors';
 import { EventStore } from 'applesauce-core';
 import { getHiddenTags } from 'applesauce-core/helpers';
 import { RelayPool } from 'applesauce-relay';
-import { BehaviorSubject, Subscription } from 'rxjs';
+import { auditTime, BehaviorSubject, Subscription } from 'rxjs';
 import type { ISigner } from 'applesauce-signers';
 import type { Filter, NostrEvent } from 'nostr-tools';
 import { ShellWallet } from '../../../../packages/wallet/src/wallet';
@@ -19,6 +19,11 @@ import { network } from './network';
 import { walletBootstrapRelays } from '../../../../packages/wallet/src/network';
 import { walletRelays } from '../../../../packages/wallet/src/policy';
 import { readWalletEvents } from '../../../../packages/wallet/src/relay-read';
+import {
+  canonicalWalletRelays,
+  discoverWalletRelays,
+  walletDiscoveryFilters,
+} from '../../../../packages/wallet/src/discovery';
 
 export type WalletRuntime = Awaited<ReturnType<typeof openWallet>>;
 export async function openWallet(pubkey: string) {
@@ -71,8 +76,16 @@ export async function openWallet(pubkey: string) {
       },
     },
   };
-  const fallback = walletBootstrapRelays(network().relays);
+  const fallback = canonicalWalletRelays(walletBootstrapRelays(network().relays));
   const relays$ = new BehaviorSubject(fallback);
+  let started = false,
+    relayGeneration = 0;
+  const setRelays = (urls: string[]) => {
+    const next = canonicalWalletRelays(urls);
+    if (JSON.stringify(next) === JSON.stringify(relays$.value)) return;
+    relayGeneration++;
+    relays$.next(next);
+  };
   const wallet = new ShellWallet(
     {
       pubkey,
@@ -109,10 +122,16 @@ export async function openWallet(pubkey: string) {
     await readWalletEvents({ pool, store, pubkey, signer, relays, filters, assertAccount });
   };
   let nutSub: Subscription | undefined;
-  const watchNutzaps = () => {
-    nutSub?.unsubscribe();
+  let nutQuery = '';
+  const watchNutzaps = (retry = false) => {
     const info = store.getReplaceable(10019, pubkey);
-    const mints = info?.tags.filter((t) => t[0] === 'mint').map((t) => t[1]) ?? [];
+    const mints = [
+      ...new Set(info?.tags.filter((t) => t[0] === 'mint').map((t) => t[1]) ?? []),
+    ].sort();
+    const query = JSON.stringify([relays$.value, mints]);
+    if (query === nutQuery && (!retry || (nutSub && !nutSub.closed))) return;
+    nutQuery = query;
+    nutSub?.unsubscribe();
     if (!mints.length) {
       nuts$.next([]);
       return;
@@ -126,6 +145,7 @@ export async function openWallet(pubkey: string) {
           await relay.authenticate(signer);
         },
       })
+      .pipe(auditTime(16))
       .subscribe({
         next: () => updateNuts(),
         error: () => wallet.progress$.next('Nutzap relay disconnected. Sync to retry receiving.'),
@@ -143,44 +163,33 @@ export async function openWallet(pubkey: string) {
   };
   const refresh = async () => {
     assertAccount();
-    const filters: Filter[] = [
-      { kinds: [10019, 10002, 17375, 7375, 7376], authors: [pubkey] },
-      { kinds: [5], authors: [pubkey], '#k': ['7375'] },
-    ];
-    // A restored wallet already tells us where to load it. First-time discovery
-    // fetches wallet data alongside relay hints instead of repeating the same scan.
-    const existing = store.getReplaceable(17375, pubkey);
-    if (existing) await wallet.unlock();
-    const savedRelays = existing && getWalletRelays(existing);
-    const initial = savedRelays?.length
-      ? walletRelays(savedRelays)
-      : [...new Set([...fallback, ...relays$.value])];
-    await collect(initial, filters);
-    const discovered = store.getReplaceable(17375, pubkey);
-    if (discovered) await wallet.unlock();
-    const owned = discovered && getWalletRelays(discovered);
-    const info = store.getReplaceable(10019, pubkey),
-      mail = store.getReplaceable(10002, pubkey);
-    const advertised = info?.tags.filter((t) => t[0] === 'relay').map((t) => t[1]);
-    const mailboxes = mail?.tags.filter((t) => t[0] === 'r').map((t) => t[1]);
-    const urls = walletRelays(
-      owned?.length
-        ? owned
-        : advertised?.length
-          ? advertised
-          : mailboxes?.length
-            ? mailboxes
-            : fallback,
-    );
-    relays$.next(urls);
-    if (urls.some((url) => !initial.includes(url))) await collect(urls, filters);
+    const generation = relayGeneration;
+    const urls = await discoverWalletRelays({
+      pubkey,
+      store,
+      fallback,
+      current: relays$.value,
+      unlock: () => wallet.unlock(),
+      collect,
+    });
+    assertAccount();
+    setRelays(urls);
     const knownWallet = store.getReplaceable(17375, pubkey);
     if (knownWallet) {
       await storage.setItem('wallet-reference', JSON.stringify(knownWallet));
       await wallet.unlock();
     }
     await wallet.refreshTransactions();
-    watchNutzaps();
+    wallet.setAutoUnlock(true);
+    if (!started) {
+      await wallet.start();
+      started = true;
+    } else if (generation === relayGeneration) {
+      // Changing relays already restarts NutWallet's loader. Otherwise an explicit
+      // refresh requests exactly one native sync, not another custom snapshot.
+      wallet.resync();
+    }
+    watchNutzaps(true);
     updateNuts();
   };
   try {
@@ -207,10 +216,8 @@ export async function openWallet(pubkey: string) {
       );
     for (const event of recovered) if (event.pubkey === pubkey) store.add(verifiedEvent(event));
     await refresh();
-    await wallet.start();
-    wallet.setAutoUnlock(true);
     subs.add(
-      wallet.history$.subscribe((history) => {
+      wallet.history$.pipe(auditTime(16)).subscribe((history) => {
         history$.next(
           (history ?? []).flatMap((h) => {
             const tags = getHiddenTags(h.event);
@@ -234,8 +241,8 @@ export async function openWallet(pubkey: string) {
     );
     subs.add(
       wallet.walletRelays$.subscribe((relays) => {
-        if (relays?.length && JSON.stringify(relays) !== JSON.stringify(relays$.value)) {
-          relays$.next(walletRelays(relays));
+        if (relays?.length) {
+          setRelays(relays);
           watchNutzaps();
         }
       }),
@@ -263,11 +270,8 @@ export async function openWallet(pubkey: string) {
       async discoverAt(urls: string[]) {
         assertAccount();
         const chosen = walletRelays(urls);
-        await collect(chosen, [
-          { kinds: [10019, 17375, 7375, 7376], authors: [pubkey] },
-          { kinds: [5], authors: [pubkey], '#k': ['7375'] },
-        ]);
-        relays$.next(chosen);
+        const generation = relayGeneration;
+        await collect(chosen, walletDiscoveryFilters(pubkey));
         const event = store.getReplaceable(17375, pubkey);
         if (!event)
           throw new WalletError(
@@ -275,8 +279,11 @@ export async function openWallet(pubkey: string) {
           );
         await storage.setItem('wallet-reference', JSON.stringify(event));
         await wallet.unlock();
+        setRelays(chosen);
+        if (generation === relayGeneration) wallet.resync();
+        wallet.setAutoUnlock(true);
         await wallet.refreshTransactions();
-        watchNutzaps();
+        watchNutzaps(true);
       },
       async exportBackup() {
         assertAccount();
@@ -320,6 +327,7 @@ export async function openWallet(pubkey: string) {
         subs.unsubscribe();
         wallet.stop();
         pool.close();
+        storage.close();
         void wallet.lock().catch(() => {});
       },
     };
@@ -329,6 +337,8 @@ export async function openWallet(pubkey: string) {
     subs.unsubscribe();
     wallet.stop();
     pool.close();
+    storage.close();
+    void wallet.lock().catch(() => {});
     throw error;
   }
 }
