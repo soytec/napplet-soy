@@ -57,6 +57,7 @@ export function cvmCheckout(
       const status = text('p', 'Scan or copy the invoice to use another wallet.');
       status.setAttribute('role', 'status');
       let dispose = () => {};
+      let stopAvailability = () => {};
       let activity: ReturnType<typeof shellActivity> | undefined;
       let finished = false,
         busy = false;
@@ -65,6 +66,7 @@ export function cvmCheckout(
         finished = true;
         offer.signal.removeEventListener('abort', abort);
         activity?.dismiss();
+        stopAvailability();
         dispose();
         dialog.remove();
         error ? reject(error) : resolve();
@@ -103,6 +105,11 @@ export function cvmCheckout(
         label.append(fees);
         const pay = button('Pay from wallet', async () => {
           if (busy) return;
+          if (backend.available?.() === false) {
+            status.textContent =
+              'Shell wallet unavailable. Scan or copy the invoice to use another wallet.';
+            return;
+          }
           const maxFeesMsat = Number(fees.value) * 1000;
           if (!Number.isSafeInteger(maxFeesMsat) || maxFeesMsat < 0) {
             status.textContent = 'Enter a valid maximum fee.';
@@ -183,6 +190,15 @@ export function cvmCheckout(
           }
           if (!finished && !offer.signal.aborted) dispose = presentShellDialog(dialog);
         });
+        const updateAvailability = () => {
+          const available = backend.available?.() !== false;
+          label.hidden = !available;
+          pay.hidden = !available;
+          // Never re-enable an uncertain or in-progress payment on a setting change.
+          pay.disabled = busy || !available;
+        };
+        updateAvailability();
+        stopAvailability = backend.subscribeAvailability?.(updateAvailability) ?? (() => {});
       }
       button('Close', () =>
         finish(new Error('CVM payment cancelled. Your service order remains recoverable.')),

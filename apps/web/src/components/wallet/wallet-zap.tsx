@@ -43,6 +43,7 @@ export function MintInvoicePayment({ invoice, scope }: { invoice: ZapInvoice; sc
   useEffect(() => {
     if (tx?.preimage) zapPayments.confirmPreimage(scope, invoice.paymentHash, tx.preimage);
   }, [tx?.preimage, scope, invoice.paymentHash, pubkey]);
+  if (!wallet.enabled) return null;
   return (
     <section className="wallet-zap">
       <strong>Pay from your Cashu wallet</strong>
@@ -118,6 +119,7 @@ export function NutzapOption({
   const accepted = nutzapRecipient(info).mints.map((m) => m.url),
     mints = (wallet.runtime?.mints() ?? []).filter((m) => accepted.includes(m));
   const tx = wallet.transactions.find((t) => t.id === id);
+  if (!wallet.enabled) return null;
   return (
     <section className="wallet-zap">
       <strong>Or send a nutzap</strong>

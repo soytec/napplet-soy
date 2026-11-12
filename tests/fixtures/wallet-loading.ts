@@ -66,3 +66,26 @@ export async function refresh() {
 export function close() {
   runtime?.close();
 }
+
+// A completed mint response may still need to persist recovery while disabled.
+let settle: (() => void) | undefined;
+export function closeWithPendingOperation() {
+  const pending = new Promise<void>((resolve) => {
+    settle = resolve;
+  });
+  runtime!.close(pending);
+}
+export async function finishPendingOperation() {
+  await runtime!.storage.setItem('fixture-recovery', 'saved-after-disable');
+  const saved = await runtime!.storage.getItem('fixture-recovery');
+  settle!();
+  return saved;
+}
+export async function closedStorage() {
+  try {
+    await runtime!.storage.getItem('fixture-recovery');
+    return false;
+  } catch {
+    return true;
+  }
+}

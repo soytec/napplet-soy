@@ -256,3 +256,54 @@
   display: grid;
   gap: 12px;
 }
+.wallet-preference {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.wallet-switch {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.wallet-switch input {
+  appearance: none;
+  flex: none;
+  width: 40px;
+  height: 24px;
+  padding: 3px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--muted);
+  cursor: pointer;
+}
+.wallet-switch input::before {
+  content: '';
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--foreground);
+}
+.wallet-switch input:checked {
+  background: var(--primary);
+}
+.wallet-switch input:checked::before {
+  transform: translateX(16px);
+  background: var(--primary-foreground);
+}
+.wallet-switch input:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 3px;
+}
+.wallet-switch input:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.wallet-disabled {
+  font-size: 0.9rem;
+}

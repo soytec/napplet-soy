@@ -122,6 +122,7 @@ export function WalletPanel({ full = false }: { full?: boolean }) {
     setShowToken(false);
     wallet.clearError();
   };
+  if (!wallet.enabled) return null;
   return (
     <div className={`wallet-panel${full ? ' wallet-full' : ''}`}>
       <div className="wallet-heading">

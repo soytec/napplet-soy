@@ -37,6 +37,12 @@ test('shared CVM checkout: external QR, wallet approval, uncertainty and cancell
     await page.getByRole('button', { name: 'I’ve paid — continue' }).click();
     await page.waitForFunction(() => (window as any).checkoutState.result === 'continued');
     await open();
+    // Live opt-out hides wallet-only controls without removing external payment.
+    await page.evaluate(() => (window as any).walletAvailable(false));
+    expect(await page.getByRole('button', { name: 'Pay from wallet' }).count()).toBe(0);
+    expect(await page.getByRole('spinbutton').count()).toBe(0);
+    await page.getByAltText('Lightning invoice QR').waitFor();
+    await page.evaluate(() => (window as any).walletAvailable(true));
     await page.getByRole('button', { name: 'Pay from wallet' }).click();
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
     await page.waitForFunction(() => (window as any).checkoutState.result === 'continued');
@@ -59,6 +65,11 @@ test('shared CVM checkout: external QR, wallet approval, uncertainty and cancell
     expect(await page.getByAltText('Lightning invoice QR').count()).toBe(0);
     expect(await page.getByRole('button', { name: 'Pay from wallet' }).isDisabled()).toBe(true);
     expect(await page.getByRole('button', { name: 'Copy invoice' }).isDisabled()).toBe(true);
+    await page.evaluate(() => {
+      (window as any).walletAvailable(false);
+      (window as any).walletAvailable(true);
+    });
+    expect(await page.getByRole('button', { name: 'Pay from wallet' }).isDisabled()).toBe(true);
     expect(await page.evaluate(() => (window as any).checkoutState.statuses)).toBe(0);
     await page.evaluate(() => (window as any).checkoutState.controller.abort());
     await page.getByRole('dialog').waitFor({ state: 'detached' });
