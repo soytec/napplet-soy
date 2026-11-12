@@ -55,9 +55,7 @@ import { GamegridSelect } from './gamegrid-select';
 import { useCountRankings } from '@/lib/use-count-rankings';
 import { rankingNotice } from '@/lib/count-rankings';
 
-const WalletPanel = lazy(() =>
-  import('./wallet/wallet-panel').then((module) => ({ default: module.WalletPanel })),
-);
+import { WalletAccess } from './wallet/wallet-access';
 export type GamegridSearch = {
   q: string;
   section:
@@ -598,7 +596,13 @@ export function Gamegrid({
           type="button"
           className="gg-hud-button"
           aria-label="Open wallet"
-          title={wallet.runtime ? `Wallet · ${wallet.balance.toLocaleString()} sats` : 'Wallet'}
+          title={
+            wallet.runtime
+              ? `Wallet · ${wallet.balance.toLocaleString()} sats`
+              : wallet.enabled
+                ? 'Wallet'
+                : 'Wallet · disabled'
+          }
           onClick={() => setWalletOpen(true)}
         >
           <Wallet size={19} />
@@ -869,7 +873,7 @@ export function Gamegrid({
           <DialogTitle>Your wallet</DialogTitle>
           <DialogDescription>The same wallet you use across napplet.soy.</DialogDescription>
           <Suspense fallback={<p role="status">Opening wallet tools…</p>}>
-            <WalletPanel full />
+            <WalletAccess full />
           </Suspense>
         </DialogContent>
       </Dialog>

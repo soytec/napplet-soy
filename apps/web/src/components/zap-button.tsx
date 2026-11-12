@@ -17,6 +17,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Zap, Check, LoaderCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { useNostr } from './nostr-provider';
+import { useWallet } from './wallet/wallet-provider';
 import {
   Dialog,
   DialogContent,
@@ -51,6 +52,7 @@ export function ZapButton({
   trigger?: ReactElement;
 }) {
   const { pubkey } = useNostr();
+  const { enabled: cashuEnabled } = useWallet();
   const keyRef = useRef(pubkey);
   keyRef.current = pubkey;
   const [open, setOpen] = useState(false),
@@ -180,7 +182,7 @@ export function ZapButton({
     const timer = setTimeout(() => setOpen(false), 1200);
     return () => clearTimeout(timer);
   }, [open, paymentState]);
-  if (!open && !recipient?.lightning && !recipient?.nutzap) return null;
+  if (!open && !recipient?.lightning && !(cashuEnabled && recipient?.nutzap)) return null;
   if (target.tags.some((t) => t[0] === 'zap')) return null;
   return (
     <Dialog
@@ -221,8 +223,8 @@ export function ZapButton({
                 : 'A little lightning for the creator'}
           </DialogTitle>
           <DialogDescription>
-            Send Lightning sats or Cashu nutzaps to the author. Review the amount and confirm with
-            your chosen wallet.
+            {cashuEnabled ? 'Send Lightning sats or Cashu nutzaps' : 'Send Lightning sats'} to the
+            author. Review the amount and confirm with your chosen wallet.
           </DialogDescription>
         </DialogHeader>
         {contribution && (
@@ -409,9 +411,11 @@ export function ZapButton({
             <Button variant="outline" onClick={() => zapPayments.checkNow(scope.key)}>
               Check payment
             </Button>
-            <Suspense fallback={<p>Loading wallet payment…</p>}>
-              <MintInvoicePayment invoice={invoice} scope={scope.key} />
-            </Suspense>
+            {cashuEnabled && (
+              <Suspense fallback={<p>Loading wallet payment…</p>}>
+                <MintInvoicePayment invoice={invoice} scope={scope.key} />
+              </Suspense>
+            )}
             <LightningCode value={invoice.invoice} label="Zap invoice QR code" />
             <textarea aria-label="Lightning invoice" readOnly value={invoice.invoice} />
             <div className="social-actions">
@@ -472,7 +476,10 @@ export function ZapButton({
           <p role="status">Looking up the creator’s Lightning address…</p>
         )}
         {message && <p role="status">{message}</p>}
-        {!invoice && (
+        {!cashuEnabled && !recipient?.lightning && (
+          <p>Enable your NIP-60 wallet in Account & settings to send this creator a nutzap.</p>
+        )}
+        {!invoice && cashuEnabled && (
           <Suspense fallback={<p>Loading nutzap options…</p>}>
             <NutzapOption
               target={target}

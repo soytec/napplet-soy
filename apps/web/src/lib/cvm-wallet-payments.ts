@@ -3,6 +3,7 @@ import type { InvoicePaymentBackend } from '../../../../packages/runtime/src/inv
 import { chooseCapability } from '../../../../packages/runtime/src/capability-dialog';
 import type { WalletRuntime } from './wallet-runtime';
 import type { WalletTransaction } from '../../../../packages/wallet/src/types';
+import { watchWalletAvailability } from './wallet-preference';
 const state = (t: WalletTransaction) =>
   t.quoteState === 'PAID' || t.status === 'complete'
     ? 'settled'
@@ -45,6 +46,8 @@ export function cvmWalletPayments(
     return r;
   };
   return {
+    available: () => !!current(),
+    subscribeAvailability: watchWalletAvailability,
     async prepare(invoice, signal) {
       const r = runtime(),
         mints = r.mints();

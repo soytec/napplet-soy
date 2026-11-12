@@ -22,6 +22,7 @@ import { defaultSignerRelays } from '../../../../packages/identity/src/signer';
 import { CreateKeyPanel, KeyBackup } from './key-backup';
 import { useStudio } from './studio-provider';
 import { IntentHandlerSettings } from './intent-handler-settings';
+import { WalletSwitch } from './wallet/wallet-access';
 import { FipsIndicator } from './fips-indicator';
 
 import { WorkDot } from './work-provider';
@@ -164,6 +165,7 @@ export function IdentityMenu({
                 : 'your extension'}
           </span>
           <code className="public-key">{identity.pubkey}</code>
+          <WalletSwitch />
           <Button variant="outline" asChild>
             <Link to="/manage" hash="profile" onClick={() => changeOpen(false)}>
               Edit your profile

@@ -87,7 +87,29 @@ test('browser runtime delegates token backfill once and keeps unchanged nutzap s
     expect(metadata()).toHaveLength(4);
     expect(tokenBackfill()).toHaveLength(4); // Exactly one further sync per relay.
     expect(nutzaps()).toHaveLength(2); // No replay of unchanged incoming history.
-    await page.evaluate(async (path) => (await import(path)).close(), '/fixture.js');
+    await page.evaluate(
+      async (path) => (await import(path)).closeWithPendingOperation(),
+      '/fixture.js',
+    );
+    const stoppedRequests = requests.length;
+    expect(
+      await page.evaluate(async (path) => {
+        try {
+          await (await import(path)).refresh();
+          return 'unexpected refresh';
+        } catch (error) {
+          return (error as Error).message;
+        }
+      }, '/fixture.js'),
+    ).toContain('Reconnect this wallet');
+    expect(
+      await page.evaluate(
+        async (path) => (await import(path)).finishPendingOperation(),
+        '/fixture.js',
+      ),
+    ).toBe('saved-after-disable');
+    await page.waitForFunction(async (path) => (await import(path)).closedStorage(), '/fixture.js');
+    expect(requests).toHaveLength(stoppedRequests);
   } finally {
     await browser.close();
     server.stop(true);

@@ -8,9 +8,7 @@ import { Button } from '@/components/ui/button';
 const WorkManager = lazy(() =>
   import('@/components/work-manager').then((m) => ({ default: m.WorkManager })),
 );
-const WalletPanel = lazy(() =>
-  import('@/components/wallet/wallet-panel').then((m) => ({ default: m.WalletPanel })),
-);
+import { WalletAccess } from '@/components/wallet/wallet-access';
 const NetworkSettings = lazy(() =>
   import('@/components/network-settings').then((m) => ({ default: m.NetworkSettings })),
 );
@@ -68,7 +66,7 @@ function Manage() {
               <WorkManager hash={currentHash} />
             </Tabs.Content>
             <Tabs.Content value="wallet">
-              <WalletPanel full />
+              <WalletAccess full />
             </Tabs.Content>
             <Tabs.Content value="relays">
               <NetworkSettings />

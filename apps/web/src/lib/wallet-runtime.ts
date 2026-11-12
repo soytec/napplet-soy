@@ -26,14 +26,20 @@ import {
 } from '../../../../packages/wallet/src/discovery';
 
 export type WalletRuntime = Awaited<ReturnType<typeof openWallet>>;
-export async function openWallet(pubkey: string) {
+export async function openWallet(pubkey: string, signal?: AbortSignal) {
+  signal?.throwIfAborted();
   const store = new EventStore({ verifyEvent: verifySignature }),
     pool = new RelayPool();
   const storage = new WalletVault(pubkey),
     subs = new Subscription();
   let closed = false;
   const assertAccount = () => {
-    if (closed || browserIdentity().state.pubkey !== pubkey || browserIdentity().state.reconnect)
+    if (
+      closed ||
+      signal?.aborted ||
+      browserIdentity().state.pubkey !== pubkey ||
+      browserIdentity().state.reconnect
+    )
       throw new WalletError('Reconnect this wallet’s account before continuing.');
   };
   const signer: ISigner = {
@@ -44,7 +50,9 @@ export async function openWallet(pubkey: string) {
     signEvent: async (template) => {
       assertAccount();
       try {
-        return await browserIdentity().sign(pubkey, template);
+        const event = await browserIdentity().sign(pubkey, template);
+        assertAccount();
+        return event;
       } catch {
         throw new WalletError(
           'Wallet signing did not complete. Unlock your selected signer and retry the saved transaction.',
@@ -56,7 +64,9 @@ export async function openWallet(pubkey: string) {
         assertAccount();
         if (peer !== pubkey) throw new WalletError('Wallet encryption must be to self.');
         try {
-          return await browserIdentity().walletCrypt(pubkey, 'encrypt', value);
+          const result = await browserIdentity().walletCrypt(pubkey, 'encrypt', value);
+          assertAccount();
+          return result;
         } catch {
           throw new WalletError(
             'Wallet encryption did not complete. Unlock a signer with NIP-44 support and retry.',
@@ -67,7 +77,9 @@ export async function openWallet(pubkey: string) {
         assertAccount();
         if (peer !== pubkey) throw new WalletError('Wallet decryption must be to self.');
         try {
-          return await browserIdentity().walletCrypt(pubkey, 'decrypt', value);
+          const result = await browserIdentity().walletCrypt(pubkey, 'decrypt', value);
+          assertAccount();
+          return result;
         } catch {
           throw new WalletError(
             'Wallet decryption did not complete. Unlock a signer with NIP-44 support and retry.',
@@ -123,7 +135,22 @@ export async function openWallet(pubkey: string) {
   };
   let nutSub: Subscription | undefined;
   let nutQuery = '';
+  const close = (settled?: Promise<void>) => {
+    if (closed) return;
+    closed = true;
+    signal?.removeEventListener('abort', onAbort);
+    nutSub?.unsubscribe();
+    subs.unsubscribe();
+    wallet.stop();
+    pool.close();
+    // Stop signer/network work now; let an already-dispatched mint response
+    // reach its durable journal before disposing the encrypted storage.
+    void Promise.allSettled([wallet.lock(), settled]).then(() => storage.close());
+  };
+  const onAbort = () => close();
+  signal?.addEventListener('abort', onAbort, { once: true });
   const watchNutzaps = (retry = false) => {
+    assertAccount();
     const info = store.getReplaceable(10019, pubkey);
     const mints = [
       ...new Set(info?.tags.filter((t) => t[0] === 'mint').map((t) => t[1]) ?? []),
@@ -180,9 +207,11 @@ export async function openWallet(pubkey: string) {
       await wallet.unlock();
     }
     await wallet.refreshTransactions();
+    assertAccount();
     wallet.setAutoUnlock(true);
     if (!started) {
       await wallet.start();
+      assertAccount();
       started = true;
     } else if (generation === relayGeneration) {
       // Changing relays already restarts NutWallet's loader. Otherwise an explicit
@@ -216,6 +245,7 @@ export async function openWallet(pubkey: string) {
       );
     for (const event of recovered) if (event.pubkey === pubkey) store.add(verifiedEvent(event));
     await refresh();
+    assertAccount();
     subs.add(
       wallet.history$.pipe(auditTime(16)).subscribe((history) => {
         history$.next(
@@ -279,6 +309,7 @@ export async function openWallet(pubkey: string) {
           );
         await storage.setItem('wallet-reference', JSON.stringify(event));
         await wallet.unlock();
+        assertAccount();
         setRelays(chosen);
         if (generation === relayGeneration) wallet.resync();
         wallet.setAutoUnlock(true);
@@ -321,24 +352,10 @@ export async function openWallet(pubkey: string) {
         const event = store.getReplaceable(17375, pubkey);
         return event ? (getWalletRelays(event) ?? relays$.value) : relays$.value;
       },
-      close: () => {
-        closed = true;
-        nutSub?.unsubscribe();
-        subs.unsubscribe();
-        wallet.stop();
-        pool.close();
-        storage.close();
-        void wallet.lock().catch(() => {});
-      },
+      close,
     };
   } catch (error) {
-    closed = true;
-    nutSub?.unsubscribe();
-    subs.unsubscribe();
-    wallet.stop();
-    pool.close();
-    storage.close();
-    void wallet.lock().catch(() => {});
+    close();
     throw error;
   }
 }

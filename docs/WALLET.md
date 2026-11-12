@@ -4,11 +4,29 @@ Deployed on 2026-10-23 with [PR #39](https://github.com/soytec/napplet-soy/pull/
 website release `20261023152532295-30964`. The wallet belongs to the selected
 shell account. It is available beside the account button and under
 **Manage → Wallet** (`/manage#wallet`). It does not grant wallet access to napplets.
-After sign-in or restoring a saved account, wallet loading starts automatically
-once the signer is ready. It never creates a wallet or trusts mints automatically.
-Signer failures offer a manual retry instead of repeated prompts. Locking keeps
-the wallet closed during the current page session, including route changes;
-reloading the app starts automatic loading again.
+The wallet is **off by default**, including for accounts that previously used
+it. Enable **NIP-60 wallet** in the account or wallet popover, or Manage → Wallet.
+The preference is per account and browser; enabling one account does not enable
+another. Once enabled, loading starts automatically after sign-in when the
+signer is ready. No wallet discovery or decryption is requested while disabled.
+It never creates a wallet or trusts mints automatically. Signer failures offer a
+manual retry instead of repeated prompts.
+
+Switching off stops wallet subscriptions, settlement checks and further signer
+requests, and clears the loaded balance. It keeps funds, encrypted recovery data
+and the published receiving information. It does not delete the wallet or
+withdraw an existing NIP-61 advertisement. An already-dispatched mint operation
+may finish saving its recovery result; its spend lock is held until then.
+Re-enable to resume from the saved state. Changes to the preference propagate to
+other tabs. **Lock wallet** remains a temporary action: it keeps the enabled
+wallet closed during the current page session, including route changes;
+reloading starts loading again only if the wallet is enabled.
+
+External Lightning invoice/QR, copy and browser-wallet payment remain available
+while the NIP-60 wallet is off. Cashu payment and nutzap controls are offered only
+when enabled; CVM checkout offers its wallet payment button only after the wallet
+has loaded. Its external invoice fallback remains available. A recipient with
+only nutzap receiving information has no unusable zap button while disabled.
 
 The header popover starts with the balance, mint selector and four actions:
 receive/pay Lightning and receive/send Cashu. Each action replaces the menu with

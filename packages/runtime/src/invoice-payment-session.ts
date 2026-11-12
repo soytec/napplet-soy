@@ -28,6 +28,9 @@ type Record = InvoicePaymentTransfer & {
   backendId?: string;
 };
 export interface InvoicePaymentBackend {
+  /** Shell-only availability; absent means the backend is always available. */
+  available?: () => boolean;
+  subscribeAvailability?: (listener: () => void) => () => void;
   prepare(
     invoice: string,
     signal: AbortSignal,

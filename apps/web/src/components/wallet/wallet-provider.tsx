@@ -7,6 +7,12 @@ import type { WalletRuntime } from '@/lib/wallet-runtime';
 import type { WalletTransaction } from '../../../../../packages/wallet/src/types';
 import type { NostrEvent } from 'nostr-tools';
 import {
+  notifyWalletAvailability,
+  setWalletEnabled,
+  useWalletEnabled,
+  walletEnabled,
+} from '@/lib/wallet-preference';
+import {
   settlementCandidates,
   transactionFeedback,
 } from '../../../../../packages/wallet/src/settlement';
@@ -38,6 +44,8 @@ const initial: Snapshot = {
 };
 const Context = createContext<
   | (Snapshot & {
+      enabled: boolean;
+      setEnabled: (enabled: boolean) => void;
       open: () => Promise<void>;
       lock: () => void;
       run: <T>(fn: (r: WalletRuntime) => Promise<T>) => Promise<T | undefined>;
@@ -47,19 +55,37 @@ const Context = createContext<
 >(null);
 export function WalletProvider({ children }: { children: ReactNode }) {
   const { pubkey, ready, needsReconnect, connect } = useNostr();
+  const enabled = useWalletEnabled(pubkey);
   const [state, setState] = useState(initial);
   const active = useRef<
-    | { runtime: WalletRuntime; subs: Subscription; release: () => void; loading: boolean }
+    | {
+        runtime: WalletRuntime;
+        subs: Subscription;
+        release: () => void;
+        loading: boolean;
+        running: boolean;
+        retired: boolean;
+        settled?: Promise<void>;
+      }
     | undefined
   >(undefined);
+  const opening = useRef<AbortController | undefined>(undefined);
   const generation = useRef(0),
     working = useRef(false),
     autoOpened = useRef<string | null>(null);
   const lock = () => {
     generation.current++;
-    active.current?.runtime.close();
-    active.current?.subs.unsubscribe();
-    active.current?.release();
+    opening.current?.abort();
+    opening.current = undefined;
+    const current = active.current;
+    if (current) {
+      current.retired = true;
+      current.runtime.close(current.settled);
+      current.subs.unsubscribe();
+      // A dispatched mint request cannot be recalled. Keep the spend lease until
+      // it settles and its recovery journal is saved, even when the UI is off.
+      if (!current.running) current.release();
+    }
     active.current = undefined;
     working.current = false;
     setState(initial);
@@ -68,9 +94,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     autoOpened.current = null;
     lock();
     return lock;
-  }, [pubkey]);
+  }, [pubkey, enabled]);
   useEffect(() => {
-    if (!pubkey || !ready || needsReconnect || autoOpened.current === pubkey) return;
+    if (!enabled || !pubkey || !ready || needsReconnect || autoOpened.current === pubkey) return;
     // Wait for restored signers. Cancel the scheduled attempt during effect
     // cleanup; explicit locks and failed attempts must not cause reopen loops.
     const timer = setTimeout(() => {
@@ -78,16 +104,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       void open();
     }, 0);
     return () => clearTimeout(timer);
-  }, [pubkey, ready, needsReconnect]);
+  }, [pubkey, ready, needsReconnect, enabled]);
   const open = async () => {
     if (!pubkey) {
       await connect();
       return;
     }
+    if (!walletEnabled(pubkey)) return;
     if (active.current || working.current) return;
     autoOpened.current = pubkey;
     working.current = true;
     const turn = generation.current;
+    const controller = new AbortController();
+    opening.current = controller;
     setState((s) => ({
       ...s,
       busy: true,
@@ -129,14 +158,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         release();
         return;
       }
-      const runtime = await openWallet(pubkey);
+      const runtime = await openWallet(pubkey, controller.signal);
       if (turn !== generation.current) {
         runtime.close();
         release();
         return;
       }
       const subs = new Subscription();
-      active.current = { runtime, subs, release, loading: false };
+      active.current = { runtime, subs, release, loading: false, running: false, retired: false };
       const update = (patch: Partial<Snapshot>) => {
         if (active.current?.runtime === runtime) setState((s) => ({ ...s, ...patch }));
       };
@@ -188,13 +217,27 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       if (turn === generation.current)
         setState((s) => ({ ...s, busy: false, error: walletErrorMessage(error), progress: '' }));
     } finally {
+      if (opening.current === controller) opening.current = undefined;
       if (turn === generation.current) working.current = false;
     }
   };
   const run = async <T,>(fn: (r: WalletRuntime) => Promise<T>): Promise<T | undefined> => {
     const current = active.current;
-    if (!current || working.current || current.loading) return;
+    if (
+      !enabled ||
+      !walletEnabled(pubkey) ||
+      !current ||
+      current.runtime.pubkey !== pubkey ||
+      working.current ||
+      current.loading
+    )
+      return;
     working.current = true;
+    current.running = true;
+    let settle!: () => void;
+    current.settled = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
     setState((s) => ({ ...s, busy: true, error: '', progress: '', notice: '' }));
     try {
       const before = new Map(
@@ -216,19 +259,29 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       if (active.current === current) setState((s) => ({ ...s, error: walletErrorMessage(error) }));
       return undefined;
     } finally {
+      settle();
+      current.running = false;
+      if (current.retired) current.release();
       if (active.current === current) {
         working.current = false;
         setState((s) => ({ ...s, busy: false }));
       }
     }
   };
-  const visible = state.runtime && state.runtime.pubkey !== pubkey ? initial : state;
+  const visible = !enabled || (state.runtime && state.runtime.pubkey !== pubkey) ? initial : state;
+  useEffect(() => notifyWalletAvailability(), [enabled, visible.runtime]);
   return (
     <Context.Provider
       value={{
         ...visible,
         busy: visible.busy || visible.loading,
         progress: visible.progress || (visible.loading ? 'Syncing and unlocking your wallet…' : ''),
+        enabled,
+        setEnabled: (value) => {
+          if (!pubkey) return;
+          if (!value) lock();
+          setWalletEnabled(pubkey, value);
+        },
         open,
         lock,
         run,
