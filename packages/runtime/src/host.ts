@@ -1,3 +1,4 @@
+import { NappletTools } from './webmcp/session';
 import { shellActivity } from './shell-ui';
 import { fipsHost } from './fips/host';
 import type { InvoicePaymentBackend } from './invoice-payment-session';
@@ -48,6 +49,8 @@ export type HostOptions = {
   /** Trusted shell catalog/lifecycle broker; the frame cannot supply these values. */
   intent?: { workspace: IntentWorkspace; catalogId: string };
   llm?: LlmService;
+  /** Trusted shell-owned tool inspector; omitted on untrusted review/capture surfaces. */
+  agentTools?: (session: NappletTools | null) => void;
   cvmPayments?: InvoicePaymentBackend;
   /** Disable even external-wallet checkout in untrusted review previews. */
   disableCvmPayments?: boolean;
@@ -141,6 +144,10 @@ export function attachNappletHost(options: HostOptions) {
       undefined,
       options.outboxPolicy,
     );
+    const tools = options.agentTools
+      ? new NappletTools(options.title ?? 'Napplet', options.identity, sendScoped)
+      : undefined;
+    if (tools) options.agentTools?.(tools);
     const files = new NappletFiles(sendScoped, (value) => {
       if (active && alive) options.files(value);
     });
@@ -503,6 +510,7 @@ export function attachNappletHost(options: HostOptions) {
       handle,
       fips,
       media,
+      tools,
       diagnostics: () => webrtc?.diagnostics() ?? Promise.resolve([]),
       send: sendScoped,
       cancel: (id: string) => resources.get(id)?.abort(),
@@ -522,6 +530,7 @@ export function attachNappletHost(options: HostOptions) {
         requests.clear();
         answer?.(false);
         fips.close(reason !== 'Identity changed');
+        tools?.close();
         media.close();
         backend?.close();
         webrtc?.close();
@@ -650,6 +659,17 @@ export function attachNappletHost(options: HostOptions) {
       } catch {
         /* Invalid structured data has no authority. */
       }
+      return;
+    }
+    if (message.type.startsWith('webmcp.')) {
+      if (account.tools) account.tools.handle(message);
+      else if (message.id)
+        send({
+          type: `${message.type}.result`,
+          profile: 'soy.webmcp/1',
+          id: message.id,
+          error: { code: 'unsupported', message: 'Agent tools are unavailable in this surface.' },
+        });
       return;
     }
     // Sender authority was bound before the iframe could execute. SHELL is an
@@ -872,6 +892,7 @@ export function attachNappletHost(options: HostOptions) {
     account.close('Player closed');
     config.close();
     keys.close();
+    options.agentTools?.(null);
     options.configuration?.(null);
     options.media?.(null);
     options.files([]);

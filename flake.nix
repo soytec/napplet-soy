@@ -80,6 +80,7 @@
             ./docs/DYNAMIC-BACKENDS-CREATOR.md
             ./docs/SHARED-DATA.md
             ./docs/FIPS-CREATOR.md
+            ./docs/WEBMCP.md
             ./docs/OUTBOX.md
             ./docs/examples/coordinated-audio.ts
           ]

@@ -1,5 +1,6 @@
 import { RUNTIME_DOMAINS } from './capabilities';
 import { validateConfigSchema } from './config-schema';
+import { createWebmcpBinding } from './webmcp/binding';
 import { createFipsBinding } from './fips/binding';
 
 /**
@@ -53,6 +54,6 @@ export function nappletPrelude(shim: string, declaration?: { schema?: unknown })
       },
     });
   })();`;
-  const options = `{domains:${JSON.stringify(RUNTIME_DOMAINS)},resourceProfile:(${createFipsBinding.toString()})}`;
+  const options = `{domains:${JSON.stringify(RUNTIME_DOMAINS)},resourceProfile:(${createFipsBinding.toString()}),toolProfile:(${createWebmcpBinding.toString()})}`;
   return `${WEBRTC_REMOVAL}\n${shim}\nglobalThis.NappletShimPrelude.install(${options});\n${config}`;
 }

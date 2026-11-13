@@ -90,9 +90,12 @@ test('uploaded source starts the CLI and scaffolds its bundled creator guides', 
     expect(await Bun.file(join(directory, 'example/docs/napplet-fips.md')).text()).toBe(
       await Bun.file(join(root, 'docs/FIPS-CREATOR.md')).text(),
     );
-    expect(await Bun.file(join(directory, 'example/docs/examples/fips-resource-client.ts')).text()).toBe(
-      await Bun.file(join(root, 'packages/resource-client/src/index.ts')).text(),
+    expect(await Bun.file(join(directory, 'example/docs/napplet-webmcp.md')).text()).toBe(
+      await Bun.file(join(root, 'docs/WEBMCP.md')).text(),
     );
+    expect(
+      await Bun.file(join(directory, 'example/docs/examples/fips-resource-client.ts')).text(),
+    ).toBe(await Bun.file(join(root, 'packages/resource-client/src/index.ts')).text());
     expect(
       await Bun.file(join(directory, 'example/docs/examples/coordinated-audio.ts')).text(),
     ).toBe(await Bun.file(join(root, 'docs/examples/coordinated-audio.ts')).text());

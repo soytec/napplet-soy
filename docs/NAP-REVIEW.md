@@ -713,3 +713,14 @@ In particular, no timeout-triggered duplicate JSON send, no implicit peer downgr
 no invented loss statistic, and no durable-profile claim for guest keys.
 Implementation and local verification do not constitute deployment or independent
 shell interoperability.
+
+## Local NAP-WEBMCP reference — 2026-11-13
+
+Experimental `soy.webmcp/1` implements typed app-to-shell registration, correlated
+calls/results, cancellation, separate exposure grants and optional browser
+projection. This is our implementation choice, not an upstream accepted domain.
+No new iframe permission or channel is introduced. Browser API review pin:
+`webmachinelearning/webmcp@56b8e7a74a312c4298858f8211388a536b835339`.
+The selected NIP-5D authority remains unchanged. Public implementation behavior and
+bounds are in [WEBMCP.md](WEBMCP.md); a future upstream proposal must retain its own
+normative/implementation distinction and keep reference links in the PR discussion.
