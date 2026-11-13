@@ -83,6 +83,7 @@ export async function createDeploymentArchive(archive: string) {
     'docs/SHARED-DATA.md',
     'docs/OUTBOX.md',
     'docs/FIPS-CREATOR.md',
+    'docs/WEBMCP.md',
     'docs/examples/coordinated-audio.ts',
     'docs/RUNTIME-ACTIONS.md',
     'docs/CONTROLLERS.md',

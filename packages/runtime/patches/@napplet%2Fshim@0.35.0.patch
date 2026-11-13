@@ -93,7 +93,7 @@ diff --git a/dist/prelude.global.js b/dist/prelude.global.js
          close: close2,
          onEvent: onEvent2
        };
-@@ -5596,7 +5623,21 @@
+@@ -5596,7 +5623,33 @@
      return options.domains.filter((domain) => KNOWN_DOMAINS.has(domain));
    }
    function installNappletRuntimePrelude(options) {
@@ -111,6 +111,18 @@ diff --git a/dist/prelude.global.js b/dist/prelude.global.js
 +        })
 +      );
 +      Object.defineProperty(napplet.resource, "soyFips", { value: binding, enumerable: true });
++    }
++    // Experimental tool registration stays on the same private NIP-5D port.
++    if (typeof options.toolProfile === "function" && !napplet.webmcp) {
++      const binding = options.toolProfile(
++        message => {
++          if (["webmcp.register", "webmcp.unregister", "webmcp.reset", "webmcp.complete", "webmcp.progress"].includes(message?.type) && message.profile === "soy.webmcp/1") postToShell(message);
++        },
++        callback => onShellMessage(message => {
++          if (["webmcp.register.result", "webmcp.unregister.result", "webmcp.reset.result", "webmcp.invoke", "webmcp.cancel", "webmcp.changed"].includes(message.type) && message.profile === "soy.webmcp/1") callback(message);
++        })
++      );
++      Object.defineProperty(napplet, "webmcp", { value: binding, enumerable: true });
 +    }
 +    return napplet;
    }

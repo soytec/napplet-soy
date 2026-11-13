@@ -546,3 +546,11 @@ The current reference implementation follows NAP-WEBRTC #145 at
 WebRTC pin above. The selected NIP-5D authority is unchanged. Reliable JSON
 remains supported. See [WebRTC realtime delivery](WEBRTC-REALTIME.md) for the
 optional byte/delivery API, exact limits, local signaling extension and evidence.
+
+### Optional tool exposure experiment
+
+The local `soy.webmcp/1` profile offers typed document tools over the existing
+private channel. It is not an accepted NAP and does not change the NIP-5D authority
+or sandbox. Registration starts withheld; shell/internal and native browser-agent
+consent are separate. See [WEBMCP.md](WEBMCP.md) for wire semantics, limits,
+revocation and verification boundaries. Ordinary playback never requires it.

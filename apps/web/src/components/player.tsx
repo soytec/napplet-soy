@@ -38,6 +38,8 @@ import {
 import type { ExportFile } from '../../../../packages/runtime/src/filesystem';
 import { declaredConfig } from '../../../../packages/runtime/src/config-schema';
 import type { NappletConfig } from '../../../../packages/runtime/src/config-session';
+import { AgentToolsControl } from '../../../../packages/runtime/src/webmcp/control';
+import type { NappletTools } from '../../../../packages/runtime/src/webmcp/session';
 import { SettingsControl } from '../../../../packages/runtime/src/settings-panel';
 import { MediaControls } from '../../../../packages/runtime/src/media-controls';
 import type { NappletMedia } from '../../../../packages/runtime/src/media-session';
@@ -104,6 +106,7 @@ export function Player({
   const { ready, pubkey } = useNostr();
   const [prompt, setPrompt] = useState<HostPrompt | null>(null);
   const [exports, setExports] = useState<ExportFile[]>([]);
+  const [agentTools, setAgentTools] = useState<NappletTools | null>(null);
   const [configuration, setConfiguration] = useState<NappletConfig | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [media, setMedia] = useState<NappletMedia | null>(null);
@@ -225,6 +228,7 @@ export function Player({
         prompt: setPrompt,
         files: setExports,
         declaration: declaration.current,
+        agentTools: reviewScope ? undefined : setAgentTools,
         configuration: setConfiguration,
         media: setMedia,
         // NIP-5D replacement evidence: the host already revoked every grant. Remove
@@ -509,6 +513,7 @@ export function Player({
                   <Expand size={17} />
                 </Button>
               )}
+              <AgentToolsControl session={agentTools} />
               {configuration && (
                 <SettingsControl
                   session={configuration}

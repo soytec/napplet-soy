@@ -22,6 +22,7 @@ import { setupDiagnostics } from './diagnostics';
 import { setupControllers } from './controllers';
 import { createRoot } from 'react-dom/client';
 import { createElement } from 'react';
+import { AgentToolsControl } from '../../../../packages/runtime/src/webmcp/control';
 import { SettingsControl } from '../../../../packages/runtime/src/settings-panel';
 import { MediaControls } from '../../../../packages/runtime/src/media-controls';
 import { declaredConfig } from '../../../../packages/runtime/src/config-schema';
@@ -84,10 +85,15 @@ const cancel = document.querySelector<HTMLButtonElement>('#cancel')!;
 const later = document.querySelector<HTMLButtonElement>('#later')!;
 const link = document.querySelector<HTMLAnchorElement>('#open-link')!;
 const exports = document.querySelector<HTMLElement>('#files')!;
+const toolsSlot = document.createElement('span');
+document.querySelector('#settings')!.before(toolsSlot);
+const toolsRoot = createRoot(toolsSlot);
 const settingsRoot = createRoot(document.querySelector('#settings')!);
 const mediaRoot = createRoot(document.querySelector('#media')!);
 const networkRoot = createRoot(document.querySelector('#network-settings')!);
-networkRoot.render(createElement('div', null, createElement(MultiplayerSettings), createElement(FipsSettings)));
+networkRoot.render(
+  createElement('div', null, createElement(MultiplayerSettings), createElement(FipsSettings)),
+);
 let settingsOpen = false;
 function settingsChanged(open: boolean) {
   settingsOpen = open;
@@ -310,6 +316,7 @@ async function refresh() {
       prompt: showPrompt,
       files: showFiles,
       declaration,
+      agentTools: (session) => toolsRoot.render(createElement(AgentToolsControl, { session })),
       configuration: (session) =>
         settingsRoot.render(
           session
@@ -337,6 +344,7 @@ async function refresh() {
 window.addEventListener('pagehide', () => {
   lifetime.abort();
   host?.close();
+  toolsRoot.unmount();
   settingsRoot.unmount();
   mediaRoot.unmount();
   networkRoot.unmount();
