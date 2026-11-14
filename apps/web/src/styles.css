@@ -3756,3 +3756,10 @@ dialog[data-shell-layer]::backdrop {
     animation: none;
   }
 }
+
+/* Downloads must remain reachable when the fullscreen corner controls hide. */
+.host-files[hidden] { display: none; }
+.player-expanded > .host-files, .player-wrap:fullscreen > .host-files {
+  padding: .5rem 1rem; background: var(--card); border-top: 1px solid var(--border);
+  max-height: 20dvh; overflow: auto; flex: 0 0 auto;
+}

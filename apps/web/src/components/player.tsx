@@ -1,3 +1,4 @@
+import { fileDownloads } from '../../../../packages/runtime/src/file-downloads';
 import { presentShellDialog } from '../../../../packages/runtime/src/shell-ui';
 import { useWallet } from './wallet/wallet-provider';
 import { cvmWalletPayments } from '@/lib/cvm-wallet-payments';
@@ -45,22 +46,20 @@ import { MediaControls } from '../../../../packages/runtime/src/media-controls';
 import type { NappletMedia } from '../../../../packages/runtime/src/media-session';
 
 function FileExports({ files }: { files: ExportFile[] }) {
-  const [downloads, setDownloads] = useState<{ name: string; url: string }[]>([]);
+  const ref = useRef<HTMLDivElement>(null);
+  const downloads = useRef<ReturnType<typeof fileDownloads> | null>(null);
   useEffect(() => {
-    const next = files.map((file) => ({ name: file.name, url: URL.createObjectURL(file.blob) }));
-    setDownloads(next);
-    return () => next.forEach((file) => URL.revokeObjectURL(file.url));
+    downloads.current = fileDownloads(ref.current!);
+    return () => {
+      downloads.current?.close();
+      downloads.current = null;
+    };
+  }, []);
+  useEffect(() => {
+    downloads.current?.update(files);
   }, [files]);
-  if (!downloads.length) return null;
   return (
-    <div className="host-files">
-      <span>Session files · download before closing</span>
-      {downloads.map((file) => (
-        <a key={file.name} href={file.url} download={file.name.split('/').pop()}>
-          {file.name} ↓
-        </a>
-      ))}
-    </div>
+    <div ref={ref} className="host-files" aria-label="Session downloads" hidden={!files.length} />
   );
 }
 
@@ -412,7 +411,10 @@ export function Player({
               </p>
               <FilePicker prompt={prompt} />
               {prompt.kind === 'save' && (
-                <p>The file will appear below the player for you to download.</p>
+                <p>
+                  A Download button will appear when the napplet writes the file. Download it before
+                  closing this session.
+                </p>
               )}
               <div>
                 <Button variant="outline" onClick={() => prompt.answer(false)}>
@@ -453,6 +455,7 @@ export function Player({
             </dialog>
           )}
         </div>
+        <FileExports files={exports} />
         <PlayerChrome
           expanded={expanded || embedded}
           embedded={embedded && !expanded}
@@ -463,7 +466,6 @@ export function Player({
           returnLabel={returnLabel}
           onExit={leave}
         >
-          <FileExports files={exports} />
           {media && <MediaControls media={media} />}
           <div className="player-controls">
             <span>

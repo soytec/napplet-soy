@@ -181,3 +181,53 @@ test('malformed terminal results release the queue; pre-dispatch abort never exe
   expect(await next).toEqual({ revision: 1 });
   f.session.close();
 });
+
+test('master switch revokes every document and native projection; enabling never restores grants', async () => {
+  const { setWebmcpEnabled } = await import('./preference');
+  const a = fixture(),
+    b = fixture(),
+    registered = new Map<string, unknown>();
+  const dispose = projectBrowserTools(
+    a.session,
+    {
+      registerTool(t: any, options: any) {
+        registered.set(t.name, t);
+        options.signal.addEventListener('abort', () => registered.delete(t.name));
+      },
+    } as any,
+    () => {},
+  );
+  try {
+    expect(a.session.snapshot().enabled).toBe(true);
+    a.session.grant('shell', true);
+    a.session.grant('browser', true);
+    b.session.grant('shell', true);
+    await Promise.resolve();
+    expect(registered.size).toBe(1);
+    const active = a.session.invoke(a.entry.id, { revision: 0 }, 'shell').catch((e) => e);
+    const queued = a.session.invoke(a.entry.id, { revision: 0 }, 'shell').catch((e) => e);
+    setWebmcpEnabled(false);
+    expect((await active).code).toBe('permission-denied');
+    expect((await queued).code).toBe('permission-denied');
+    expect(registered.size).toBe(0);
+    expect(b.session.snapshot().grants).toEqual([]);
+    a.session.grant('shell', true);
+    expect(a.session.snapshot().grants).toEqual([]);
+    const later = fixture();
+    later.session.grant('shell', true);
+    expect(later.session.snapshot().grants).toEqual([]);
+    later.session.close();
+    setWebmcpEnabled(true);
+    expect(a.session.snapshot().grants).toEqual([]);
+    a.complete();
+    a.session.grant('shell', true);
+    const result = a.session.invoke(a.entry.id, { revision: 0 }, 'shell');
+    a.complete();
+    expect(await result).toEqual({ revision: 1 });
+  } finally {
+    dispose();
+    a.session.close();
+    b.session.close();
+    setWebmcpEnabled(true);
+  }
+});

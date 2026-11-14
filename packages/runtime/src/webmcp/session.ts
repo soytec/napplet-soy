@@ -1,3 +1,4 @@
+import { webmcpEnabled, subscribeWebmcp } from './preference';
 import {
   WEBMCP_PROFILE,
   descriptor,
@@ -35,12 +36,21 @@ export class NappletTools {
   private changes = 0;
   private window = Date.now();
   private message = 'Tools are private until you allow access.';
+  private unsubscribePreference: () => void;
   constructor(
     readonly title: string,
     readonly identity: string,
     private send: Sender,
     private timeoutMs = 120000,
-  ) {}
+  ) {
+    this.unsubscribePreference = subscribeWebmcp(() => {
+      if (!webmcpEnabled()) {
+        for (const consumer of [...this.grants]) this.grant(consumer, false);
+        this.message = 'WebMCP is off in account settings. Completed edits are not undone.';
+      }
+      this.changed();
+    });
+  }
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
     return () => {
@@ -59,6 +69,7 @@ export class NappletTools {
       title: this.title,
       identity: this.identity,
       closed: this.closed,
+      enabled: webmcpEnabled(),
       grants: [...this.grants],
       tools: [...this.entries.values()].map((e) => structuredClone(e)),
       message: this.message,
@@ -73,7 +84,7 @@ export class NappletTools {
     };
   }
   grant(consumer: Consumer, allowed: boolean) {
-    if (this.closed) return;
+    if (this.closed || (allowed && !webmcpEnabled())) return;
     if (allowed) this.grants.add(consumer);
     else {
       this.grants.delete(consumer);
@@ -339,6 +350,7 @@ export class NappletTools {
     );
   }
   close() {
+    this.unsubscribePreference();
     if (this.closed) return;
     this.stop();
     this.closed = true;

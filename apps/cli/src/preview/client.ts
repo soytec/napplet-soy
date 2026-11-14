@@ -1,3 +1,5 @@
+import { presentShellDialog } from '../../../../packages/runtime/src/shell-ui';
+import { fileDownloads } from '../../../../packages/runtime/src/file-downloads';
 import { inferenceService } from '../../../../packages/runtime/src/llm-service';
 import { ConnectionsDialog } from '../../../studio/connections-ui';
 import type { ConnectionState } from '../../../studio/connections-model';
@@ -102,7 +104,7 @@ function settingsChanged(open: boolean) {
 let host: ReturnType<typeof attachNappletHost> | undefined;
 let frame: HTMLIFrameElement | undefined;
 let choice: HostPrompt | null = null;
-let urls: string[] = [];
+
 let loaded = '';
 let pubkey: string | null = null;
 let viewerSigner: ExtensionSigner | undefined;
@@ -149,6 +151,7 @@ detail.style.overflowWrap = 'anywhere';
 detail.style.maxHeight = '50vh';
 detail.style.overflowY = 'auto';
 filePicker.onchange = () => choice?.selectFiles?.(Array.from(filePicker.files ?? []));
+let closePrompt: (() => void) | undefined;
 function showPrompt(prompt: HostPrompt | null) {
   choice = prompt;
   filePicker.value = '';
@@ -159,12 +162,13 @@ function showPrompt(prompt: HostPrompt | null) {
   else filePicker.removeAttribute('webkitdirectory');
   if (frame) frame.inert = prompt !== null || settingsOpen;
   if (!prompt) {
-    dialog.close();
+    closePrompt?.();
+    closePrompt = undefined;
     return;
   }
   detail.textContent =
     prompt.kind === 'save'
-      ? `Save ${prompt.value}? It will appear below for download.`
+      ? `Save ${prompt.value}? A Download button will appear when the napplet writes the file.`
       : prompt.value;
   confirm.hidden = prompt.kind === 'link' || prompt.kind === 'files';
   confirm.textContent =
@@ -183,7 +187,7 @@ function showPrompt(prompt: HostPrompt | null) {
   later.hidden = prompt.kind !== 'multiplayer';
   link.hidden = prompt.kind !== 'link';
   if (prompt.kind === 'link') link.href = prompt.value;
-  if (!dialog.open) dialog.showModal();
+  closePrompt ??= presentShellDialog(dialog);
   cancel.focus();
 }
 confirm.onclick = () => choice?.answer(true);
@@ -195,20 +199,12 @@ dialog.oncancel = (event) => {
   choice?.dismiss();
 };
 
+const downloads = fileDownloads(exports);
 function showFiles(files: ExportFile[]) {
-  urls.forEach((url) => URL.revokeObjectURL(url));
-  urls = [];
-  exports.replaceChildren(
-    ...files.map((file) => {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(file.blob);
-      urls.push(a.href);
-      a.download = file.name.split('/').pop()!;
-      a.textContent = `${file.name} ↓`;
-      return a;
-    }),
-  );
+  downloads.update(files);
 }
+window.addEventListener('pagehide', () => downloads.close());
+
 const connect = document.querySelector<HTMLButtonElement>('#connect')!;
 connect.onclick = async () => {
   connect.disabled = true;

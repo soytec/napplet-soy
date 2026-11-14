@@ -22,6 +22,7 @@ import { defaultSignerRelays } from '../../../../packages/identity/src/signer';
 import { CreateKeyPanel, KeyBackup } from './key-backup';
 import { useStudio } from './studio-provider';
 import { IntentHandlerSettings } from './intent-handler-settings';
+import { WebmcpSwitch } from './webmcp-switch';
 import { WalletSwitch } from './wallet/wallet-access';
 import { FipsIndicator } from './fips-indicator';
 
@@ -154,6 +155,7 @@ export function IdentityMenu({
           reloads on this device for 30 days. Browsing and creating need no website account.
         </p>
       )}
+      {!identity.pubkey && <WebmcpSwitch />}
       {identity.pubkey && (
         <div className="identity-current">
           <span className="muted">
@@ -166,6 +168,7 @@ export function IdentityMenu({
           </span>
           <code className="public-key">{identity.pubkey}</code>
           <WalletSwitch />
+          <WebmcpSwitch />
           <Button variant="outline" asChild>
             <Link to="/manage" hash="profile" onClick={() => changeOpen(false)}>
               Edit your profile

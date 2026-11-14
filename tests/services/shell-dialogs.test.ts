@@ -44,6 +44,25 @@ test('shell dialogs, capability discovery and feedback survive native/expanded p
     await frame.getByRole('button', { name: '0', exact: true }).click();
     await page.getByText('Fullscreen', { exact: true }).click();
     await page.waitForFunction(() => !!document.fullscreenElement);
+    // Actual FS writes coalesce into a persistent, clickable top-layer download.
+    await page.evaluate(() => (window as any).writeDownload('%PDF-first'));
+    await page.evaluate(() => (window as any).writeDownload('-last', 'append'));
+    await page.getByRole('button', { name: 'Download', exact: true }).waitFor();
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download', exact: true }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toBe('pattern.pdf');
+    expect(await Bun.file((await file.path())!).text()).toBe('%PDF-first-last');
+    await page.getByText('Wallet', { exact: true }).click();
+    expect(await page.locator('.shell-notices').evaluate((e) => !!e.closest('dialog:modal'))).toBe(
+      true,
+    );
+    await page.getByText('Cancel payment', { exact: true }).click();
+    expect(await page.getByRole('button', { name: 'Download', exact: true }).isVisible()).toBe(
+      true,
+    );
+    await page.evaluate(() => (window as any).clearDownloads());
+    expect(await page.getByRole('button', { name: 'Download', exact: true }).count()).toBe(0);
     await page.getByText('Choose model', { exact: true }).click();
     await page
       .getByText('Loading your AI connections… Approve the account request if asked.', {

@@ -38,7 +38,7 @@ type Entry = {
   revision: string;
   modifiedAt: number;
 };
-export type ExportFile = { name: string; blob: Blob };
+export type ExportFile = { name: string; blob: Blob; revision?: string };
 export const pickOptionsSchema = z
   .object({
     permissions: z
@@ -121,6 +121,7 @@ export class NappletFiles {
         .filter((e) => e.kind === 'file')
         .map((e) => ({
           name: e.path.slice(7),
+          revision: e.revision,
           blob: new Blob([e.data as Uint8Array<ArrayBuffer>], { type: 'application/octet-stream' }),
         })),
     );
