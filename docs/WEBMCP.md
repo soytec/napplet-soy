@@ -17,6 +17,22 @@ Stop cancels calls; Revoke also withdraws access. No chat or inference loop is
 included. The inspector is a manual consumer of the same dispatcher a future
 shell agent would use.
 
+## Browser-wide switch and exports
+
+Account & settings includes a **WebMCP** switch, enabled by default and stored
+only in this browser. This enables availability, never document access. Turning
+it off immediately revokes both grants in every live session, cancels running and
+queued calls, and withdraws native browser tools. Turning it back on requires
+fresh document approval. Manual napplet controls keep working.
+
+NAP-FS exports show an explicit **Download** notification and persistent file
+links outside the player's auto-hiding controls. This works in expanded and native
+fullscreen players and the local soyLI preview. Notifications remain actionable
+above trusted dialogs, including nested file/payment prompts. Download buttons
+save the latest host session copy; they do not claim that a file has already been
+saved to disk. Chunked writes update the link after a short quiet interval; close
+the napplet only after downloading the needed files.
+
 ## Authoring
 
 Use deliberate document operations with the same validation, state and undo

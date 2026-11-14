@@ -1,4 +1,6 @@
-import React, { useRef, useState } from 'react';
+import { fileDownloads } from '../../packages/runtime/src/file-downloads';
+import { NappletFiles } from '../../packages/runtime/src/filesystem';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { usePlayerPresentation } from '../../apps/web/src/lib/use-player-presentation';
 import { inferenceService } from '../../packages/runtime/src/llm-service';
@@ -31,6 +33,27 @@ Object.assign(window, {
 });
 function App() {
   const wrapper = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const container = document.createElement('div');
+    wrapper.current!.append(container);
+    const downloads = fileDownloads(container);
+    const files = new NappletFiles(
+      () => {},
+      (value) => downloads.update(value),
+    );
+    Object.assign(window, {
+      writeDownload: (data: string, mode = 'replace') =>
+        files.handle(
+          { type: 'fs.write', path: '/files/pattern.pdf', data: btoa(data), options: { mode } },
+          async () => true,
+        ),
+      clearDownloads: () => downloads.update([]),
+    });
+    return () => {
+      downloads.close();
+      container.remove();
+    };
+  }, []);
   const [settings, setSettings] = useState(false);
   const [wallet, setWallet] = useState(false);
   const [result, setResult] = useState('');

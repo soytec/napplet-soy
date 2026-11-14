@@ -11,6 +11,24 @@ export function activeShellDialog() {
   return [...dialogs].reverse().find((dialog) => dialog.isConnected && dialog.open) ?? null;
 }
 
+function listenForFullscreen() {
+  if (!listening) {
+    listening = true;
+    document.addEventListener('fullscreenchange', () => {
+      // A fullscreen element can have entered the top layer after an existing prompt.
+      const focused = document.activeElement;
+      for (const current of dialogs) {
+        if (!current.isConnected || !current.open) continue;
+        current.close();
+        current.showModal();
+      }
+      if (focused instanceof HTMLElement && focused.isConnected)
+        focused.focus({ preventScroll: true });
+      placeNotices();
+    });
+  }
+}
+
 /** Native top-layer dialogs stay above both an expanded player and browser fullscreen. */
 export function presentShellDialog(dialog: HTMLDialogElement) {
   const previous = document.activeElement;
@@ -29,21 +47,7 @@ export function presentShellDialog(dialog: HTMLDialogElement) {
   dialog.addEventListener('close', closed);
   if (!dialog.open) dialog.showModal();
   dialogs.push(dialog);
-  if (!listening) {
-    listening = true;
-    document.addEventListener('fullscreenchange', () => {
-      // A fullscreen element can have entered the top layer after an existing prompt.
-      const focused = document.activeElement;
-      for (const current of dialogs) {
-        if (!current.isConnected || !current.open) continue;
-        current.close();
-        current.showModal();
-      }
-      if (focused instanceof HTMLElement && focused.isConnected)
-        focused.focus({ preventScroll: true });
-      placeNotices();
-    });
-  }
+  listenForFullscreen();
   placeNotices();
   let disposed = false;
   return () => {
@@ -65,14 +69,22 @@ let notices: HTMLDivElement | undefined;
 function placeNotices() {
   if (!notices?.childElementCount) return;
   const active = [...dialogs].reverse().find((d) => d.isConnected && d.open);
-  const owner = active?.querySelector('[data-slot=dialog-content]') ?? active ?? document.body;
+  const owner =
+    active?.querySelector('[data-slot=dialog-content]') ??
+    active ??
+    document.fullscreenElement ??
+    document.body;
   if (notices.parentElement !== owner) owner.append(notices);
   if (notices.matches(':popover-open')) notices.hidePopover();
   notices.showPopover();
 }
 
 /** One changing notice per operation, rather than a new toast for every poll or token. */
-export function shellActivity(message: string, signal?: AbortSignal) {
+export function shellActivity(
+  message: string,
+  signal?: AbortSignal,
+  action?: { label: string; run: () => void },
+) {
   if (typeof document === 'undefined' || signal?.aborted)
     return {
       update: (_: string) => {},
@@ -80,6 +92,7 @@ export function shellActivity(message: string, signal?: AbortSignal) {
       error: (_: string) => {},
       dismiss: () => {},
     };
+  listenForFullscreen();
   if (!notices) {
     notices = document.createElement('div');
     notices.popover = 'manual';
@@ -117,6 +130,7 @@ export function shellActivity(message: string, signal?: AbortSignal) {
   const icon = document.createElement('span');
   icon.setAttribute('aria-hidden', 'true');
   const label = document.createElement('span');
+  Object.assign(label.style, { minWidth: '0', overflowWrap: 'anywhere' });
   label.setAttribute('role', 'status');
   label.setAttribute('aria-live', 'polite');
   const close = document.createElement('button');
@@ -130,7 +144,23 @@ export function shellActivity(message: string, signal?: AbortSignal) {
     background: 'none',
     border: '0',
   });
-  item.append(icon, label, close);
+  item.append(icon, label);
+  if (action) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = action.label;
+    Object.assign(button.style, {
+      padding: '6px 10px',
+      borderRadius: '6px',
+      border: '1px solid currentColor',
+      color: 'inherit',
+      background: 'transparent',
+      cursor: 'pointer',
+    });
+    button.onclick = action.run;
+    item.append(button);
+  }
+  item.append(close);
   notices.append(item);
   let timer: ReturnType<typeof setTimeout> | undefined;
   let dismissed = false;
@@ -151,7 +181,7 @@ export function shellActivity(message: string, signal?: AbortSignal) {
     icon.textContent = state === 'working' ? '◌' : state === 'success' ? '✓' : '!';
     label.textContent = text;
     placeNotices();
-    if (state === 'success') timer = setTimeout(dismiss, 4500);
+    if (state === 'success' && !action) timer = setTimeout(dismiss, 4500);
   };
   render(message, 'working');
   return {

@@ -103,6 +103,7 @@ export function AgentToolsControl({ session }: { session: NappletTools | null })
                 <input
                   type="checkbox"
                   checked={state.grants.includes('shell')}
+                  disabled={!state.enabled}
                   onChange={(e) => session.grant('shell', e.target.checked)}
                 />{' '}
                 Allow shell tool access for this document
@@ -111,15 +112,17 @@ export function AgentToolsControl({ session }: { session: NappletTools | null })
                 <input
                   type="checkbox"
                   checked={state.grants.includes('browser')}
-                  disabled={!native}
+                  disabled={!native || !state.enabled}
                   onChange={(e) => session.grant('browser', e.target.checked)}
                 />{' '}
                 Expose tools to browser agents
               </label>
               <small>
-                {native
-                  ? browserStatus || 'Browser WebMCP is available.'
-                  : 'This browser has no compatible native WebMCP API. The internal tool inspector still works.'}
+                {!state.enabled
+                  ? 'WebMCP is switched off. Enable it in Account & settings before granting document access.'
+                  : native
+                    ? browserStatus || 'Browser WebMCP is available.'
+                    : 'This browser has no compatible native WebMCP API. The internal tool inspector still works.'}
               </small>
             </div>
             <p role="status" aria-live="polite">
