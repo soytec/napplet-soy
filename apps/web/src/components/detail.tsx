@@ -15,6 +15,7 @@ import type { Napplet } from '../../../../packages/backend/src/catalog';
 import { NameButton } from './name-button';
 import { NappletSocial } from './social-panel';
 import { RemixButton } from './remix-button';
+import { NostrIdentifiers } from './nostr-identifiers';
 import { usePlayRoute } from '@/lib/use-play-route';
 import { publicDetailPath } from '../../../../packages/backend/src/public-model';
 
@@ -104,6 +105,11 @@ export function Detail({ napplet, pinned = false }: { napplet: Napplet; pinned?:
                   {napplet.snapshot.id.slice(0, 12)}…
                 </Link>
               </div>
+              <NostrIdentifiers
+                naddr={pinned ? null : napplet.naddr}
+                release={napplet.snapshot}
+                relays={napplet.relays ?? []}
+              />
             </aside>
           </div>
           <Genealogy manifest={pinned ? napplet.snapshot : napplet.current} />

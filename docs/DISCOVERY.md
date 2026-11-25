@@ -30,6 +30,12 @@ return link to that view, preserving its search, page and focused tile.
 A directly shared detail URL offers a link to Explore. Game Grid retains its
 controller search and inline launch behavior.
 
+Because detail URLs may be site aliases (`/@handle/slug`, `/a/…`), every detail
+page lists its Nostr identifiers with one-click copy: the `naddr` of the latest
+publication when the listing has one, and the `nevent` of the exact release shown
+there, carrying the listing's relay hints. Pinned release pages offer only the
+`nevent`. Both can be pasted into catalogue search or another Nostr client.
+
 Other gallery transitions filter the browser's existing catalog immediately; Nostr and
 Blossom enrichment runs in the background. Initial server-rendered entries remain
 available, and an empty browser catalog displays a discovery state until the read

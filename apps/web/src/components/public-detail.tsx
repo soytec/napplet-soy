@@ -23,6 +23,7 @@ import { missingDomains } from '../../../../packages/runtime/src/capabilities';
 import { NameButton } from './name-button';
 import { NappletSocial } from './social-panel';
 import { RemixButton } from './remix-button';
+import { NostrIdentifiers } from './nostr-identifiers';
 import { usePlayRoute } from '@/lib/use-play-route';
 import { socialScope } from '../../../../packages/protocol/src/social';
 
@@ -179,6 +180,11 @@ export function PublicDetail({
                     : `${(napplet.bytes / 1024).toFixed(1)} KB · single HTML`}
                 </strong>
               </div>
+              <NostrIdentifiers
+                naddr={pinned ? null : napplet.naddr}
+                release={napplet.manifest}
+                relays={napplet.relays ?? []}
+              />
             </aside>
           </div>
           <Genealogy manifest={napplet.manifest} />

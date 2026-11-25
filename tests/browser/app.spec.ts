@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { nip19 } from 'nostr-tools';
 import records from '../../packages/backend/data/catalog.json' with { type: 'json' };
 
 // Discover a visible tag and creation instead of depending on bundled examples.
@@ -132,6 +133,29 @@ test('portable and pinned source routes resolve; unknown addresses return 404', 
   expect(await artifact.text()).toContain('<canvas');
   expect((await request.get('/n/not-a-real-address')).status()).toBe(404);
   expect((await request.get('/@nobody/missing')).status()).toBe(404);
+});
+
+test('detail pages expose copyable naddr and release nevent', async ({ page, context }) => {
+  const n = records[0];
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto(`/n/${n.naddr}`);
+  await expect(page.getByTestId('napplet-naddr')).toHaveText(n.naddr);
+  const nevent = page.getByTestId('napplet-nevent');
+  await expect(nevent).toHaveText(/^nevent1/);
+  const decoded = nip19.decode((await nevent.textContent())!);
+  expect(decoded.type).toBe('nevent');
+  expect(decoded.data).toMatchObject({ id: n.snapshot.id, author: n.pubkey });
+  const copy = page.getByRole('button', { name: 'Copy naddr' });
+  // Retry until hydration attaches the click handler.
+  await expect(async () => {
+    await copy.click();
+    await expect(copy).toHaveAttribute('data-state', 'copied', { timeout: 1000 });
+  }).toPass();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(n.naddr);
+  // A pinned release has no moving address; only its own event is offered.
+  await page.goto(`/r/${n.snapshot.id}`);
+  await expect(page.getByTestId('napplet-naddr')).toHaveCount(0);
+  await expect(page.getByTestId('napplet-nevent')).toHaveText(/^nevent1/);
 });
 
 test('server-rendered gallery loads responsive styles without JavaScript', async ({
